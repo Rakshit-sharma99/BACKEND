@@ -40,7 +40,7 @@ jobs:
             sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-aarch64" -o /usr/local/lib/docker/cli-plugins/docker-compose
             sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
             echo "Testing Docker Compose installation:"
-            docker compose version || exit 1
+            docker-compose version || exit 1
           )
 
       - name: Checkout code
