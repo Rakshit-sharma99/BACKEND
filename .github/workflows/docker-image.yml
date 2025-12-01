@@ -20,13 +20,12 @@ jobs:
           echo "Current User:"; whoami
           echo "Runner user variable: $RUNNER_USER"
 
-          # Install Docker and compose plugin if missing
+          # Install Docker if missing, plus compose plugin (apt) to avoid arch mismatch
           if ! command -v docker >/dev/null 2>&1; then
             echo "Docker not installed, installing..."
             sudo apt update
             sudo apt install -y docker.io docker-compose-plugin
             sudo systemctl enable --now docker
-            # add runner user to docker group (so interactive logins can run docker without sudo)
             sudo usermod -aG docker "${RUNNER_USER}" || true
           else
             echo "Docker already installed: $(docker --version)"
@@ -36,11 +35,12 @@ jobs:
           sudo docker --version
           sudo docker ps -a || echo "sudo docker ps failed (daemon might not be ready)"
 
-          echo "Docker Compose (plugin) version:"
+          echo "Docker Compose (plugin) version (if available):"
           sudo docker compose version || echo "docker compose plugin not available"
 
           echo "Docker info (sudo):"
           sudo docker info || true
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -51,39 +51,56 @@ jobs:
           set -euo pipefail
           echo "=== Building and Deploying with Docker Compose ==="
 
-          # Ensure .env folders are in place inside workspace
-          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted
+          # If the server has a stored /home/<RUNNER_USER>/env, copy it into workspace env/
+          if [ -d "/home/${RUNNER_USER}/env" ]; then
+            echo "Copying /home/${RUNNER_USER}/env -> ./env"
+            sudo rm -rf ./env || true
+            sudo cp -r /home/${RUNNER_USER}/env ./env
+            sudo chown -R $(whoami):$(whoami) ./env || true
+            echo "Env folder copied."
+          else
+            echo "No /home/${RUNNER_USER}/env found on host; ensuring workspace env dirs exist."
+            mkdir -p env
+          fi
 
-          # Copy from /home/ubuntu env store if present (adjust path if your envs live elsewhere)
-          [ -f /home/ubuntu/env/badge/.env ] && cp /home/ubuntu/env/badge/.env env/badge/.env || echo "Warning: badge .env not found at /home/ubuntu/env/badge/.env"
-          [ -f /home/ubuntu/env/bag/.env ] && cp /home/ubuntu/env/bag/.env env/bag/.env || echo "Warning: bag .env not found at /home/ubuntu/env/bag/.env"
-          [ -f /home/ubuntu/env/blog/.env ] && cp /home/ubuntu/env/blog/.env env/blog/.env || echo "Warning: blog .env not found at /home/ubuntu/env/blog/.env"
-          [ -f /home/ubuntu/env/card/.env ] && cp /home/ubuntu/env/card/.env env/card/.env || echo "Warning: card .env not found at /home/ubuntu/env/card/.env"
-          [ -f /home/ubuntu/env/content/.env ] && cp /home/ubuntu/env/content/.env env/content/.env || echo "Warning: content .env not found at /home/ubuntu/env/content/.env"
-          [ -f /home/ubuntu/env/event/.env ] && cp /home/ubuntu/env/event/.env env/event/.env || echo "Warning: event .env not found at /home/ubuntu/env/event/.env"
-          [ -f /home/ubuntu/env/invitation/.env ] && cp /home/ubuntu/env/invitation/.env env/invitation/.env || echo "Warning: invitation .env not found at /home/ubuntu/env/invitation/.env"
-          [ -f /home/ubuntu/env/ipls/.env ] && cp /home/ubuntu/env/ipls/.env env/ipls/.env || echo "Warning: ipls .env not found at /home/ubuntu/env/ipls/.env"
-          [ -f /home/ubuntu/env/itinerary/.env ] && cp /home/ubuntu/env/itinerary/.env env/itinerary/.env || echo "Warning: itinerary .env not found at /home/ubuntu/env/itinerary/.env"
-          [ -f /home/ubuntu/env/joinLink/.env ] && cp /home/ubuntu/env/joinLink/.env env/joinLink/.env || echo "Warning: joinLink .env not found at /home/ubuntu/env/joinLink/.env"
-          [ -f /home/ubuntu/env/macbease_content/.env ] && cp /home/ubuntu/env/macbease_content/.env env/macbease_content/.env || echo "Warning: macbease_content .env not found at /home/ubuntu/env/macbease_content/.env"
-          [ -f /home/ubuntu/env/multiverse/.env ] && cp /home/ubuntu/env/multiverse/.env env/multiverse/.env || echo "Warning: multiverse .env not found at /home/ubuntu/env/multiverse/.env"
-          [ -f /home/ubuntu/env/offer/.env ] && cp /home/ubuntu/env/offer/.env env/offer/.env || echo "Warning: offer .env not found at /home/ubuntu/env/offer/.env"
-          [ -f /home/ubuntu/env/org/.env ] && cp /home/ubuntu/env/org/.env env/org/.env || echo "Warning: org .env not found at /home/ubuntu/env/org/.env"
-          [ -f /home/ubuntu/env/project/.env ] && cp /home/ubuntu/env/project/.env env/project/.env || echo "Warning: project .env not found at /home/ubuntu/env/project/.env"
-          [ -f /home/ubuntu/env/quest/.env ] && cp /home/ubuntu/env/quest/.env env/quest/.env || echo "Warning: quest .env not found at /home/ubuntu/env/quest/.env"
-          [ -f /home/ubuntu/env/refund/.env ] && cp /home/ubuntu/env/refund/.env env/refund/.env || echo "Warning: refund .env not found at /home/ubuntu/env/refund/.env"
-          [ -f /home/ubuntu/env/resource/.env ] && cp /home/ubuntu/env/resource/.env env/resource/.env || echo "Warning: resource .env not found at /home/ubuntu/env/resource/.env"
-          [ -f /home/ubuntu/env/ticket/.env ] && cp /home/ubuntu/env/ticket/.env env/ticket/.env || echo "Warning: ticket .env not found at /home/ubuntu/env/ticket/.env"
-          [ -f /home/ubuntu/env/tile/.env ] && cp /home/ubuntu/env/tile/.env env/tile/.env || echo "Warning: tile .env not found at /home/ubuntu/env/tile/.env"
-          [ -f /home/ubuntu/env/universe/.env ] && cp /home/ubuntu/env/universe/.env env/universe/.env || echo "Warning: universe .env not found at /home/ubuntu/env/universe/.env"
-          [ -f /home/ubuntu/env/unsorted/.env ] && cp /home/ubuntu/env/unsorted/.env env/unsorted/.env || echo "Warning: unsorted .env not found at /home/ubuntu/env/unsorted/.env"
+          # Diagnostic info
+          echo "DIAG: which docker -> $(command -v docker || echo 'none')"
+          echo "DIAG: docker --version ->"; sudo docker --version || true
+          echo "DIAG: docker info ->"; sudo docker info || true
+          echo "DIAG: which docker-compose -> $(command -v docker-compose || echo 'none')"
+          echo "DIAG: docker-compose --version ->"; (docker-compose --version 2>/dev/null || true)
+          echo "DIAG: trying to detect 'docker compose' subcommand..."
 
-          # Build and deploy using sudo to avoid group membership delay issues
-          sudo docker compose up -d --build
+          # Helper to run compose with the available tool
+          run_compose() {
+            local action="$1"   # eg: up
+            local args="${2:-}" # rest of args
+            if sudo docker compose version >/dev/null 2>&1; then
+              echo "Using: sudo docker compose ${action} ${args}"
+              sudo docker compose "${action}" ${args}
+            elif command -v docker-compose >/dev/null 2>&1; then
+              echo "Using: sudo docker-compose ${action} ${args}"
+              sudo docker-compose "${action}" ${args}
+            else
+              echo "No compose tool found — installing docker-compose plugin via apt..."
+              sudo apt update
+              sudo apt install -y docker-compose-plugin
+              echo "Installed compose plugin; retrying..."
+              sudo docker compose version
+              echo "Using: sudo docker compose ${action} ${args}"
+              sudo docker compose "${action}" ${args}
+            fi
+          }
+
+          # Build & run detached (works with both docker compose and docker-compose)
+          run_compose up "-d --build"
 
           echo "=== Verifying Deployment ==="
-          sudo docker compose ps
-          sudo docker ps -a
+          if sudo docker compose version >/dev/null 2>&1; then
+            sudo docker compose ps || true
+          else
+            sudo docker ps -a || true
+          fi
 
           # Simple health checks (adjust ports/paths as needed)
           echo "Testing ipls endpoint:"
