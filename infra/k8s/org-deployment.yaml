@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: org-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: org
+  template:
+    metadata:
+      labels:
+        app: org
+    spec:
+      containers:
+        - name: org
+          image: spargens/org
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: org-srv
+spec:
+  selector:
+    app: org
+  ports:
+    - name: org
+      protocol: TCP
+      port: 6080
+      targetPort: 6080

@@ -1,0 +1,1578 @@
+const { StatusCodes } = require("http-status-codes");
+const User = require("../models/user");
+const Admin = require("../models/admin");
+const bcrypt = require("bcryptjs");
+const Community = require("../models/community");
+const Club = require("../models/club");
+const Quest = require("../models/quest");
+const {
+  sendMail,
+  scheduleNotification,
+  scheduleNotification2,
+  updateUserIP,
+} = require("../controllers/utils");
+const { default: mongoose } = require("mongoose");
+const { lemmatize } = require("./commonControllers");
+require("dotenv").config();
+
+const securePassword = async (password) => {
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    return hash;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+//Controller 1
+const searchUserByName = async (req, res) => {
+  const { name } = req.query;
+  if (!name) {
+    throw new Error("Missing 'name' in query");
+  }
+  const users = await User.find(
+    { name: new RegExp(name, "i", "g") },
+    { name: 1, image: 1, _id: 1 }
+  );
+  const adminUsers = await Admin.find(
+    { name: new RegExp(name, "i", "g") },
+    { name: 1, image: 1, _id: 1 }
+  );
+  let finalData = [...users, ...adminUsers];
+  return res.status(StatusCodes.OK).json(finalData);
+};
+
+//Controller 2
+const getUserBio = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id, {
+      course: 1,
+      role: 1,
+      interests: 1,
+      clubs: 1,
+      communitiesCreated: 1,
+      communitiesPartOf: 1,
+      giftsSend: 1,
+      name: 1,
+      image: 1,
+      chatRooms: 1,
+      email: 1,
+      unreadNotice: 1,
+      level: 1,
+      passoutYear: 1,
+      field: 1,
+      incompleteProfile: 1,
+      notifications: 1,
+      shortCuts: 1,
+      incompleteFields: 1,
+    });
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "User not found" });
+    }
+    if (user.notifications.length > 30) {
+      user.notifications = user.notifications.slice(0, 30);
+      await user.save();
+    }
+    const {
+      course,
+      role,
+      interests,
+      clubs,
+      communitiesCreated,
+      communitiesPartOf,
+      giftsSend,
+      name,
+      image,
+      chatRooms,
+      email,
+      unreadNotice,
+      level,
+      passoutYear,
+      field,
+      incompleteProfile,
+      shortCuts,
+      incompleteFields,
+    } = user;
+
+    return res.status(StatusCodes.OK).json({
+      course,
+      role,
+      interests,
+      clubs: clubs.length,
+      communitiesCreated: communitiesCreated.length,
+      communitiesPartOf: communitiesPartOf.length,
+      giftsSend: giftsSend.length,
+      name,
+      image,
+      chatRooms,
+      email,
+      notices: unreadNotice.length,
+      level,
+      passoutYear,
+      field,
+      incompleteProfile,
+      shortCuts,
+      incompleteFields,
+    });
+  } catch (err) {
+    console.error(err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Server error" });
+  }
+};
+
+//controller 3
+const updateUser = async (req, res) => {
+  if (req.user.role === "user") {
+    const userID = req.user.id;
+    const updatedUser = await User.findByIdAndUpdate(
+      { _id: userID },
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+    res.status(StatusCodes.OK).send("Updated successfully!");
+  } else {
+    return res
+      .status(StatusCodes.OK)
+      .send("You are not authorized to update user profile.");
+  }
+};
+
+const getUser = async (req, res) => {
+  if (req.user.role === "user") {
+    const { name, reg } = req.query;
+    const queryObject = {};
+    if (name) {
+      queryObject.name = { $regex: name, $options: "i" };
+    }
+    if (reg) {
+      queryObject.reg = Number(reg);
+    }
+    let result = User.find(queryObject);
+    fieldsList = "name reg image";
+    result = result.select(fieldsList);
+    const finalResult = await result;
+    if (!finalResult) {
+      return res
+        .status(StatusCodes.NO_CONTENT)
+        .send("No body can match your profile even wildly.");
+    }
+    res.status(StatusCodes.OK).json({ finalResult });
+  } else {
+    return res
+      .status(StatusCodes.MISDIRECTED_REQUEST)
+      .send("You are not authorized to read other user profile");
+  }
+};
+
+const deleteUser = async (req, res) => {
+  if (req.user.role === "user") {
+    const userID = req.user.id;
+    const user = await User.findOne({ _id: userID });
+    if (!user) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("User to be deleted is no more available.");
+    }
+    const deletedUser = await User.findByIdAndDelete({ _id: userID });
+    res.status(StatusCodes.OK).json({ deletedUser });
+  } else {
+    return res
+      .status(StatusCodes.MISDIRECTED_REQUEST)
+      .send("You are not authorized to delete user profile.");
+  }
+};
+
+//psuedo controller to get an user just by sending his token in the header of the req
+
+const getUserByToken = async (req, res) => {
+  if (req.user.role === "user") {
+    const userID = req.user.id;
+    User.findById(userID, (err, user) => {
+      if (err) return console.error(err);
+      return res.status(StatusCodes.OK).json(user);
+    });
+  }
+};
+
+//Master controller to perform advance search
+const advanceSearch = async (req, res) => {
+  const { filter, query } = req.query;
+  let user = [];
+  if (filter === "name") {
+    user = await User.find(
+      { name: new RegExp(query, "i", "g") },
+      {
+        name: 1,
+        image: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        interests: 1,
+        deactivated: 1,
+        email: 1,
+      }
+    ).limit(100);
+    //lucky can see all the users
+    if (req.user.id === "67418053759b2a80fd8f7171") {
+      user = await User.find(
+        { name: new RegExp(query, "i", "g") },
+        {
+          name: 1,
+          image: 1,
+          _id: 1,
+          course: 1,
+          pushToken: 1,
+          interests: 1,
+          deactivated: 1,
+          email: 1,
+        }
+      );
+    }
+  } else if (filter === "reg") {
+    const regNum = Number(query);
+    if (isNaN(regNum)) {
+      return res.status(400).json({ error: "Invalid registration number" });
+    }
+    user = await User.find(
+      { reg: regNum },
+      {
+        name: 1,
+        image: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        interests: 1,
+        deactivated: 1,
+        email: 1,
+      }
+    ).limit(100);
+  } else if (filter === "course") {
+    user = await User.find(
+      { course: new RegExp(query, "i", "g") },
+      {
+        name: 1,
+        image: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        interests: 1,
+        deactivated: 1,
+        email: 1,
+      }
+    ).limit(100);
+  } else if (filter === "multipleClubs") {
+    const decodedClubIds = JSON.parse(Buffer.from(query, "base64").toString());
+    const clubs = await Club.find(
+      { _id: { $in: decodedClubIds } },
+      { members: 1 }
+    );
+    for (let i = 0; i < clubs.length; i++) {
+      const clubMembersIds = clubs[i].members;
+      const clubMembers = await User.find(
+        { _id: { $in: clubMembersIds } },
+        {
+          name: 1,
+          image: 1,
+          _id: 1,
+          course: 1,
+          pushToken: 1,
+          interests: 1,
+          deactivated: 1,
+          email: 1,
+        }
+      );
+      user = [...clubMembers, ...user];
+    }
+  } else if (filter === "organisation") {
+    const { organisationType, organisationId } = req.query;
+    if (organisationType === "Club") {
+      const club = await Club.findById(organisationId, { members: 1 });
+      user = await User.find(
+        { _id: { $in: club.members }, name: new RegExp(query, "i", "g") },
+        {
+          name: 1,
+          image: 1,
+          _id: 1,
+          course: 1,
+          pushToken: 1,
+          interests: 1,
+          deactivated: 1,
+          email: 1,
+        }
+      );
+    } else if (organisationType === "Community") {
+      const community = await Community.findById(organisationId, {
+        members: 1,
+      });
+      user = await User.find(
+        { _id: { $in: community.members }, name: new RegExp(query, "i", "g") },
+        {
+          name: 1,
+          image: 1,
+          _id: 1,
+          course: 1,
+          pushToken: 1,
+          interests: 1,
+          deactivated: 1,
+          email: 1,
+        }
+      );
+    }
+  } else if (filter === "all") {
+    const aggregate = {
+      $or: [
+        { name: new RegExp(query, "i", "g") },
+        { course: new RegExp(query, "i", "g") },
+        { interests: { $in: [new RegExp(query, "i", "g")] } },
+      ],
+    };
+    user = await User.find(aggregate, {
+      name: 1,
+      image: 1,
+      _id: 1,
+      course: 1,
+      pushToken: 1,
+      interests: 1,
+      deactivated: 1,
+      email: 1,
+    }).limit(100);
+  }
+  return res.status(StatusCodes.OK).json(user);
+};
+
+//demo controller made to get all user for chat app
+const getAllUsers = async (req, res) => {
+  try {
+    const { profession } = req.query;
+    console.log("profession", profession);
+    // Build query dynamically
+    const query = {};
+    if (profession && profession !== "All") {
+      query.profession = profession;
+    }
+
+    console.log("query", query);
+
+    const users = await User.find(query, {
+      name: 1,
+      image: 1,
+      _id: 1,
+      pushToken: 1,
+      course: 1,
+      interests: 1,
+      email: 1,
+    });
+
+    return res.status(StatusCodes.OK).json(users);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Error");
+  }
+};
+
+//Controller to get 10 random users
+const randomUsers = async (req, res) => {
+  let users = await User.aggregate([
+    { $sample: { size: 10 } },
+    {
+      $project: {
+        name: 1,
+        image: 1,
+        course: 1,
+        _id: 1,
+        interests: 1,
+        pushToken: 1,
+      },
+    },
+  ]);
+  return res.status(StatusCodes.OK).json(users);
+};
+
+//function to change password from your profile using oldPass as authentication
+const changePassword = async (req, res) => {
+  const { oldPass, newPass } = req.body;
+  let user = await User.findById(req.user.id, { password: 1 });
+  const isOldPassCorrect = await bcrypt.compare(oldPass, user.password);
+  if (isOldPassCorrect) {
+    const newPassword = await securePassword(newPass);
+    user.password = newPassword;
+    user.save();
+    return res.status(StatusCodes.OK).send("Password changed successfully");
+  } else {
+    return res.status(StatusCodes.OK).send("Old password does not match");
+  }
+};
+
+const deactivateAccount = async (req, res) => {
+  const { password } = req.body;
+  try {
+    let user = await User.findById(req.user.id, {
+      password: 1,
+      deactivated: 1,
+      deactivationDate: 1,
+      pushToken: 1,
+    });
+    const isPassCorrect = await bcrypt.compare(password, user.password);
+    if (!isPassCorrect) {
+      return res.status(StatusCodes.OK).send("Password is not correct.");
+    }
+    user.pushToken = null;
+    user.deactivated = true;
+    user.deactivationDate = new Date();
+    user.save();
+    return res.status(StatusCodes.OK).send("Deactivation successful.");
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).json("Something went wrong.");
+  }
+};
+
+const pushPermanentNotice = async (req, res) => {
+  const { userId } = req.query;
+  const { value, img1, img2, action, params, key } = req.body;
+  if (!userId || !value || !img1 || !img2 || !action || !params || !key) {
+    return res
+      .status(StatusCodes.OK)
+      .send("Incomplete information to push a notice.");
+  }
+  //we have integrated in-app notice likeContent controller ,this call will be inactivated in next version, till then just a precautionary measure
+  if (key !== "like") {
+    let data = {
+      ...req.body,
+      time: new Date(),
+      uid: `${new Date()}/${userId}/${req.user.id}`,
+    };
+    let user = await User.findById(userId);
+    user.unreadNotice = [...user.unreadNotice, data];
+    user.save();
+  }
+  return res.status(StatusCodes.OK).send("Notice sucessfully pushed.");
+};
+
+const getPermanentNotices = async (req, res) => {
+  try {
+    let user = await User.findById(req.user.id, {
+      unreadNotice: 1,
+      notifications: 1,
+    });
+    const data = {
+      unread: user.unreadNotice,
+      read: user.notifications.slice(0, 12 - user.unreadNotice.length),
+    };
+    user.unreadNotice = [];
+    user.notifications = [...data.unread, ...user.notifications];
+    user.save();
+    return res.status(StatusCodes.OK).json(data);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).json("Something went wrong.");
+  }
+};
+
+const getPermanentNoticeInBatch = async (req, res) => {
+  const { batch, batchSize } = req.query;
+  try {
+    const user = await User.findById(req.user.id, {
+      notifications: 1,
+    });
+    let notices = [];
+    if (batch && batchSize) {
+      notices = user.notifications.slice(
+        (batch - 1) * batchSize,
+        batch * batchSize
+      );
+    } else {
+      notices = user.notifications;
+    }
+    return res.status(StatusCodes.OK).json(notices);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).json("Something went wrong.");
+  }
+};
+
+const deleteNotifications = async (req, res) => {
+  try {
+    const { uid } = req.body;
+    let user = await User.findById(req.user.id, {
+      notifications: 1,
+    });
+    let arr = user.notifications;
+    arr = arr.filter((item) => item.uid !== uid);
+    user.notifications = arr;
+    user.save();
+    return res
+      .status(StatusCodes.OK)
+      .send("Successfully deleted the notification.");
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).json("Something went wrong.");
+  }
+};
+
+const getCommunitiesForPost = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id, {
+      communitiesPartOf: 1,
+      _id: 0,
+    });
+    const allCommunities = user.communitiesPartOf;
+    const len = allCommunities.length;
+    let finalData = [];
+    for (let i = 0; i < len; i++) {
+      const id = allCommunities[i].communityId;
+      if (id) {
+        const community = await Community.findById(id, {
+          secondaryCover: 1,
+          title: 1,
+        });
+        if (community) {
+          finalData.push(community);
+        }
+      }
+    }
+    return res.status(StatusCodes.OK).json(finalData);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).json("Something went wrong.");
+  }
+};
+
+const sendMailToUsers = async (req, res) => {
+  const { destination, intro, outro, subject } = req.body;
+  try {
+    const name = "there!";
+    const { ses, params } = await sendMail(
+      name,
+      intro,
+      outro,
+      subject,
+      destination
+    );
+    ses.sendEmail(params, function (err, data) {
+      if (err) {
+        console.log(err, err.stack);
+        return res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .send("Something went wrong.");
+      } else {
+        return res.status(StatusCodes.OK).send("Email sent successfully.");
+      }
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+const getBasicUserBio = async (req, res) => {
+  try {
+    const { id } = req.query;
+    const user = await User.findById(id, {
+      course: 1,
+      passoutYear: 1,
+      clubs: 1,
+      role: 1,
+      deactivated: 1,
+      communitiesPartOf: 1,
+      tunedIn_By: 1,
+      macbeaseContentContribution: 1,
+      creatorPost: 1,
+      profession: 1,
+      interests: 1,
+      field: 1,
+      incompleteProfile: 1,
+      level: 1,
+      ip: 1,
+    }).lean();
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).send("User not found");
+    }
+    const communityIds = user.communitiesPartOf.map((item) =>
+      mongoose.Types.ObjectId(item.communityId)
+    );
+    const clubIds = user.clubs.map((item) =>
+      mongoose.Types.ObjectId(item.clubId)
+    );
+    let tunerIds = [];
+    if (user.tunedIn_By) {
+      tunerIds = user.tunedIn_By.slice(0, 3);
+    } else {
+      tunerIds = [];
+    }
+    const [communities, clubs, tunerGraphics] = await Promise.all([
+      Community.find(
+        { _id: { $in: communityIds } },
+        { title: 1, secondaryCover: 1 }
+      ).lean(),
+      Club.find({ _id: { $in: clubIds } }, { name: 1, secondaryImg: 1 }).lean(),
+      User.find(
+        { _id: { $in: tunerIds } },
+        { name: 1, image: 1, pushToken: 1 }
+      ).lean(),
+    ]);
+    const outcome = {
+      course: user.course,
+      tuned: user.tunedIn_By
+        ? user.tunedIn_By.some((id) => id.toString() === req.user.id.toString())
+        : false,
+      batch: user.passoutYear,
+      role: user.role,
+      creatorPost: user.creatorPost,
+      posts: user.macbeaseContentContribution.length,
+      tunedIn_By: user.tunedIn_By ? user.tunedIn_By.length : 0,
+      tunerGraphics,
+      organisationData: [...clubs, ...communities],
+      deactivated: user.deactivated,
+      clubs: user.clubs,
+      profession: user.profession,
+      interests: user.interests,
+      field: user.field,
+      incompleteProfile: user.incompleteProfile,
+      level: user.level,
+      ip: user.ip,
+    };
+    return res.status(StatusCodes.OK).json(outcome);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+// function to get Push tokens
+const getPushTokens = async (query, exempt) => {
+  if (Array.isArray(query)) {
+    let ids = query;
+
+    if (exempt) {
+      ids = ids.filter((id) => id !== exempt);
+    }
+
+    const users = await User.find(
+      { _id: { $in: ids } },
+      { pushToken: 1 }
+    ).lean();
+    return users.map((user) => user.pushToken).filter(Boolean);
+  }
+
+  if (query === "all-users") {
+    const users = await User.find({}, { pushToken: 1 }).lean();
+    return users.map((user) => user.pushToken).filter(Boolean);
+  } else if (query === "all-students") {
+    const users = await User.find(
+      { profession: "Student" },
+      { pushToken: 1 }
+    ).lean();
+    return users.map((user) => user.pushToken).filter(Boolean);
+  } else if (query === "all-professors") {
+    const users = await User.find(
+      { profession: "Professor" },
+      { pushToken: 1 }
+    ).lean();
+    return users.map((user) => user.pushToken).filter(Boolean);
+  } else if (query === "all-alumni") {
+    const users = await User.find(
+      { profession: "Alumni" },
+      { pushToken: 1 }
+    ).lean();
+    return users.map((user) => user.pushToken).filter(Boolean);
+  } else if (query.startsWith("Inactive-users")) {
+    const arr = query.split("-");
+    const days = arr[2];
+
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - parseInt(days));
+
+    const users = await User.find({}, { name: 1, lastActive: 1, pushToken: 1 });
+
+    const inactiveUsers = users.filter((user) => {
+      const lastActiveDate = new Date(user.lastActive);
+      return !isNaN(lastActiveDate) && lastActiveDate < thresholdDate;
+    });
+
+    return inactiveUsers.map((user) => user.pushToken).filter(Boolean);
+  } else {
+    const arr = query.split("-");
+    const id = arr[0];
+    const designation = arr[1];
+    const type = arr[2];
+
+    let members = [];
+    if (type === "club") {
+      const club = await Club.findById(id, {
+        members: 1,
+        adminId: 1,
+        team: 1,
+      }).lean();
+      if (designation === "All Members") {
+        members.push(...club.members);
+      } else if (designation === "Admins") {
+        members.push(...club.adminId);
+      } else {
+        members.push(...club.team.map((item) => item.id));
+      }
+      if (exempt) {
+        members = members.filter((item) => item !== exempt);
+      }
+    } else if (type === "community") {
+      const community = await Community.findById(id, { members: 1 });
+      members.push(...community.members);
+    }
+
+    const users = await User.find(
+      { _id: { $in: members } },
+      { pushToken: 1 }
+    ).lean();
+
+    const pushTokens = users.map((user) => user.pushToken).filter(Boolean);
+
+    return pushTokens;
+  }
+};
+
+const sendNotification = async (req, res) => {
+  let { token, title, body, query, imageUrl, url, deepLink } = req.body;
+  if (query !== undefined) {
+    token = await getPushTokens(query);
+  }
+  try {
+    if (deepLink) {
+      scheduleNotification2({
+        pushToken: token,
+        title,
+        body,
+        image: imageUrl,
+        url: deepLink,
+      });
+    } else {
+      scheduleNotification(token, title, body, imageUrl, url);
+    }
+    return res.status(StatusCodes.OK).send("Notification dispatched");
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+// testing crone jobs
+const cleanUp = async (req, res) => {
+  try {
+    const users = await User.find({}, { _id: 1 });
+    const arr = users.map((item) => item._id);
+    return res.status(StatusCodes.OK).json(arr);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+// controller to get club ,community or person by name
+const search = async (req, res) => {
+  const { query } = req.query;
+  const onlyUsers =
+    req.query.onlyUsers && req.query.onlyUsers !== "undefined"
+      ? req.query.onlyUsers === "true"
+      : false;
+
+  if (!query) {
+    return res.status(StatusCodes.BAD_REQUEST).send("Empty query received.");
+  }
+  try {
+    let communitiesWithType = [];
+    let clubsWithType = [];
+    if (!onlyUsers) {
+      const communities = await Community.find(
+        { title: new RegExp(query, "i", "g") },
+        {
+          secondaryCover: 1,
+          title: 1,
+          _id: 1,
+        }
+      ).lean();
+      communitiesWithType = communities.map((community) => ({
+        ...community,
+        type: "community",
+      }));
+      const clubs = await Club.find(
+        { name: new RegExp(query, "i", "g") },
+        {
+          secondaryImg: 1,
+          name: 1,
+          _id: 1,
+        }
+      ).lean();
+      clubsWithType = clubs.map((club) => ({
+        ...club,
+        type: "club",
+      }));
+    }
+    const users = await User.find(
+      { name: new RegExp(query, "i", "g") },
+      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 }
+    )
+      .limit(100)
+      .lean();
+    const usersWithType = users.map((user) => ({
+      ...user,
+      type: "people",
+    }));
+    return res.status(StatusCodes.OK).json({
+      clubs: clubsWithType,
+      communities: communitiesWithType,
+      users: usersWithType,
+    });
+  } catch (e) {
+    console.log("Error in searching :", e);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong!");
+  }
+};
+
+//controller to return user bio from an array of ids
+const fetchMultipleProfiles = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const processedIds = ids.map((item) => mongoose.Types.ObjectId(item));
+    const users = await User.aggregate([
+      {
+        $match: { _id: { $in: processedIds } },
+      },
+      {
+        $project: {
+          name: 1,
+          image: 1,
+          course: 1,
+          _id: 1,
+          interests: 1,
+          pushToken: 1,
+        },
+      },
+    ]);
+    return res.status(StatusCodes.OK).json(users);
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+const tuneIn = async (req, res) => {
+  const { creatorId } = req.query;
+  const tunerId = req.user.id;
+  try {
+    const [creator, tuner] = await Promise.all([
+      User.findById(creatorId, { role: 1, pushToken: 1 }),
+      User.findById(tunerId, { name: 1, pushToken: 1, image: 1 }),
+    ]);
+    if (!creator || creator.role !== "Creator") {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .send("Content creator access not found.");
+    }
+    await Promise.all([
+      User.findByIdAndUpdate(creatorId, {
+        $addToSet: { tunedIn_By: mongoose.Types.ObjectId(tunerId) },
+      }),
+      User.findByIdAndUpdate(tunerId, {
+        $addToSet: { hasTunedTo: mongoose.Types.ObjectId(creatorId) },
+      }),
+    ]);
+    scheduleNotification2({
+      pushToken: [creator.pushToken],
+      title: `${tuner.name} Just Tuned In! 🎉`,
+      body: `Your content is gaining fans! ${tuner.name} is now following your journey.`,
+      url: `https://macbease.com/app/profile/${tuner._id}`,
+    });
+    return res.status(StatusCodes.OK).send("Successfully tuned in!");
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Error occurred while tuning in.");
+  }
+};
+
+const untune = async (req, res) => {
+  const { creatorId } = req.query;
+  const tunerId = req.user.id;
+  try {
+    const creator = await User.findById(creatorId, { role: 1 });
+    if (!creator || creator.role !== "Creator") {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .send("Content creator access not found.");
+    }
+    await Promise.all([
+      User.findByIdAndUpdate(creatorId, {
+        $pull: { tunedIn_By: mongoose.Types.ObjectId(tunerId) },
+      }),
+      User.findByIdAndUpdate(tunerId, {
+        $pull: { hasTunedTo: mongoose.Types.ObjectId(creatorId) },
+      }),
+    ]);
+    return res.status(StatusCodes.OK).send("Successfully untuned!");
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Error occurred while untuning.");
+  }
+};
+
+const getProfessorRecommendations = async (req, res) => {
+  try {
+    const { mode } = req.query;
+    const limit = mode === "all" ? 0 : parseInt(req.query.limit) || 18;
+
+    const pipeline = [
+      { $match: { profession: "Professor" } },
+      {
+        $project: {
+          name: 1,
+          image: 1,
+          pushToken: 1,
+          course: 1,
+          field: 1,
+          interests: 1,
+        },
+      },
+    ];
+
+    if (limit > 0) {
+      pipeline.push({ $limit: limit });
+    }
+
+    const professors = await User.aggregate(pipeline);
+
+    return res.status(200).json(professors);
+  } catch (error) {
+    console.error("Error finding professor recommendations:", error.message);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Error finding professor recommendations");
+  }
+};
+
+const searchFromAllProfessors = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || typeof query !== "string") {
+      return res
+        .status(400)
+        .send("Query parameter is required and must be a string");
+    }
+    const regex = new RegExp(query, "i");
+    const professors = await User.find(
+      {
+        profession: "Professor",
+        $or: [
+          { course: regex },
+          { field: regex },
+          { name: regex },
+          { interests: regex },
+        ],
+      },
+      {
+        name: 1,
+        image: 1,
+        pushToken: 1,
+        course: 1,
+        field: 1,
+        interests: 1,
+      }
+    );
+    return res.status(200).json(professors);
+  } catch (error) {
+    console.error("Error searching professors:", error.message);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Error searching professors");
+  }
+};
+
+const sendMailVerification = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(StatusCodes.NO_CONTENT).send("Email is required!");
+  }
+
+  if (!email.endsWith("@gmail.com")) {
+    return res.status(204).send("Invalid university email");
+  }
+
+  try {
+    const verificationUrl = `https://macbease.com/app/verifyEmail?${email}`;
+
+    const action = {
+      instructions: "Click the button below to verify your email:",
+      color: "#1ea1ed",
+      text: "Verify Email",
+      url: verificationUrl,
+    };
+
+    const { ses, params } = await sendMail(
+      "Macbease",
+      "Welcome to Macbease! Please verify your email.",
+      "Thank you for signing up. Let us know if you have questions!",
+      "Verify Your Email",
+      email,
+      action
+    );
+
+    await ses.sendEmail(params).promise();
+    return res
+      .status(StatusCodes.OK)
+      .json({ message: "Verification email sent" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Failed to send email" });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    await User.updateOne(
+      { _id: mongoose.Types.ObjectId(req.user.id) },
+      {
+        $set: {
+          professionalEmail: email,
+        },
+      }
+    );
+
+    return res.status(StatusCodes.OK).send("Email verified");
+  } catch (error) {
+    console.error("Error verifying email:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
+const completeProfile = async (req, res) => {
+  try {
+    const fieldsToUpdate = req.body;
+
+    if (!fieldsToUpdate || Object.keys(fieldsToUpdate).length === 0) {
+      return res
+        .status(StatusCodes.NO_CONTENT)
+        .send("No Fields provided for update");
+    }
+
+    fieldsToUpdate.incompleteProfile = false;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: fieldsToUpdate },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(StatusCodes.NOT_FOUND).send("User not found.");
+    }
+
+    return res.status(StatusCodes.OK).send("User profile completed.");
+  } catch (err) {
+    console.log("Error updating user:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+const sendBatchedNotifications = async (req, res) => {
+  try {
+    const { users, title, body, deepLink } = req.body;
+    const usersData = await User.find(
+      { _id: { $in: users } },
+      { pushToken: 1 }
+    );
+    const tokens = usersData.map((u) => u.pushToken);
+    const notificationData = {
+      pushToken: tokens,
+      title,
+      body,
+      url: deepLink,
+    };
+    scheduleNotification2(notificationData);
+    return res.status(StatusCodes.OK).send("Notifications dispatched!");
+  } catch (error) {
+    console.log("Error updating user:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+const getInactiveUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query || isNaN(query)) {
+      return res
+        .status(400)
+        .json({ error: "Valid number of days is required" });
+    }
+
+    const thresholdDate = new Date();
+    thresholdDate.setDate(thresholdDate.getDate() - parseInt(query));
+
+    const users = await User.find({}, { name: 1, lastActive: 1, email: 1 });
+
+    const inactiveUsers = users.filter((user) => {
+      const lastActiveDate = new Date(user.lastActive);
+      return !isNaN(lastActiveDate) && lastActiveDate < thresholdDate;
+    });
+
+    return res.status(200).json(inactiveUsers);
+  } catch (error) {
+    console.error("Error fetching inactive users:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const updateIncompleteFields = async (req, res) => {
+  try {
+    const users = await User.find({});
+
+    const updatedUsers = users.map(async (user) => {
+      const incompleteFields = [];
+
+      const checkField = (field, fieldName) => {
+        if (
+          field === null ||
+          field === undefined ||
+          (Array.isArray(field) && field.every((item) => item === "")) ||
+          (typeof field === "string" && field.trim() === "")
+        ) {
+          incompleteFields.push(fieldName);
+        }
+      };
+
+      checkField(user.course, "course");
+      checkField(user.interests, "interests");
+      checkField(user.field, "field");
+      checkField(user.passoutYear, "passoutYear");
+      checkField(user.level, "level");
+
+      user.incompleteFields = incompleteFields;
+      return user.save();
+    });
+
+    const results = await Promise.all(updatedUsers);
+
+    res
+      .status(200)
+      .json({ message: "Incomplete fields updated successfully", results });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ error: "Error fetching users", details: error.message });
+  }
+};
+
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.query;
+    const user = await User.findById(id, { name: 1, image: 1, pushToken: 1 });
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).send("User not found.");
+    }
+
+    return res.status(StatusCodes.OK).json(user);
+  } catch (err) {
+    console.log("Error fetching user by id :", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong!");
+  }
+};
+
+const changeIp = async (req, res) => {
+  try {
+    const { ip, description, questId, userId } = req.body;
+
+    // Validate required fields
+    if (ip === undefined || ip === null || !description) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message:
+          "Incomplete data provided. Both 'ip' and 'description' are required.",
+      });
+    }
+
+    // Ensure IP is within valid range (-100 to +100)
+    if (typeof ip !== "number" || ip < -100 || ip > 100) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "Invalid IP value. It must be a number between -100 and +100.",
+      });
+    }
+
+    // Perform the IP update
+    await updateUserIP({
+      userId,
+      ipChange: ip, // Accepts both negative and positive values
+      c_source: "user",
+      d_source: "system",
+      c_ref: req.user.id,
+      description,
+    });
+
+    const user = await User.findById(userId, { ip: 1 }).lean();
+
+    if (questId) {
+      await Quest.findByIdAndUpdate(questId, {
+        $push: { completedBy: mongoose.Types.ObjectId(userId) },
+      });
+    }
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ message: "IP successfully updated.", totalIp: user.ip });
+  } catch (error) {
+    console.error("Error updating user IP:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: "Something went wrong while updating IP.",
+      error: error.message,
+    });
+  }
+};
+
+const getUsersBySignupDate = async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (req.user.role !== "admin") {
+      console.log("mid");
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .send("Not authorized to access this data.");
+    }
+    if (!date) {
+      return res
+        .status(400)
+        .json({ message: "Date query parameter is required" });
+    }
+
+    const queryDate = new Date(date);
+    const year = queryDate.getFullYear();
+    const month = queryDate.getMonth(); // 0-indexed (Jan = 0)
+    const day = queryDate.getDate();
+
+    // Create the range: start of that day to start of next day
+    const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month, day + 1, 0, 0, 0, 0);
+
+    const users = await User.find(
+      {
+        createdAt: {
+          $gte: startOfDay,
+          $lt: endOfDay,
+        },
+      },
+      { name: 1, pushToken: 1 }
+    );
+
+    res.status(200).json({ total: users.length, users });
+  } catch (error) {
+    console.error("Error fetching users by signup date:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const getUserFieldsById = async (req, res) => {
+  const { id, fields, batch, batchSize, arrayFieldForBatching } = req.body;
+
+  // Validate ID
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ error: "Invalid user ID." });
+  }
+
+  // Validate fields
+  if (!fields || !Array.isArray(fields) || fields.length === 0) {
+    return res.status(StatusCodes.BAD_REQUEST).json({ error: "Fields array is required." });
+  }
+
+  // Check for batching
+  let projection = {};
+  for (const field of fields) {
+    if (
+      arrayFieldForBatching &&
+      field === arrayFieldForBatching &&
+      batch &&
+      batchSize
+    ) {
+      const skip = (parseInt(batch) - 1) * parseInt(batchSize);
+      projection[field] = { $slice: [skip, parseInt(batchSize)] };
+    } else {
+      projection[field] = 1;
+    }
+  }
+
+  try {
+    const user = await User.findById(id, projection).lean();
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({ data: user });
+  } catch (error) {
+    console.error("❌ getUserFieldsById error:", error.message);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Failed to fetch user data.",
+    });
+  }
+};
+
+const addToContentTeam = async (req, res) => {
+  if (req.user.role === "admin") {
+    try {
+      const { id } = req.query;
+      let user = await User.findById(id, { role: 1, email: 1, name: 1 });
+      user.role = "Creator";
+      user.save();
+      //sending email to creator
+      const name = user.name;
+      const intro = [
+        "We are so delighted to have you onboard Macbease Content Team.",
+        `We look forward to having wonderful working experience with you.`,
+      ];
+      const outro = "Let us begin this journey together!";
+      const subject = "Macbease Confirmation";
+      const destination = [user.email];
+      const { ses, params } = await sendMail(
+        name,
+        intro,
+        outro,
+        subject,
+        destination
+      );
+      ses.sendEmail(params, function (err, data) {
+        if (err) {
+          console.log(err, err.stack);
+        }
+      });
+      return res
+        .status(StatusCodes.OK)
+        .send("Successfully added to Macbease content team!");
+    } catch (error) {
+      console.log(error.message);
+      return res.status(StatusCodes.OK).send("Something went wrong.");
+    }
+  } else {
+    return res
+      .status(StatusCodes.OK)
+      .send("You are not authorized to add to content team.");
+  }
+};
+
+const readContentTeam = async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      error: "You are not authorized to read the content team.",
+    });
+  }
+
+  try {
+    const users = await User.find(
+      { role: "Creator" },
+      {
+        name: 1,
+        image: 1,
+        course: 1,
+        email: 1,
+        _id: 1,
+        reg: 1,
+        pushToken: 1,
+        interests: 1,
+      }
+    ).lean();
+
+    return res.status(StatusCodes.OK).json(users);
+  } catch (error) {
+    console.error("❌ Error fetching content team:", error.message);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Failed to fetch content team.",
+    });
+  }
+};
+
+const removeFromTeam = async (req, res) => {
+  if (req.user.role !== "admin") {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      error: "You are not authorized to remove users from the content team.",
+    });
+  }
+
+  const { id } = req.query;
+
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      error: "A valid user ID is required.",
+    });
+  }
+
+  try {
+    const user = await User.findById(id, { role: 1, email: 1, name: 1 });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        error: "User not found.",
+      });
+    }
+
+    user.role = "Normal";
+    await user.save();
+
+    const name = user.name;
+    const intro = [
+      "We are so sorry to let you go from the Macbease Content Team.",
+      "It was a great experience working with you. All the best for your future endeavours.",
+    ];
+    const outro =
+      "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+    const subject = "Macbease Confirmation";
+    const destination = [user.email];
+
+    try {
+      const { ses, params } = await sendMail(name, intro, outro, subject, destination);
+      ses.sendEmail(params, (err) => {
+        if (err) {
+          console.error("❌ Failed to send removal email:", err.stack || err.message);
+        }
+      });
+    } catch (emailErr) {
+      console.error("❌ Error while preparing SES email:", emailErr.message);
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Successfully removed from Macbease content team.",
+    });
+  } catch (error) {
+    console.error("❌ Error in removeFromTeam:", {
+      adminId: req.user.id,
+      targetUserId: id,
+      error: error.message,
+    });
+
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Something went wrong while removing the user from the team.",
+    });
+  }
+};
+
+const getContentTeamAdmins = async (req, res) => {
+  try {
+    let team = await Admin.find({ role: "Content Team" }, { _id: 1 });
+    if (team.length === 0) {
+      team = await Admin.find({}, { _id: 1 });
+    }
+    const ids = team.map((item) => item._id);
+    return res.status(StatusCodes.OK).json(ids);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+const saveInterest = async (req, res) => {
+  try {
+    // Check role
+    if (req.user.role !== "user") {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to save interests.");
+    }
+
+    const { interests } = req.body;
+
+    // Validate request body
+    if (!Array.isArray(interests) || interests.length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Please provide a valid array of interests.");
+    }
+
+    // Lemmatize interests
+    const lemmatized = lemmatize(interests);
+
+    // Find user
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("User not found. Please try again.");
+    }
+
+    // Update interests
+    user.interests = lemmatized;
+    await user.save();
+
+    return res
+      .status(StatusCodes.OK)
+      .send("Successfully updated interests.");
+  } catch (error) {
+    console.error("Error saving interests:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("An unexpected error occurred while saving interests.");
+  }
+};
+
+module.exports = {
+  getUser,
+  updateUser,
+  deleteUser,
+  getUserByToken,
+  searchUserByName,
+  getUserBio,
+  advanceSearch,
+  getAllUsers,
+  cleanUp,
+  randomUsers,
+  changePassword,
+  pushPermanentNotice,
+  getPermanentNotices,
+  deleteNotifications,
+  getCommunitiesForPost,
+  getPermanentNoticeInBatch,
+  sendMailToUsers,
+  getBasicUserBio,
+  sendNotification,
+  deactivateAccount,
+  search,
+  fetchMultipleProfiles,
+  getPushTokens,
+  tuneIn,
+  untune,
+  getProfessorRecommendations,
+  searchFromAllProfessors,
+  sendMailVerification,
+  verifyEmail,
+  completeProfile,
+  sendBatchedNotifications,
+  getInactiveUsers,
+  updateIncompleteFields,
+  getUserById,
+  changeIp,
+  getUsersBySignupDate,
+  getUserFieldsById,
+  addToContentTeam,
+  readContentTeam,
+  removeFromTeam,
+  getContentTeamAdmins,
+  saveInterest
+};

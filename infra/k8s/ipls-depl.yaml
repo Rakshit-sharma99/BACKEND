@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ipls-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ipls
+  template:
+    metadata:
+      labels:
+        app: ipls
+    spec:
+      containers:
+        - name: ipls
+          image: spargens/ipls
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ipls-srv
+spec:
+  selector:
+    app: ipls
+  ports:
+    - name: ipls
+      protocol: TCP
+      port: 5010
+      targetPort: 5010

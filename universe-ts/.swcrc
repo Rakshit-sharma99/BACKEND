@@ -1,0 +1,25 @@
+{
+  "jsc": {
+    "parser": {
+      "syntax": "typescript",
+      "tsx": false
+    },
+    "target": "es2020",
+    "minify": {
+      "compress": {
+        "unused": true,
+        // "drop_console": true,
+        "reduce_vars": true,
+        "dead_code": true,
+        "conditionals": true,
+        "booleans": true,
+        "evaluate": true
+      },
+      "mangle": true
+    }
+  },
+  "minify": true,
+  "module": {
+    "type": "commonjs"
+  }
+}

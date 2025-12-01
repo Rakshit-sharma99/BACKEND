@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: project-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: project
+  template:
+    metadata:
+      labels:
+        app: project
+    spec:
+      containers:
+        - name: project
+          image: spargens/project
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: project-srv
+spec:
+  selector:
+    app: project
+  ports:
+    - name: project
+      protocol: TCP
+      port: 6040
+      targetPort: 6040

@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: offer-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: offer
+  template:
+    metadata:
+      labels:
+        app: offer
+    spec:
+      containers:
+        - name: offer
+          image: spargens/offer
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: offer-srv
+spec:
+  selector:
+    app: offer
+  ports:
+    - name: offer
+      protocol: TCP
+      port: 5080
+      targetPort: 5080 

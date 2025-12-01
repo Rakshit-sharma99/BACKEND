@@ -1,0 +1,181 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-service
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /universe/socket.io
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: universe-srv
+                port:
+                  number: 5050
+          - path: /universe
+            pathType: Prefix
+            backend:
+              service:
+                name: universe-srv
+                port:
+                  number: 5050
+          - path: /ipls
+            pathType: Prefix
+            backend:
+              service:
+                name: ipls-srv
+                port:
+                  number: 5010
+          - path: /multiverse
+            pathType: Prefix
+            backend:
+              service:
+                name: multiverse-srv
+                port:
+                  number: 5020
+          - path: /content
+            pathType: Prefix
+            backend:
+              service:
+                name: content-srv
+                port:
+                  number: 5000
+          - path: /card
+            pathType: Prefix
+            backend:
+              service:
+                name: card-srv
+                port:
+                  number: 5030
+          - path: /resource
+            pathType: Prefix
+            backend:
+              service:
+                name: resource-srv
+                port:
+                  number: 5040
+          - path: /event
+            pathType: Prefix
+            backend:
+              service:
+                name: event-srv
+                port:
+                  number: 5060
+          - path: /bag
+            pathType: Prefix
+            backend:
+              service:
+                name: bag-srv
+                port:
+                  number: 5090
+          - path: /badge
+            pathType: Prefix
+            backend:
+              service:
+                name: badge-srv
+                port:
+                  number: 6020
+          - path: /macbeaseContent
+            pathType: Prefix
+            backend:
+              service:
+                name: macbease-content-srv
+                port:
+                  number: 5070
+          - path: /offer
+            pathType: Prefix
+            backend:
+              service:
+                name: offer-srv
+                port:
+                  number: 5080
+          - path: /quest
+            pathType: Prefix
+            backend:
+              service:
+                name: quest-srv
+                port:
+                  number: 6010
+          - path: /invitation
+            pathType: Prefix
+            backend:
+              service:
+                name: invitation-srv
+                port:
+                  number: 6030
+          - path: /project
+            pathType: Prefix
+            backend:
+              service:
+                name: project-srv
+                port:
+                  number: 6040
+          - path: /itinerary
+            pathType: Prefix
+            backend:
+              service:
+                name: itinerary-srv
+                port:
+                  number: 6050
+          - path: /joinLink
+            pathType: Prefix
+            backend:
+              service:
+                name: join-link-srv
+                port:
+                  number: 6060
+          - path: /tile
+            pathType: Prefix
+            backend:
+              service:
+                name: tile-srv
+                port:
+                  number: 6070
+          - path: /org
+            pathType: Prefix
+            backend:
+              service:
+                name: org-srv
+                port:
+                  number: 6080
+          - path: /unsorted
+            pathType: Prefix
+            backend:
+              service:
+                name: unsorted-srv
+                port:
+                  number: 6090
+          - path: /ticket
+            pathType: Prefix
+            backend:
+              service:
+                name: ticket-srv
+                port:
+                  number: 6000
+          - path: /refund
+            pathType: Prefix
+            backend:
+              service:
+                name: refund-srv
+                port:
+                  number: 7000
+          - path: /blog
+            pathType: Prefix
+            backend:
+              service:
+                name: blog-srv
+                port:
+                  number: 7010
+          - path: /coupon
+            pathType: Prefix
+            backend:
+              service:
+                name: coupon-srv
+                port:
+                  number: 7020

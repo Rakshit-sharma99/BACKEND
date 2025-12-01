@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quest-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quest
+  template:
+    metadata:
+      labels:
+        app: quest
+    spec:
+      containers:
+        - name: quest
+          image: spargens/quest
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: quest-srv
+spec:
+  selector:
+    app: quest
+  ports:
+    - name: quest
+      protocol: TCP
+      port: 6010
+      targetPort: 6010

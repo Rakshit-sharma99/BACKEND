@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bag-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bag
+  template:
+    metadata:
+      labels:
+        app: bag
+    spec:
+      containers:
+        - name: bag
+          image: spargens/bag
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bag-srv
+spec:
+  selector:
+    app: bag
+  ports:
+    - name: bag
+      protocol: TCP
+      port: 5090
+      targetPort: 5090

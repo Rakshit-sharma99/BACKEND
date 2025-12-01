@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>404 | Not Found</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background: linear-gradient(
+                    to right,
+                    #161c22,
+                    #1b2532,
+                    #161c22
+                );
+                height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                flex-direction: column;
+                color: white;
+            }
+            h1 {
+                font-size: 2.5rem;
+                text-align: center;
+                margin-bottom: 1rem;
+            }
+            .button {
+                padding: 0.5rem 1rem;
+                background-color: #3b82f6;
+                color: white;
+                border: none;
+                border-radius: 0.25rem;
+                cursor: pointer;
+                text-decoration: none;
+            }
+            .button:hover {
+                background-color: #2563eb;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>404 | Not Found</h1>
+        <a href="https://macbease.com" class="button">Go Back</a>
+    </body>
+    <script>
+        setTimeout(() => {
+            window.location.href = "https://macbease.com";
+        }, 500);
+    </script>
+</html>

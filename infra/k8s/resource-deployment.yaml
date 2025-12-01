@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: resource
+  template:
+    metadata:
+      labels:
+        app: resource
+    spec:
+      containers:
+        - name: resource
+          image: spargens/resource
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: resource-srv
+spec:
+  selector:
+    app: resource
+  ports:
+    - name: resource
+      protocol: TCP
+      port: 5040
+      targetPort: 5040

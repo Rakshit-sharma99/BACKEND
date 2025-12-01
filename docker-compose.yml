@@ -1,0 +1,415 @@
+version: '3.8'
+
+services:
+  ipls:
+    build:
+      context: ./ipls
+      dockerfile: Dockerfile
+    image: spargens/ipls
+    ports:
+      - "5010:5010"
+    env_file:
+      - ./env/ipls/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped  # Automatically restart
+
+  universe:
+    build:
+      context: ./universe
+      dockerfile: Dockerfile
+    image: spargens/universe
+    ports:
+      - "5050:5050"
+    env_file:
+      - ./env/universe/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+     
+  multiverse:
+    build:
+      context: ./multiverse
+      dockerfile: Dockerfile
+    image: spargens/multiverse
+    ports:
+      - "5020:5020"
+    env_file:
+      - ./env/multiverse/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped  
+
+  content:
+    build:
+      context: ./content
+      dockerfile: Dockerfile
+    image: spargens/content
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./env/content/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  card:
+    build:
+      context: ./card
+      dockerfile: Dockerfile
+    image: spargens/card
+    ports:
+      - "5030:5030"
+    env_file:
+      - ./env/card/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  resource:
+    build:
+      context: ./resource
+      dockerfile: Dockerfile
+    image: spargens/resource
+    ports:
+      - "5040:5040"
+    env_file:
+      - ./env/resource/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  event:
+    build:
+      context: ./event
+      dockerfile: Dockerfile
+    image: spargens/event
+    ports:
+      - "5060:5060"
+    env_file:
+      - ./env/event/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  bag:
+    build:
+      context: ./bag
+      dockerfile: Dockerfile
+    image: spargens/bag
+    ports:
+      - "5090:5090"
+    env_file:
+      - ./env/bag/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  badge:
+    build:
+      context: ./badge
+      dockerfile: Dockerfile
+    image: spargens/badge
+    ports:
+      - "6020:6020"
+    env_file:
+      - ./env/badge/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  macbeaseContent:
+    build:
+      context: ./macbease_content
+      dockerfile: Dockerfile
+    image: spargens/macbease-content
+    ports:
+      - "5070:5070"
+    env_file:
+      - ./env/macbease_content/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  offer:
+    build:
+      context: ./offer
+      dockerfile: Dockerfile
+    image: spargens/offer
+    ports:
+      - "5080:5080"
+    env_file:
+      - ./env/offer/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  quest:
+    build:
+      context: ./quest
+      dockerfile: Dockerfile
+    image: spargens/quest
+    ports:
+      - "6010:6010"
+    env_file:
+      - ./env/quest/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  invitation:
+    build:
+      context: ./invitation
+      dockerfile: Dockerfile
+    image: spargens/invitation
+    ports:
+      - "6030:6030"
+    env_file:
+      - ./env/invitation/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  project:
+    build:
+      context: ./project
+      dockerfile: Dockerfile
+    image: spargens/project
+    ports:
+      - "6040:6040"
+    env_file:
+      - ./env/project/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  itinerary:
+    build:
+      context: ./itinerary
+      dockerfile: Dockerfile
+    image: spargens/itinerary
+    ports:
+      - "6050:6050"
+    env_file:
+      - ./env/itinerary/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  joinLink:
+    build:
+      context: ./joinLink
+      dockerfile: Dockerfile
+    image: spargens/join-link
+    ports:
+      - "6060:6060"
+    env_file:
+      - ./env/joinLink/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  tile:
+    build:
+      context: ./tiles
+      dockerfile: Dockerfile
+    image: spargens/tile
+    ports:
+      - "6070:6070"
+    env_file:
+      - ./env/tile/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  org:
+    build:
+      context: ./org
+      dockerfile: Dockerfile
+    image: spargens/org
+    ports:
+      - "6080:6080"
+    env_file:
+      - ./env/org/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  unsorted:
+    build:
+      context: ./unsorted
+      dockerfile: Dockerfile
+    image: spargens/unsorted
+    ports:
+      - "6090:6090"
+    env_file:
+      - ./env/unsorted/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  ticket:
+    build:
+      context: ./ticket
+      dockerfile: Dockerfile
+    image: spargens/ticket
+    ports:
+      - "6000:6000"
+    env_file:
+      - ./env/ticket/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  refund:
+    build:
+      context: ./refund
+      dockerfile: Dockerfile
+    image: spargens/refund
+    ports:
+      - "7000:7000"
+    env_file:
+      - ./env/refund/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  blog:
+    build:
+      context: ./blog
+      dockerfile: Dockerfile
+    image: spargens/blog
+    ports:
+      - "7010:7010"
+    env_file:
+      - ./env/blog/.env
+    depends_on:
+      - kafka
+      - zookeeper
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    depends_on:
+      - zookeeper
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:6.2
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+networks:
+  app-network:
+    driver: bridge

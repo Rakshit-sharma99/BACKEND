@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tile-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tile
+  template:
+    metadata:
+      labels:
+        app: tile
+    spec:
+      containers:
+        - name: tile
+          image: spargens/tile
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: tile-srv
+spec:
+  selector:
+    app: tile
+  ports:
+    - name: tile
+      protocol: TCP
+      port: 6070
+      targetPort: 6070

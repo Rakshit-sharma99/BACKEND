@@ -1,0 +1,93 @@
+const Coupon = require("../models/coupon");
+
+// Create a new coupon
+const createCoupon = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(403)
+        .send("You are not authorized to access this route.");
+    }
+
+    const { code, discountType, discountValue, validForEvents, validForUsers,uid,universeMetaData } =
+      req.body;
+
+    // Basic validations
+    if (!code || !discountType || !discountValue || !uid || !universeMetaData) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // Create coupon
+    const coupon = new Coupon({
+      code,
+      discountType,
+      discountValue,
+      validForEvents: validForEvents || [],
+      validForUsers: validForUsers || [],
+      usedBy: [],
+      uid,
+      universeMetaData
+    });
+
+    await coupon.save();
+
+    return res.status(201).json({
+      message: "Coupon created successfully",
+      coupon,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      // duplicate key error (unique code constraint)
+      return res.status(400).json({ error: "Coupon code already exists" });
+    }
+    console.error("Error creating coupon:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+const getAvailableCoupons = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    if (!eventId) {
+      return res.status(400).json({ error: "userId and eventId are required" });
+    }
+
+    const userId = req.user.id;
+
+    // Find coupons that match conditions
+    const coupons = await Coupon.find(
+      {
+        isActive: true,
+        $and: [
+          {
+            $or: [
+              { validForEvents: { $exists: false } },
+              { validForEvents: { $size: 0 } },
+              { validForEvents: eventId },
+            ],
+          },
+          {
+            $or: [
+              { validForUsers: { $exists: false } },
+              { validForUsers: { $size: 0 } },
+              { validForUsers: userId },
+            ],
+          },
+        ],
+        usedBy: { $ne: userId },
+      },
+      { validForUsers: 0, usedBy: 0 }
+    );
+
+    return res.status(200).json({
+      message: "Available coupons fetched successfully",
+      coupons,
+    });
+  } catch (err) {
+    console.error("Error fetching coupons:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports = { createCoupon, getAvailableCoupons };

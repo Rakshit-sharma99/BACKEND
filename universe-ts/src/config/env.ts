@@ -1,0 +1,35 @@
+/* import { config } from 'dotenv';
+
+config({ path: `.env.${process.env.NODE_ENV || 'development'}.local` });
+
+export const {
+  PORT,
+  HOST,
+  CORS_ORIGIN,
+  NODE_ENV,
+  LOG_TO_FILE,
+  MONGO_URI,
+  ACCESS_TOKEN_SECRET,
+  REFRESH_TOKEN_SECRET,
+  EMAIL,
+  PASSWORD,
+  AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY,
+  AWS_REGION,
+  REFRESH_TOKEN_LIFETIME,
+  RAZOR_PAY_KEY,
+  RAZOR_PAY_SECRET,
+  OPENAI_API_KEY,
+  PROJECT_ID,
+  PRIVATE_KEY_ID,
+  PRIVATE_KEY,
+  CLIENT_EMAIL,
+  CLIENT_ID,
+  AUTH_URI,
+  TOKEN_URI,
+  AUTH_PROVIDER,
+  CLIENT,
+  UNIVERSE_DOMAIN,
+  GOOGLE_CLIENT_ID,
+} = process.env;
+ */

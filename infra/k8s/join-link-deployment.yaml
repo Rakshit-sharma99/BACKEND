@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: join-link-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: join-link
+  template:
+    metadata:
+      labels:
+        app: join-link
+    spec:
+      containers:
+        - name: join-link
+          image: spargens/join-link
+
+--- 
+apiVersion: v1
+kind: Service
+metadata:
+  name: join-link-srv
+spec:
+  selector:
+    app: join-link
+  ports:
+    - name: join-link
+      protocol: TCP
+      port: 6060
+      targetPort: 6060

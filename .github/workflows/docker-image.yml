@@ -1,0 +1,89 @@
+name: Deploy to EC2 with Docker Compose
+on:
+  push:
+    branches:
+      - feat/migrate-backend
+     
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Check and Install Prerequisites
+        run: |
+          echo "=== Checking and Installing Prerequisites ==="
+          echo "OS Info:"
+          uname -a
+          echo "Current User:"
+          whoami
+
+          # Check and install Docker
+          echo "Docker Version:"
+          docker --version || (
+            echo "Docker not installed, installing..."
+            sudo apt update
+            sudo apt install -y docker.io
+            sudo systemctl start docker
+            sudo systemctl enable docker
+            sudo usermod -aG docker ubuntu
+            sudo systemctl restart docker
+            echo "Testing Docker installation:"
+            docker --version && docker ps || exit 1
+          )
+          echo "Docker Info:"
+          docker info || echo "Docker info failed"
+
+          # Check and install Docker Compose
+          echo "Docker Compose Version:"
+          docker compose version || (
+            echo "Docker Compose not installed, installing..."
+            sudo mkdir -p /usr/local/lib/docker/cli-plugins
+            sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.7/docker-compose-linux-aarch64" -o /usr/local/lib/docker/cli-plugins/docker-compose
+            sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            echo "Testing Docker Compose installation:"
+            docker compose version || exit 1
+          )
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build and Deploy with Docker Compose
+        run: |
+          echo "=== Building and Deploying with Docker Compose ==="
+          # Ensure .env files are in place
+          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted
+          
+          [ -f /home/ubuntu/env/badge/.env ] && cp /home/ubuntu/env/badge/.env env/badge/.env || echo "Warning: badge .env not found at /home/ubuntu/env/badge/.env"
+          [ -f /home/ubuntu/env/bag/.env ] && cp /home/ubuntu/env/bag/.env env/bag/.env || echo "Warning: bag .env not found at /home/ubuntu/env/bag/.env"
+          [ -f /home/ubuntu/env/blog/.env ] && cp /home/ubuntu/env/blog/.env env/blog/.env || echo "Warning: blog .env not found at /home/ubuntu/env/blog/.env"
+          [ -f /home/ubuntu/env/card/.env ] && cp /home/ubuntu/env/card/.env env/card/.env || echo "Warning: card .env not found at /home/ubuntu/env/card/.env"
+          [ -f /home/ubuntu/env/content/.env ] && cp /home/ubuntu/env/content/.env env/content/.env || echo "Warning: content .env not found at /home/ubuntu/env/content/.env"
+          [ -f /home/ubuntu/env/event/.env ] && cp /home/ubuntu/env/event/.env env/event/.env || echo "Warning: event .env not found at /home/ubuntu/env/event/.env"
+          [ -f /home/ubuntu/env/invitation/.env ] && cp /home/ubuntu/env/invitation/.env env/invitation/.env || echo "Warning: invitation .env not found at /home/ubuntu/env/invitation/.env"
+          [ -f /home/ubuntu/env/ipls/.env ] && cp /home/ubuntu/env/ipls/.env env/ipls/.env || echo "Warning: ipls .env not found at /home/ubuntu/env/ipls/.env"
+          [ -f /home/ubuntu/env/itinerary/.env ] && cp /home/ubuntu/env/itinerary/.env env/itinerary/.env || echo "Warning: itinerary .env not found at /home/ubuntu/env/itinerary/.env"
+          [ -f /home/ubuntu/env/joinLink/.env ] && cp /home/ubuntu/env/joinLink/.env env/joinLink/.env || echo "Warning: joinLink .env not found at /home/ubuntu/env/joinLink/.env"
+          [ -f /home/ubuntu/env/macbease_content/.env ] && cp /home/ubuntu/env/macbease_content/.env env/macbease_content/.env || echo "Warning: macbease_content .env not found at /home/ubuntu/env/macbease_content/.env"
+          [ -f /home/ubuntu/env/multiverse/.env ] && cp /home/ubuntu/env/multiverse/.env env/multiverse/.env || echo "Warning: multiverse .env not found at /home/ubuntu/env/multiverse/.env"
+          [ -f /home/ubuntu/env/offer/.env ] && cp /home/ubuntu/env/offer/.env env/offer/.env || echo "Warning: offer .env not found at /home/ubuntu/env/offer/.env"
+          [ -f /home/ubuntu/env/org/.env ] && cp /home/ubuntu/env/org/.env env/org/.env || echo "Warning: org .env not found at /home/ubuntu/env/org/.env"
+          [ -f /home/ubuntu/env/project/.env ] && cp /home/ubuntu/env/project/.env env/project/.env || echo "Warning: project .env not found at /home/ubuntu/env/project/.env"
+          [ -f /home/ubuntu/env/quest/.env ] && cp /home/ubuntu/env/quest/.env env/quest/.env || echo "Warning: quest .env not found at /home/ubuntu/env/quest/.env"
+          [ -f /home/ubuntu/env/refund/.env ] && cp /home/ubuntu/env/refund/.env env/refund/.env || echo "Warning: refund .env not found at /home/ubuntu/env/refund/.env"
+          [ -f /home/ubuntu/env/resource/.env ] && cp /home/ubuntu/env/resource/.env env/resource/.env || echo "Warning: resource .env not found at /home/ubuntu/env/resource/.env"
+          [ -f /home/ubuntu/env/ticket/.env ] && cp /home/ubuntu/env/ticket/.env env/ticket/.env || echo "Warning: ticket .env not found at /home/ubuntu/env/ticket/.env"
+          [ -f /home/ubuntu/env/tiles/.env ] && cp /home/ubuntu/env/tiles/.env env/tile/.env || echo "Warning: tiles .env not found at /home/ubuntu/env/tiles/.env"
+          [ -f /home/ubuntu/env/universe/.env ] && cp /home/ubuntu/env/universe/.env env/universe/.env || echo "Warning: universe .env not found at /home/ubuntu/env/universe/.env"
+          [ -f /home/ubuntu/env/unsorted/.env ] && cp /home/ubuntu/env/unsorted/.env env/unsorted/.env || echo "Warning: unsorted .env not found at /home/ubuntu/env/unsorted/.env"
+          
+          # Build and deploy
+          docker compose up -d --build
+          echo "=== Verifying Deployment ==="
+          docker compose ps
+          docker ps -a
+          # Test endpoints
+          echo "Testing ipls endpoint:"
+          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5010 || echo "ipls not responding"
+          echo "Testing universe endpoint:"
+          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5050/hello || echo "universe not responding"
