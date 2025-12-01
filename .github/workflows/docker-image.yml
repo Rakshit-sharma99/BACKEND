@@ -20,13 +20,12 @@ jobs:
           echo "Current User:"; whoami
           echo "Runner user variable: $RUNNER_USER"
 
-          # Install Docker and compose plugin if missing
+          # Install Docker if missing, plus compose plugin (apt) to avoid arch mismatch
           if ! command -v docker >/dev/null 2>&1; then
             echo "Docker not installed, installing..."
             sudo apt update
             sudo apt install -y docker.io docker-compose-plugin
             sudo systemctl enable --now docker
-            # add runner user to docker group (so interactive logins can run docker without sudo)
             sudo usermod -aG docker "${RUNNER_USER}" || true
           else
             echo "Docker already installed: $(docker --version)"
@@ -36,11 +35,12 @@ jobs:
           sudo docker --version
           sudo docker ps -a || echo "sudo docker ps failed (daemon might not be ready)"
 
-          echo "Docker Compose (plugin) version:"
+          echo "Docker Compose (plugin) version (if available):"
           sudo docker compose version || echo "docker compose plugin not available"
 
           echo "Docker info (sudo):"
           sudo docker info || true
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -82,8 +82,11 @@ jobs:
           sudo docker compose up --build
 
           echo "=== Verifying Deployment ==="
-          sudo docker compose ps
-          sudo docker ps -a
+          if sudo docker compose version >/dev/null 2>&1; then
+            sudo docker compose ps || true
+          else
+            sudo docker ps -a || true
+          fi
 
           # Simple health checks (adjust ports/paths as needed)
           echo "Testing ipls endpoint:"
