@@ -2,7 +2,7 @@ name: Deploy to EC2 with Docker Compose
 on:
   push:
     branches:
-      - feat/migrate-backend
+      - master
      
 jobs:
   deploy:
