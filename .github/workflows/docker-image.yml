@@ -74,7 +74,7 @@ jobs:
           [ -f /home/ubuntu/env/refund/.env ] && cp /home/ubuntu/env/refund/.env env/refund/.env || echo "Warning: refund .env not found at /home/ubuntu/env/refund/.env"
           [ -f /home/ubuntu/env/resource/.env ] && cp /home/ubuntu/env/resource/.env env/resource/.env || echo "Warning: resource .env not found at /home/ubuntu/env/resource/.env"
           [ -f /home/ubuntu/env/ticket/.env ] && cp /home/ubuntu/env/ticket/.env env/ticket/.env || echo "Warning: ticket .env not found at /home/ubuntu/env/ticket/.env"
-          [ -f /home/ubuntu/env/tiles/.env ] && cp /home/ubuntu/env/tiles/.env env/tile/.env || echo "Warning: tiles .env not found at /home/ubuntu/env/tiles/.env"
+          [ -f /home/ubuntu/env/tile/.env ] && cp /home/ubuntu/env/tile/.env env/tile/.env || echo "Warning: tile .env not found at /home/ubuntu/env/tile/.env"
           [ -f /home/ubuntu/env/universe/.env ] && cp /home/ubuntu/env/universe/.env env/universe/.env || echo "Warning: universe .env not found at /home/ubuntu/env/universe/.env"
           [ -f /home/ubuntu/env/unsorted/.env ] && cp /home/ubuntu/env/unsorted/.env env/unsorted/.env || echo "Warning: unsorted .env not found at /home/ubuntu/env/unsorted/.env"
 
