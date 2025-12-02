@@ -90,7 +90,7 @@ const authLimiter = rateLimit({
 
 app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
   res.send("Macbease - updated!");
-});
+}); 
 
 app.use("/universe/api/v1/auth/user", userAuthRouter);
 app.use("/universe/api/v1/admin", adminAuthRouter);
