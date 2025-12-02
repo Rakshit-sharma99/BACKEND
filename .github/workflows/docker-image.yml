@@ -88,6 +88,6 @@ jobs:
           docker ps -a
           # Test endpoints
           echo "Testing bag endpoint:"
-          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5090//bag/api/v1/hello || echo "bag not responding"
+          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5090/bag/api/v1/hello || echo "bag not responding"
           echo "Testing universe endpoint:"
           curl -s -o /dev/null -w "%{http_code}\n" http://localhost:5050/universe/api/v1/hello || echo "universe not responding"
