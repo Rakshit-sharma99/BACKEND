@@ -358,7 +358,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-nginx:
+  nginx:
     image: nginx:stable
     container_name: nginx-ingress
     ports:
