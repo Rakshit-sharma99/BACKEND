@@ -402,6 +402,9 @@ services:
       - app-network
     restart: unless-stopped 
 
+volumes:
+  kafka-data:
+  
 networks:
   app-network:
     driver: bridge
