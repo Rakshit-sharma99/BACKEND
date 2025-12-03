@@ -28,7 +28,6 @@ services:
       - ./env/universe/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -45,7 +44,6 @@ services:
       - ./env/multiverse/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -62,7 +60,6 @@ services:
       - ./env/content/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -79,7 +76,6 @@ services:
       - ./env/card/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -96,7 +92,6 @@ services:
       - ./env/resource/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -113,7 +108,6 @@ services:
       - ./env/event/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -130,7 +124,6 @@ services:
       - ./env/bag/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -147,7 +140,6 @@ services:
       - ./env/badge/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -164,7 +156,6 @@ services:
       - ./env/macbease_content/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -181,7 +172,6 @@ services:
       - ./env/offer/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -198,7 +188,6 @@ services:
       - ./env/quest/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -215,7 +204,6 @@ services:
       - ./env/invitation/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -232,7 +220,6 @@ services:
       - ./env/project/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -249,7 +236,6 @@ services:
       - ./env/itinerary/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -266,7 +252,6 @@ services:
       - ./env/joinLink/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -283,7 +268,6 @@ services:
       - ./env/tile/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -300,7 +284,6 @@ services:
       - ./env/org/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -317,7 +300,6 @@ services:
       - ./env/unsorted/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -334,7 +316,6 @@ services:
       - ./env/ticket/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -351,7 +332,6 @@ services:
       - ./env/refund/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
@@ -368,38 +348,50 @@ services:
       - ./env/blog/.env
     depends_on:
       - kafka
-      - zookeeper
       - redis
     networks:
       - app-network
     restart: unless-stopped 
 
   kafka:
-    image: confluentinc/cp-kafka:7.3.0
+    image: apache/kafka:latest
+    container_name: multiverse-testing-kafka-1
     ports:
-      - "9092:9092"
+      - "9092:9092"   # client connections
+      - "9093:9093"   # controller listener (internal)
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-    depends_on:
-      - zookeeper
+      # KRaft (controller + broker) single-node configuration
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      # controller quorum voters format: id@host:controllerPort
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      # listeners: broker client and controller
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      # expose broker to other containers via service name "kafka"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: "1"
+      KAFKA_LOG_RETENTION_HOURS: "168"
+      KAFKA_LOG_SEGMENT_BYTES: "1073741824"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      # Optional static cluster id (use any value or leave unset to let Kafka generate it)
+      KAFKA_CLUSTER_ID: "qwertyuiopasdfghjkl"
+      # where to store data inside container
+      KAFKA_LOG_DIRS: "/var/lib/kafka/data"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
     networks:
-      - app-network
-    restart: unless-stopped
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.3.0
-    ports:
-      - "2181:2181"
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    networks:
-      - app-network
+      app-network:
+        aliases:
+          - kafka
+    healthcheck:
+      test: ["CMD", "bash", "-c", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
 
   redis:
