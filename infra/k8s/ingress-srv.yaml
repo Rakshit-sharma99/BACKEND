@@ -179,3 +179,10 @@ spec:
                 name: coupon-srv
                 port:
                   number: 7020
+          - path: /memory
+            pathType: Prefix
+            backend:
+              service:
+                name: memory-srv
+                port:
+                  number: 7030
