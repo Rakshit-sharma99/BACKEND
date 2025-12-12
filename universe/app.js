@@ -67,6 +67,11 @@ const offerRouter = require("./routes/offerRouter");
 const questRouter = require("./routes/questRouter");
 const joinLinkRouter = require("./routes/joinLinkRouter");
 const rateLimit = require("express-rate-limit");
+const overlayRouter = require("./routes/overlayRouter");
+const couponRouter = require("./routes/couponRouter");
+const memoryRouter = require("./routes/memoryRouter");
+const awardRouter = require("./routes/awardRouter");
+const blockRouter = require("./routes/blockRouter");
 // const eventRegisterRouter = require("./routes/eventRegisterRouter");
 const unsortedRouter = require("./routes/unsortedRouter");
 
@@ -76,9 +81,23 @@ app.use(helmet());
 app.use(express.json());
 
 app.use((req, res, next) => {
-  console.log(
-    `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`
-  );
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${req.ip} ${req.method} ${req.originalUrl}`;
+
+  console.log(logEntry);
+
+  const sessionId = req.headers["session"];
+
+  if (sessionId) {
+    Session.findByIdAndUpdate(
+      sessionId,
+      { $push: { callStack: logEntry } },
+      { new: false, useFindAndModify: false }
+    ).catch((err) => {
+      console.error("Session logging error:", err.message);
+    });
+  }
+
   next();
 });
 
@@ -128,6 +147,11 @@ app.use("/universe/api/v1/alumni", authenticate, alumniRouter);
 app.use("/universe/api/v1/offer", authenticate, offerRouter);
 app.use("/universe/api/v1/quest", authenticate, questRouter);
 app.use("/universe/api/v1/joinLink", authenticate, joinLinkRouter);
+app.use("/universe/api/v1/overlay", authenticate, overlayRouter);
+app.use("/universe/api/v1/coupon", authenticate, couponRouter);
+app.use("/universe/api/v1/memory", authenticate, memoryRouter);
+app.use("/universe/api/v1/award", authenticate, awardRouter);
+app.use("/universe/api/v1/block", authenticate, blockRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
 

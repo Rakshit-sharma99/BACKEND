@@ -18,6 +18,7 @@ const {
   fetchTicketsBoughtByAUserOfAnEvent,
   generateEmailReportHtml,
   fetchMultipleClubsData,
+  autoGenEventMemoryHTML
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
@@ -102,15 +103,7 @@ const fetchRightSequence = async (events) => {
     // Create lookup for club ratings
     const clubRatings = {};
     clubs.forEach((club) => {
-      if (
-        ["657b9303f18136e2f692398c", "657b97a8f18136e2f69239ab"].includes(
-          club._id.toString()
-        )
-      ) {
-        clubRatings[club._id.toString()] = 0;
-      } else {
         clubRatings[club._id.toString()] = club.rating || 0;
-      }
     });
 
     // Sort featured events:
@@ -156,6 +149,14 @@ const getAllEvents = async (req, res) => {
   try {
     const { status, batch = 1, batchSize = 6 } = req.query;
 
+    const excludedBelongsToIds = [
+      "657b9303f18136e2f692398c",
+      "657b97a8f18136e2f69239ab",
+      "67406a24759b2a80fd8f60c3",
+      "687f6e7bbb8addf5fa0ea0d1",
+      "66d29ec57657f2d4231cd22a",
+    ];
+
     let events;
 
     if (status) {
@@ -163,12 +164,18 @@ const getAllEvents = async (req, res) => {
         { $match: { status } },
         {
           $addFields: {
-            bookedByCount: { $size: { $ifNull: ["$bookedBy", []] } }, // count only
+            bookedByCount: {
+              $cond: {
+                if: { $in: ["$belongsTo.id", excludedBelongsToIds] }, // condition based on belongsTo.id
+                then: null, // or 0 if you prefer numeric
+                else: { $size: { $ifNull: ["$bookedBy", []] } },
+              },
+            },
           },
         },
         {
           $project: {
-            bookedBy: 0,             // same exclusions as before
+            bookedBy: 0, // same exclusions as before
             amtPaid: 0,
             amtPaidTo: 0,
             ticketSellingDays: 0,
@@ -436,6 +443,16 @@ const getEventAnalytics = async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
+    }
+
+    const canSeeStats = Array.isArray(event.permissions?.whoCanSeeStats) ?
+      event.permissions.whoCanSeeStats.includes(req.user.id) :
+        false;
+
+    if(!canSeeStats && req.user.role !== "admin"){
+      return res.status(StatusCodes.FORBIDDEN).json({
+        msg:"You do not have access",
+      })
     }
 
     // Revenue graph data
@@ -770,12 +787,9 @@ const answerTheQuestion = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
 
-    const authorized = await isAuthorized(
-      req.user.id,
-      req.user.role,
-      event.belongsTo,
-      req.user.callSign
-    );
+   const authorized = Array.isArray(event.permissions?.whoCanAnswerFAQ) ?
+    event.permissions.whoCanAnswerFAQ.includes(req.user.id) :
+      false;
 
     if (!authorized) {
       return res.status(StatusCodes.FORBIDDEN).send("Not authorized.");
@@ -868,17 +882,12 @@ const getFaq = async (req, res) => {
   const { eventId } = req.query;
 
   try {
-    const event = await Event.findById(eventId, { faq: 1, belongsTo: 1 });
+    const event = await Event.findById(eventId, { faq: 1, belongsTo: 1,permissions:1 });
     if (!event) {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
 
-    const authorized = await isAuthorized(
-      req.user.id,
-      req.user.role,
-      event.belongsTo,
-      req.user.callSign
-    );
+    const authorized = event.permissions?.whoCanAnswerFAQ.includes(req.user.id);
 
     const predefined = event.faq.filter((faq) => faq.predefined);
     const generalQuestion = event.faq.filter((faq) => !faq.predefined);

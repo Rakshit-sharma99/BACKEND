@@ -3,7 +3,7 @@ const { update_invitation } = require("./universe_event_handlers/update_invitati
 const prefix = process.env.KAFKA_CLIENT_ID;
 
 const handlers = {
-  [`${prefix}update_invitation`]: update_invitation,
+  [`${prefix}_update_invitation`]: update_invitation,
 };
 
 module.exports = { handlers };

@@ -25,6 +25,8 @@ const {
   getMultipleContents,
   searchContentFromIds,
   migrateCollectionController,
+  uploadToS3,
+  uploadMiddleware,
 } = require("../controllers/contentController");
 
 router.post("/createContent", createContent);
@@ -50,4 +52,5 @@ router.get("/getContentForLanding", getContentForLanding);
 router.post("/getMultipleContents", getMultipleContents);
 router.post("/searchContentFromIds", searchContentFromIds);
 router.post("/migrateCollectionController", migrateCollectionController);
+router.post("/uploadToS3",uploadMiddleware, uploadToS3);
 module.exports = router;

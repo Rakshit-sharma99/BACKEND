@@ -857,6 +857,305 @@ const generateEmailReportHtml = ({
     `;
 };
 
+const autoGenEventMemoryHTML = ({
+  userName,
+  eventName,
+  eventDate,
+  userId,
+  memoryId,
+}) => {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Macbease - Event Memory Added</title>
+
+<style>
+  body {
+    margin: 0;
+    font-family: 'Arial', sans-serif;
+    background: #e6dbff;
+  }
+
+  .wrapper {
+    max-width: 780px;
+    margin: 40px auto;
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 24px 0 40px;
+    text-align: center;
+    background: linear-gradient(145deg, #2b1055 0%, #7597de 40%, #ff7eb3 85%);
+    color: white;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+  }
+
+  .header {
+    padding: 60px 40px 30px;
+  }
+
+  .brand {
+    display: block;
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: white;
+  }
+
+  .title {
+    margin-top: 20px;
+    font-size: 28px;
+    font-weight: 700;
+  }
+
+  .subtitle {
+    font-size: 20px;
+    margin-top: 8px;
+    opacity: 0.9;
+  }
+
+  .btn-primary {
+    display: inline-block;
+    margin: 20px auto 10px;
+    padding: 12px 32px;
+    background: #1ea1ed;
+    color: white !important;
+    border-radius: 25px;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  .sketch-img {
+    width: 180px;
+    margin: 25px auto 0;
+    display: block;
+  }
+
+  .section-heading {
+    margin-top: 30px;
+    margin-bottom: 10px;
+    font-size: 24px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .full-card {
+    width: calc(100% - 80px);
+    margin: 20px auto;
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(4px);
+    border-radius: 18px;
+    padding: 22px;
+    color: white;
+    text-align: center;
+  }
+
+  .full-card img {
+    width: 160px;
+    margin: 15px auto;
+    display: block;
+  }
+
+  .full-card h3 {
+    margin-bottom: 10px;
+    font-size: 20px;
+    color: white;
+  }
+
+  .full-card p {
+    font-size: 15px;
+    opacity: 0.9;
+    line-height: 1.6;
+  }
+
+  .card-btn {
+    display: inline-block;
+    margin-top: 15px;
+    padding: 8px 20px;
+    background: #1ea1ed;
+    color: white !important;
+    text-decoration: none;
+    border-radius: 20px;
+    font-size: 14px;
+  }
+</style>
+</head>
+
+<body>
+
+<div class="wrapper">
+
+  <div class="header">
+    <span class="brand">Macbease</span>
+
+    <div class="title">Hey ${userName}!</div>
+    <div class="subtitle">A new event memory was added to your Memory Lane.</div>
+
+    <img class="sketch-img" 
+      src="https://s3.us-east-1.amazonaws.com/data.macbease.com/public/club/sd-removebg-preview.png" />
+  </div>
+
+  <a class="btn-primary" href="https://macbease.com/app/profile/${userId}">Open Memory Lane</a>
+
+  <div class="section-heading">${eventName}</div>
+  <div class="subtitle">${eventDate}</div>
+
+  <div class="full-card">
+    <h3>Certificate Delivered</h3>
+    <img src="https://s3.us-east-1.amazonaws.com/data.macbease.com/public/club/certd-removebg-preview.png" />
+    <p>Your event certificate is now live in your Memory Lane. Enjoy your achievement moment!</p>
+    <a href="https://macbease.com/app/memory/${memoryId}" class="card-btn">View Certificate</a>
+  </div>
+
+  <div class="full-card">
+    <h3>Memories Added</h3>
+    <img src="https://s3.us-east-1.amazonaws.com/data.macbease.com/public/club/dsew-removebg-preview.png" />
+    <p>New event photos have been added. Add yours and relive the moment!</p>
+    <a href="https://macbease.com/app/memory/${memoryId}" class="card-btn">Revisit Memories</a>
+  </div>
+
+</div>
+
+<div style="
+  margin-top: 40px;
+  padding: 25px;
+  background: #f3f3f3;
+  text-align: center;
+  border-top: 1px solid #e0e0e0;">
+  
+  <div style="font-size: 14px; color: #555; line-height: 1.6;">
+    You're receiving this email because you’re a registered member of <strong>Macbease</strong>.<br/>
+    We help you preserve your moments, celebrate achievements, and relive your campus journey.
+  </div>
+
+  <div style="margin: 18px 0; font-size: 14px;">
+    <a href="https://macbease.com/app/profile/${userId}" style="color:#1ea1ed; text-decoration:none; margin:0 10px;">Open App</a>
+    |
+    <a href="https://macbease.com/contactus" style="color:#1ea1ed; text-decoration:none; margin:0 10px;">Support</a>
+    |
+    <a href="https://macbease.com/terms" style="color:#1ea1ed; text-decoration:none; margin:0 10px;">Privacy Policy</a>
+  </div>
+
+  <div style="font-size: 12px; color: #888;">
+    © 2025 Macbease Corporation. All Rights Reserved.
+  </div>
+
+</div>
+
+</body>
+</html>`;
+};
+
+const reminder = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Macbease Event Memory</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+  }
+
+  .wrapper {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  /* BUTTONS */
+  .btn-primary {
+    display: block;
+    margin: 18px auto;
+    padding: 14px 32px;
+    width: 250px;
+    background: #1ea1ed;
+    color: white !important;
+    text-decoration: none;
+    border-radius: 28px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  .btn-secondary {
+    display: block;
+    margin: 18px auto 0;
+    padding: 12px 28px;
+    width: 250px;
+    background: #fea850;
+    color: #1ea1ed !important;
+    text-decoration: none;
+    border-radius: 28px;
+    font-size: 15px;
+    font-weight: bold;
+    border: 2px solid #1ea1ed;
+  }
+
+
+  .title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #000000;
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    font-size: 16px;
+    color: #333333;
+    margin-top: 4px;
+  }
+</style>
+</head>
+
+<body>
+
+<!-- OUTLOOK BACKGROUND FIX -->
+<!--[if gte mso 9]>
+<v:background fill="t">
+  <v:fill type="frame" src="https://s3.us-east-1.amazonaws.com/data.macbease.com/public/club/df.png" />
+</v:background>
+<![endif]-->
+
+<table class="wrapper" width="100%" cellpadding="0" cellspacing="0"
+  background="https://s3.us-east-1.amazonaws.com/data.macbease.com/public/club/df.png"
+  style="
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+    height: 800px;
+  "
+>
+  <tr>
+    <td style="padding-bottom: 180px;">
+
+     
+
+      <!-- BUTTON: Opening ShowDown -->
+      <a href="https://macbease.com/app/event/opening-showdown" class="btn-secondary">
+        Opening ShowDown
+      </a>
+
+      <!-- BUTTON: Upload Memories -->
+      <a href="https://macbease.com/app/memories/upload" class="btn-primary">
+        Upload Memories
+      </a>
+
+    </td>
+  </tr>
+
+</table>
+
+</body>
+</html>
+
+
+`;
+
 module.exports = {
   fetchItineraries,
   fetchNativeUserData,
@@ -875,5 +1174,7 @@ module.exports = {
   scheduleNotification2,
   fetchTicketsBoughtByAUserOfAnEvent,
   generateEmailReportHtml,
-  fetchMultipleClubsData
+  fetchMultipleClubsData,
+  autoGenEventMemoryHTML,
+  reminder
 };
