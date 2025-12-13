@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { insertNewFields, createContent, likeContent, comment, unlikeContent, deleteContent, getComments, getContent, getContentBySpan, getLikeStatus, getMacbeaseContribution, getPopularComments, likeAComment, unLikeAComment, getBatchedContent, getDateWiseContent, tagSearchContent, editContent, replyToComment, searchContentByText, getContentFromLastTimeStamp, getMacbeaseContentByIds } = require("../controllers/macbeaseContentControllers");
+const { insertNewFields, createContent, likeContent, comment, unlikeContent, deleteContent, getComments, getContent, getContentBySpan, getLikeStatus, getMacbeaseContribution, getPopularComments, likeAComment, unLikeAComment, getBatchedContent, getDateWiseContent, tagSearchContent, editContent, replyToComment, searchContentByText, getContentFromLastTimeStamp, getMacbeaseContentByIds, getMacbeaseContentByField } = require("../controllers/macbeaseContentControllers");
 
 router.post("/createContent", createContent);
 router.post("/likeContent", likeContent);
@@ -25,5 +25,6 @@ router.get("/searchContentByText", searchContentByText);
 router.get("/getContentFromLastTimeStamp", getContentFromLastTimeStamp);
 router.post("/getMacbeaseContentByIds", getMacbeaseContentByIds);
 router.post("/insertNewFields",insertNewFields);
+router.post("/getMacbeaseContentByField",getMacbeaseContentByField);
 
 module.exports = router;

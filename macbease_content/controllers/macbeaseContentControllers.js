@@ -1339,6 +1339,47 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+const getMacbeaseContentByField = async(req,res) => {
+  try {
+    const {
+      limit = 5,
+      select,
+      sortField = "timeStamp",
+      searchBy 
+    } = req.body;
+
+    // Validate search fields
+    if (!Object.keys(searchBy).length) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one search field is required.",
+      });
+    }
+
+    let query = MacbeaseContent.find(searchBy)
+      .sort({ [sortField]: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    // Apply select if present
+    if (select) {
+      query = query.select(select.replace(/,/g, " "));
+    }
+
+    const results = await query;
+
+    return res.status(StatusCodes.OK).send(results);
+
+  } catch (error) {
+    console.error("Error fetching macbease content by field :", error);
+
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+}
+
 module.exports = {
   createContent,
   likeContent,
@@ -1362,4 +1403,5 @@ module.exports = {
   getContentFromLastTimeStamp,
   getMacbeaseContentByIds,
   insertNewFields,
+  getMacbeaseContentByField
 };

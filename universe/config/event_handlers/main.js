@@ -73,6 +73,11 @@ const {
 } = require("./ticket_event_handlers/add_ticket_to_user_schema");
 
 const badgeHandlers = require("./badge_event_handlers/index");
+const { update_memory_list } = require('./memory_event_handlers/update_memory_list');
+const { update_user_memory_list } = require('./memory_event_handlers/update_user_memory_list');
+const { update_club_memory_list } = require('./memory_event_handlers/update_club_memory_list');
+const { update_user_memory_notice } = require('./memory_event_handlers/update_user_memory_notice');
+const { update_user_pinned_memory } = require('./memory_event_handlers/update_user_pinned_memory');
 
 const prefix = process.env.KAFKA_CLIENT_ID;
 
@@ -118,6 +123,11 @@ const handlers = {
   [`${prefix}_ask_for_review`]: ask_for_review,
   [`${prefix}_edit_event`]: edit_event,
   [`${prefix}_add_ticket_to_user_schema`]: add_ticket_to_user_schema,
+  [`${prefix}_update_user_memory_list`]: update_user_memory_list,
+  [`${prefix}_update_club_memory_list`]: update_club_memory_list,
+  [`${prefix}_update_memory_list`]: update_memory_list,
+  [`${prefix}_update_user_memory_notice`]: update_user_memory_notice,
+  [`${prefix}_update_user_pinned_memory`]: update_user_pinned_memory,
 };
 
 module.exports = { handlers };
