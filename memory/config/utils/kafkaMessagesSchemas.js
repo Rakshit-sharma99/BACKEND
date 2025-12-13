@@ -1,0 +1,147 @@
+/**
+ * @typedef {Object} UPDATE_USER_MEMORY_LIST_PAYLOAD
+ * @property {string} id
+ * @property {string} memoryId
+ * @property {"add"|"remove"} operation
+ */
+
+const UPDATE_USER_MEMORY_LIST = {
+  PERSON_TAG: {
+    topicSuffix: "_update_user_memory_list",
+
+    validate: (data) => {
+      if (data.id !== "string") {
+        throw new Error("id must be string");
+      }
+      if (data.memoryId !== "string") {
+        throw new Error("memory id must be string");
+      }
+      if (!["add", "remove"].includes(data.operation)) {
+        throw new Error("operation must be 'add' or 'remove'");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+
+/**
+ * @typedef {Object} UPDATE_CLUB_MEMORY_LIST_PAYLOAD
+ * @property {string} id
+ * @property {string} memoryId
+ * @property {"add"|"remove"} operation
+ */
+
+const UPDATE_CLUB_MEMORY_LIST = {
+  PERSON_TAG: {
+    topicSuffix: "_update_club_memory_list",
+
+    validate: (data) => {
+      if (data.id !== "string") {
+        throw new Error("id must be string");
+      }
+      if (data.memoryId !== "string") {
+        throw new Error("memory id must be string");
+      }
+      if (!["add", "remove"].includes(data.operation)) {
+        throw new Error("operation must be 'add' or 'remove'");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+/**
+ * @typedef {Object} UPDATE_MEMORY_LIST_PAYLOAD
+ * @property {string} id
+ * @property {string[]} validPeopleTags
+
+ */
+
+const UPDATE_MEMORY_LIST = {
+  PERSON_TAG: {
+    topicSuffix: "_update_memory_list",
+
+    validate: (data) => {
+      if (data.id !== "string") {
+        throw new Error("id must be string");
+      }
+
+      if (!Array.isArray(data.validPeopleTags) || data.validPeopleTags.length===0) {
+        throw new Error("'validPeopleTags' must be non-empty array");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} UPDATE_USERS_MEMORY_NOTICE_PAYLOAD
+ * @property {string[]} validPeopleTags
+ * @property {Object} notice
+ */
+
+const UPDATE_USER_MEMORY_NOTICE = {
+  PERSON_TAG: {
+    topicSuffix: "_update_user_memory_notice",
+
+    validate: (data) => {
+       if (!data.notice || typeof data.notice !== "object") {
+        throw new Error("'notice' must be a valid object.");
+      }
+
+      if (!Array.isArray(data.validPeopleTags) || data.validPeopleTags.length===0) {
+        throw new Error("'validPeopleTags' must be non-empty array");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} UPDATE_USER_PINNED_MEMORY_PAYLOAD
+ * @property {string} id
+ * @property {string} memoryId
+ * @property {"add"|"remove"} operation
+ */
+
+const UPDATE_USER_PINNED_MEMORY = {
+  PERSON_TAG: {
+    topicSuffix: "_update_user_pinned_memory",
+
+    validate: (data) => {
+      if (data.id !== "string") {
+        throw new Error("id must be string");
+      }
+      if (data.memoryId !== "string") {
+        throw new Error("memory id must be string");
+      }
+      if (!["add", "remove"].includes(data.operation)) {
+        throw new Error("operation must be 'add' or 'remove'");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+module.exports = {
+  ...UPDATE_USER_MEMORY_LIST,
+  ...UPDATE_CLUB_MEMORY_LIST,
+  ...UPDATE_MEMORY_LIST,
+  ...UPDATE_USER_MEMORY_NOTICE,
+  ...UPDATE_USER_PINNED_MEMORY
+};

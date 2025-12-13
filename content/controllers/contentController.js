@@ -23,6 +23,13 @@ const { v4: uuidv4 } = require("uuid");
 const { OpenAI } = require("openai");
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const migrationQueue = require("./migrationWorker");
+const multer = require("multer");
+const storage = multer.memoryStorage();
+
+const upload = multer({
+  storage,
+  limits: { fileSize:20*1024*1024}
+});
 
 const mongoose = require("mongoose");
 
@@ -1517,6 +1524,51 @@ const migrateCollectionController = async (req, res) => {
   });
 };
 
+const uploadToS3 = async(req,res) => {
+  try{
+    
+    const file = req.file;
+    let {key} = req.body;
+
+    if(!file){
+      return res.status(StatusCodes.BAD_REQUEST).json({success:false,message:"No file provided!"});
+    }
+
+    const uniqueName = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
+
+    if(!key){
+      key = `public/content/${uniqueName}`;
+    }
+
+    const params = {
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+
+    s3.upload(params, (err, data) => {
+      if (err) {
+        console.error("S3 Upload Error:", err);
+        return res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .json({ success: false, message: "Something went wrong" });
+      }
+
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "File uploaded successfully",
+        key: data.Key,
+      });
+    });
+
+  }catch(err){
+    console.log("Error uploading file to s3:",err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR)
+              .json({success:false,message:"Something went wrong!"})
+  }
+}
+
 module.exports = {
   createContent,
   likeContent,
@@ -1541,4 +1593,6 @@ module.exports = {
   getMultipleContents,
   searchContentFromIds,
   migrateCollectionController,
+  uploadMiddleware:upload.single("file"),
+  uploadToS3
 };

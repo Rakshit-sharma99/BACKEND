@@ -7,6 +7,7 @@ const Community = require("../models/community");
 const MacbeaseContent = require("../models/macbeaseContent");
 const Invitation = require("../models/invitation");
 const Itinerary = require("../models/itinerary");
+const Award = require("../models/award");
 const schedule = require("node-schedule");
 const {
   sendMail,
@@ -127,6 +128,13 @@ const createClub = async (req, res) => {
       team: [{ id: req.user.id, pos: "Founder" }],
       members: [req.user.id],
       createdOn: new Date(),
+      permissions: {
+        whoCanPost: [req.user.id],
+        whoCanAcceptProposals: [req.user.id],
+        chatModerators: [req.user.id],
+        whoCanSendNotifications: [req.user.id],
+        whoCanDispatchAwards: [req.user.id],
+      },
     });
     const founder = await User.findById(req.user.id, {
       clubs: 1,
@@ -2573,6 +2581,8 @@ const fetchProposals = async (req, res) => {
             ],
           },
           undecidedProposals: 1,
+          permissions: 1,
+          mainAdmin: 1,
         },
       },
     ]);
@@ -2600,7 +2610,11 @@ const fetchProposals = async (req, res) => {
       } else {
         return res
           .status(StatusCodes.OK)
-          .json({ finalData, undecidedProposals: club[0].undecidedProposals });
+          .json({ finalData,
+                  undecidedProposals: club[0].undecidedProposals,
+                  permissions: club[0].permissions.whoCanAcceptProposals,
+                  mainAdmin: club[0].mainAdmin,
+                  });
       }
     } else {
       return res.status(StatusCodes.OK).json([]);
@@ -3307,12 +3321,14 @@ const getRandomClubs = async (req, res) => {
 
 const fetchClubLeaderBoard = async (req, res) => {
   try {
+    const limitParam = Number(req.query.limit);
+    const limit = !isNaN(limitParam) && limitParam > 0 ? limitParam : 30;
     const clubs = await Club.aggregate([
       {
         $sort: { rating: -1 },
       },
       {
-        $limit: 30,
+        $limit: limit,
       },
       {
         $project: {
@@ -3676,6 +3692,121 @@ const getTopProfilesOfClub = async (req, res) => {
   }
 };
 
+const addAwardToClub = async (req, res) => {
+  try {
+    const { clubId } = req.query;
+    const {
+      awardId,
+      count,
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature,
+      amtPaid,
+    } = req.body;
+
+    // Step 0: Basic validation
+    if (!clubId || !awardId || !count) {
+      return res.status(400).json({
+        success: false,
+        message: "clubId, awardId, and count are required.",
+      });
+    }
+
+    // Step 1: Validate award existence
+    const award = await Award.findById(awardId);
+    if (!award) {
+      return res.status(404).json({
+        success: false,
+        message: "Award not found.",
+      });
+    }
+
+    // Step 2: Verify Razorpay signature (server-side)
+    const razorpaySecret = process.env.RAZOR_PAY_SECRET;
+    const razorpayKeyId = process.env.RAZOR_PAY_KEY;
+    const razorpayKeySecret = process.env.RAZOR_PAY_SECRET;
+
+    const expectedSignature = crypto
+      .createHmac("sha256", razorpaySecret)
+      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+      .digest("hex");
+
+    if (expectedSignature !== razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification failed: Invalid signature.",
+      });
+    }
+
+    // Step 3: Verify payment details via Razorpay API
+    const authHeader = `Basic ${Buffer.from(
+      `${razorpayKeyId}:${razorpayKeySecret}`
+    ).toString("base64")}`;
+
+    const { data: payment } = await axios.get(
+      `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
+      {
+        headers: { Authorization: authHeader },
+      }
+    );
+
+    // Step 4: Validate payment
+    if (payment.status !== "captured") {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification failed: Payment not captured.",
+      });
+    }
+
+    const expectedAmount = award.price * count;
+    if (
+      payment.amount !== amtPaid * 100 ||
+      payment.amount !== expectedAmount * 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment verification failed: Incorrect amount.",
+      });
+    }
+
+    // Step 5: Update club
+    const club = await Club.findById(clubId);
+    if (!club) {
+      return res.status(404).json({
+        success: false,
+        message: "Club not found.",
+      });
+    }
+
+    const existingAward = club.awards.find(
+      (a) => a.awardId.toString() === awardId
+    );
+
+    if (existingAward) {
+      existingAward.count += Number(count);
+    } else {
+      club.awards.push({ awardId, count: Number(count) });
+    }
+
+    club.processedPayments.push(razorpay_payment_id);
+
+    await club.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Award successfully added to club.",
+      data: club.awards,
+    });
+  } catch (error) {
+    console.error("Error adding award to club:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while adding award to club.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createClub,
   deleteClub,
@@ -3744,4 +3875,5 @@ module.exports = {
   assignDefaultPermissions,
   updateClubPermission,
   getTopProfilesOfClub,
+  addAwardToClub,
 };

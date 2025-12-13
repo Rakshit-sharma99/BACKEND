@@ -4,7 +4,10 @@ kind: Config
 deploy:
   kubectl:
     manifests:
-      - ./infra/k8s/*
+      - ./infra/k8s/kafka-deployment.yaml
+      - ./infra/k8s/ingress-srv.yaml
+      - ./infra/k8s/redis-deployment.yaml
+      - ./infra/k8s/memory-deployment.yaml
 
 build:
   local:
@@ -188,6 +191,14 @@ build:
             dest: .
     - image: spargens/coupon
       context: coupon # folder name of the service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.js"
+            dest: .
+    - image: spargens/memory
+      context: memory # folder name of the service
       docker:
         dockerfile: Dockerfile
       sync:

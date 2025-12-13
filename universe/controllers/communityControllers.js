@@ -304,6 +304,7 @@ const leaveAsMember = async (req, res) => {
     await Community.findByIdAndUpdate(communityId, {
       $pull: { members: userId, admins: userId },
       $inc: { activeMembers: -1 },
+       $inc: { rating: -3 },
     });
 
     if (req.user.role === "user") {
@@ -3076,12 +3077,14 @@ const getRandomCommunities = async (req, res) => {
 
 const fetchCommunityLeaderBoard = async (req, res) => {
   try {
+    const limitParam = Number(req.query.limit);
+    const limit = !isNaN(limitParam) && limitParam > 0 ? limitParam : 30;
     const communities = await Community.aggregate([
       {
         $sort: { rating: -1 },
       },
       {
-        $limit: 30,
+        $limit: limit,
       },
       {
         $project: {
