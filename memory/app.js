@@ -1,10 +1,13 @@
 require("dotenv").config();
+require("./config/kafka_producer");
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
 const helmet = require("helmet");
 const http = require("http");
 const connectDB = require("./db/connect");
+const authenticate = require("./middlewares//authentication");
+const memoryRouter = require("./routes/memoryRouter");
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +28,7 @@ app.get("/memory/api/v1/hello", (req, res) => {
   res.send("Macbease memory service responding!");
 });
 
+app.use("/memory/api/v1",authenticate,memoryRouter);
 
 const port = process.env.PORT || 7030;
 
