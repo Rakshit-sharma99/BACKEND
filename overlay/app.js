@@ -5,6 +5,8 @@ const admin = require("firebase-admin");
 const helmet = require("helmet");
 const http = require("http");
 const connectDB = require("./db/connect");
+const authenticate = require("./middlewares/authentication");
+const overlayRouter = require("./routes/overlayRouter");
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +27,7 @@ app.get("/overlay/api/v1/hello", (req, res) => {
   res.send("Macbease overlay service responding!");
 });
 
+app.use("/overlay/api/v1",authenticate,overlayRouter)
 
 const port = process.env.PORT || 7040;
 
