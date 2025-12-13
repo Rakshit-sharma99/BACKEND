@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: overlay-depl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: overlay
+  template:
+    metadata:
+      labels:
+        app: overlay
+    spec:
+      containers:
+        - name: overlay
+          image: spargens/overlay
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: overlay-srv
+spec:
+  selector:
+    app: overlay
+  ports:
+    - name: overlay
+      protocol: TCP
+      port: 7040
+      targetPort: 7040

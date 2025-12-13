@@ -186,3 +186,10 @@ spec:
                 name: memory-srv
                 port:
                   number: 7030
+          - path: /overlay
+            pathType: Prefix
+            backend:
+              service:
+                name: overlay-srv
+                port:
+                  number: 7040
