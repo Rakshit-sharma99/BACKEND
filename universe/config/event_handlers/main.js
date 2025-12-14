@@ -78,6 +78,7 @@ const { update_user_memory_list } = require('./memory_event_handlers/update_user
 const { update_club_memory_list } = require('./memory_event_handlers/update_club_memory_list');
 const { update_user_memory_notice } = require('./memory_event_handlers/update_user_memory_notice');
 const { update_user_pinned_memory } = require('./memory_event_handlers/update_user_pinned_memory');
+const { user_overlay_operation } = require('./overlay_event_handlers/user_overlay_operation');
 
 const prefix = process.env.KAFKA_CLIENT_ID;
 
@@ -128,6 +129,7 @@ const handlers = {
   [`${prefix}_update_memory_list`]: update_memory_list,
   [`${prefix}_update_user_memory_notice`]: update_user_memory_notice,
   [`${prefix}_update_user_pinned_memory`]: update_user_pinned_memory,
+  [`${prefix}_user_overlay_operation`]: user_overlay_operation,
 };
 
 module.exports = { handlers };
