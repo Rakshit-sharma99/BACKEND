@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 const Overlay = require("../models/overlay");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
+const { fetchTicketFieldsByQuery } = require("./interServiceCall");
 
 const createOverlay = async (req, res) => {
   try {
@@ -9,7 +11,7 @@ const createOverlay = async (req, res) => {
         .send("You are not authorized to access this route.");
     }
 
-    const { title, aspectRatio, cover, buttons } = req.body;
+    const { title, aspectRatio, cover, buttons,universeMetaData } = req.body;
 
     // Basic validation
     if (!cover) {
@@ -26,6 +28,8 @@ const createOverlay = async (req, res) => {
       aspectRatio,
       cover,
       buttons: buttons || [],
+      uid:req.user.uid,
+      universeMetaData
     });
 
     await overlay.save();
@@ -76,19 +80,15 @@ const addOverlayToUsers = async (req, res) => {
         .json({ error: "userIds (array) and overlayId are required" });
     }
 
-    // Convert overlayId to ObjectId if needed
-    const overlayObjectId = new mongoose.Types.ObjectId(overlayId);
-
-    // Update all users in one go
-    const result = await User.updateMany(
-      { _id: { $in: userIds } },
-      { $addToSet: { overlays: overlayObjectId } } // addToSet prevents duplicates
-    );
+    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
+      operation:"add",
+      targetType:"multiple",
+      overlayId,
+      userIds
+    })
 
     res.status(200).json({
-      success: true,
-      matched: result.matchedCount,
-      modified: result.modifiedCount,
+      success: true
     });
   } catch (error) {
     console.error("Error adding overlay to users:", error);
@@ -123,12 +123,12 @@ const handleOverlayButtonPress = async (req, res) => {
       { new: true }
     );
 
-    // 2. Remove overlayId from user schema
-    await User.findByIdAndUpdate(
-      userId,
-      { $pull: { overlays: overlayObjectId } },
-      { new: true }
-    );
+    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
+      operation:"remove",
+      targetType:"single",
+      overlayId,
+      userId
+    })
 
     res.status(200).json({
       success: true,
@@ -145,9 +145,10 @@ const addOverlayToTicketBuyers = async (req, res) => {
     const { overlayId, eventId } = req.body;
 
     // Find tickets and extract buyer IDs
-    const tickets = await Ticket.find({
-      eventId: mongoose.Types.ObjectId(eventId),
-    }).lean();
+    const tickets = await fetchTicketFieldsByQuery({
+      searchBy: { eventId: mongoose.Types.ObjectId(eventId) },
+      fields: ["boughtBy"],
+    });
 
     const buyerIds = tickets.map((t) => t.boughtBy).filter(Boolean);
 
@@ -155,13 +156,14 @@ const addOverlayToTicketBuyers = async (req, res) => {
       return res.status(404).json({ msg: "No buyers found for this event" });
     }
 
-    // Update users with $addToSet
-    const usersUpdate = await User.updateMany(
-      { _id: { $in: buyerIds } },
-      { $addToSet: { overlays: overlayId } }
-    );
+    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
+      operation:"add",
+      targetType:"multiple",
+      overlayId,
+      userIds:buyerIds
+    })
 
-    return res.status(200).json({ msg: "Overlay added", usersUpdate });
+    return res.status(200).json({ msg: "Overlay added" });
   } catch (error) {
     console.error("Error handling overlay:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -179,17 +181,15 @@ const addOverlayToAllUsers = async (req, res) => {
       });
     }
 
-    // Use $addToSet to prevent duplicates
-    const result = await User.updateMany(
-      {},
-      { $addToSet: { overlays: overlayId } }
-    );
+    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
+      operation:"add",
+      targetType:"all",
+      overlayId
+    })
 
     return res.status(200).json({
       success: true,
       message: "Overlay added to all users successfully",
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
     });
   } catch (error) {
     console.error("Error adding overlay to all users:", error);
@@ -211,17 +211,15 @@ const removeOverlayFromAllUsers = async (req, res) => {
       });
     }
 
-    // Use $pull to remove the overlayId from all users
-    const result = await User.updateMany(
-      {},
-      { $pull: { overlays: overlayId } }
-    );
+    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
+      operation:"remove",
+      targetType:"all",
+      overlayId
+    })
 
     return res.status(200).json({
       success: true,
       message: "Overlay removed from all users successfully",
-      matchedCount: result.matchedCount,
-      modifiedCount: result.modifiedCount,
     });
   } catch (error) {
     console.error("Error removing overlay from all users:", error);

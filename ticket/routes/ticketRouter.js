@@ -15,6 +15,7 @@ const {
   getReviewedTickets,
   getRedeemedTickets,
   findEventTicketsBoughtByUser,
+  getTicketFieldsByQuery,
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -30,5 +31,6 @@ router.post("/getDetailedTickets", getDetailedTickets);
 router.get("/getReviewedTickets", getReviewedTickets);
 router.get("/getRedeemedTickets", getRedeemedTickets);
 router.get("/findEventTicketsBoughtByUser", findEventTicketsBoughtByUser);
+router.post("/getTicketFieldsByQuery", getTicketFieldsByQuery);
 
 module.exports = router;

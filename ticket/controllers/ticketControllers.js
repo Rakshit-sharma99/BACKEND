@@ -787,6 +787,56 @@ const findEventTicketsBoughtByUser = async (req, res) => {
   }
 };
 
+const getTicketFieldsByQuery = async (req, res) => {
+  try {
+    const { searchBy, fields, single = false } = req.body;
+
+    if (!searchBy || typeof searchBy !== "object" || !Object.keys(searchBy).length) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "searchBy must be a non-empty object",
+      });
+    }
+
+    if (!fields || !Array.isArray(fields) || fields.length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "fields must be a non-empty array",
+      });
+    }
+
+    Object.keys(searchBy).forEach((key) => {
+      if (mongoose.Types.ObjectId.isValid(searchBy[key])) {
+        searchBy[key] = new mongoose.Types.ObjectId(searchBy[key]);
+      }
+    });
+
+    const projection = fields.join(" ");
+
+    let query = Ticket.find(searchBy).select(projection).lean();
+
+    if (single === true) {
+      query = Ticket.findOne(searchBy).select(projection).lean();
+    }
+
+    const result = await query;
+
+    if (!result || (Array.isArray(result) && result.length === 0)) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        error: "No ticket(s) found",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("❌ Error in getTicketFieldsByQuery:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Something went wrong while fetching ticket(s).",
+    });
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -801,4 +851,5 @@ module.exports = {
   getReviewedTickets,
   getRedeemedTickets,
   findEventTicketsBoughtByUser,
+  getTicketFieldsByQuery
 };

@@ -8,6 +8,7 @@ deploy:
       - ./infra/k8s/ingress-srv.yaml
       - ./infra/k8s/redis-deployment.yaml
       - ./infra/k8s/overlay-deployment.yaml
+      - ./infra/k8s/universe-depl.yaml
 
 build:
   local:
