@@ -309,6 +309,48 @@ services:
       - app-network
     restart: unless-stopped 
 
+  coupon:
+    build:
+      context: ./coupon
+      dockerfile: Dockerfile
+    image: spargens/coupon
+    env_file:
+      - ./env/coupon/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  memory:
+    build:
+      context: ./memory
+      dockerfile: Dockerfile
+    image: spargens/memory
+    env_file:
+      - ./env/memory/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  overlay:
+    build:
+      context: ./overlay
+      dockerfile: Dockerfile
+    image: spargens/overlay
+    env_file:
+      - ./env/overlay/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
   kafka:
     image: apache/kafka:latest
     container_name: multiverse-testing-kafka-1
