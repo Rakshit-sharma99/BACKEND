@@ -42,6 +42,8 @@ const {
   getContentTeamAdmins,
   addToContentTeam,
   saveInterest,
+  insertNewFields,
+  getMemoryListUsers,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -86,5 +88,7 @@ router.get("/readContentTeam", readContentTeam);
 router.get("/removeFromTeam", removeFromTeam);
 router.get("/getContentTeamAdmins", getContentTeamAdmins);
 router.post("/saveInterest", saveInterest);
+router.get("/insertNewFields", insertNewFields);
+router.get("/getMemoryListUsers", getMemoryListUsers);
 
 module.exports = router;

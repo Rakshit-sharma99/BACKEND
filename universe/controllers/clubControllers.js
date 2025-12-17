@@ -1906,11 +1906,13 @@ const getFastNativeFeed = async (req, res) => {
       }
       const videoIds = videos.map((video) => video.contentId);
       const snippets = await fetchMultipleContents({ ids: videoIds });
-      processedSnippets = snippets.map((snippet) => ({
+      if(snippets){
+        processedSnippets = snippets.map((snippet) => ({
         ...snippet,
         commentsNum: snippet.comments.length, // Store total comment count
-        comments: snippet.comments.slice(0, 6), // Get only first 6 comments
-      }));
+          comments: snippet.comments.slice(0, 6), // Get only first 6 comments
+        }));
+      }
     }
 
     return res

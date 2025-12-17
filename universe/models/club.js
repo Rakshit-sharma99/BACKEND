@@ -1,4 +1,21 @@
 const mongoose = require("mongoose");
+
+const awardRefSchema = new mongoose.Schema(
+  {
+    awardId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Award",
+      required: true,
+    },
+    count: {
+      type: Number,
+      default: 1,
+      min: 0,
+    },
+  },
+  { _id: false }
+);
+
 const clubSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -71,12 +88,6 @@ const clubSchema = new mongoose.Schema({
   rating: {
     type: Number,
   },
-  monthlyRating: [
-    {
-      month: { type: String, required: true },
-      rating: { type: Number, required: true },
-    },
-  ],
   createdOn: {
     type: Date,
     default: new Date(),
@@ -99,7 +110,36 @@ const clubSchema = new mongoose.Schema({
   pinnedBy: {
     type: Array,
   },
-  hiddenTags: {
+  permissions: {
+    whoCanPost: {
+      type: [String],
+      default: [],
+    },
+    whoCanAcceptProposals: {
+      type: [String],
+      default: [],
+    },
+    chatModerators: {
+      type: [String],
+      default: [],
+    },
+    whoCanSendNotifications: {
+      type: [String],
+      default: [],
+    },
+    whoCanDispatchAwards: {
+      type: [String],
+      default: [],
+    },
+  },
+  memoryRequests: {
+    type: Array,
+  },
+  awards: {
+    type: [awardRefSchema],
+    default: [],
+  },
+  processedPayments: {
     type: Array,
   },
 });

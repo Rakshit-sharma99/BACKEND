@@ -4,7 +4,8 @@ const resolvers = require("../controllers/blockControllersUtility/resolvers");
 
 const getBlocksForPage = async (req, res) => {
   try {
-    const { pageName } = req.query;
+    const { pageName, page = 1, limit = 5 } = req.query;
+    const { cachedKeys = [] } = req.body;
 
     if (!pageName) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -13,10 +14,22 @@ const getBlocksForPage = async (req, res) => {
       });
     }
 
-    // Find all active blocks for the page
-    const blocks = await Block.find({ pageName, isActive: true })
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // total count for pagination info
+    const totalBlocks = await Block.countDocuments({
+      pageName,
+      isActive: true,
+    });
+
+    // Apply pagination
+    let blocks = await Block.find({ pageName, isActive: true })
       .sort({ order: 1 })
+      .skip(skip)
+      .limit(parseInt(limit))
       .lean();
+
+    blocks = blocks.filter((b) => !(cachedKeys || []).includes(b));
 
     const output = [];
 
@@ -25,8 +38,7 @@ const getBlocksForPage = async (req, res) => {
 
       let data = null;
 
-      // Run resolver only if exists
-      if (resolver) {
+      if (resolver && !cachedKeys.includes(block.uiSignature)) {
         try {
           data = await resolver(block, req.user.id);
         } catch (resolverErr) {
@@ -34,17 +46,36 @@ const getBlocksForPage = async (req, res) => {
         }
       }
 
-      output.push({
-        uiSignature: block.uiSignature,
-        order: block.order,
-        payload: block.payload,
-        data,
-      });
+      if (cachedKeys.includes(block.uiSignature)) {
+        output.push({
+          uiSignature: block.uiSignature,
+          order: block.order,
+          data: "cached",
+          cacheTime: block.cacheTime,
+        });
+      }
+
+      if (data) {
+        output.push({
+          uiSignature: block.uiSignature,
+          order: block.order,
+          data,
+          cacheTime: block.cacheTime,
+        });
+      }
     }
 
     return res.status(StatusCodes.OK).json({
       success: true,
       pageName,
+      pagination: {
+        total: totalBlocks,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil(totalBlocks / limit),
+        hasNextPage: skip + blocks.length < totalBlocks,
+        hasPrevPage: page > 1,
+      },
       blocks: output,
     });
   } catch (error) {

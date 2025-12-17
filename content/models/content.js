@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const commentSchema = new mongoose.Schema({
   cid: {
     type: String,
-    unique: true,
+    // unique: true,
   },
   text: {
     type: String,

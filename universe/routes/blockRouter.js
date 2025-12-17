@@ -9,6 +9,6 @@ const {
 
 router.post("/createBlock", createBlock);
 router.post("/editBlock", editBlock);
-router.get("/getBlocksForPage", getBlocksForPage);
+router.post("/getBlocksForPage", getBlocksForPage);
 
 module.exports = router;
