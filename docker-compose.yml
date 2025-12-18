@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  ipls-srv:
+  ipls:
     build:
       context: ./ipls
       dockerfile: Dockerfile
@@ -15,7 +15,7 @@ services:
       - app-network
     restart: unless-stopped  # Automatically restart
 
-  universe-srv:
+  universe:
     build:
       context: ./universe
       dockerfile: Dockerfile
@@ -29,7 +29,7 @@ services:
       - app-network
     restart: unless-stopped 
      
-  multiverse-srv:
+  multiverse:
     build:
       context: ./multiverse
       dockerfile: Dockerfile
@@ -43,7 +43,7 @@ services:
       - app-network
     restart: unless-stopped  
 
-  content-srv:
+  content:
     build:
       context: ./content
       dockerfile: Dockerfile
@@ -57,7 +57,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  card-srv:
+  card:
     build:
       context: ./card
       dockerfile: Dockerfile
@@ -71,7 +71,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  resource-srv:
+  resource:
     build:
       context: ./resource
       dockerfile: Dockerfile
@@ -85,7 +85,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  event-srv:
+  event:
     build:
       context: ./event
       dockerfile: Dockerfile
@@ -99,7 +99,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  bag-srv:
+  bag:
     build:
       context: ./bag
       dockerfile: Dockerfile
@@ -113,7 +113,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  badge-srv:
+  badge:
     build:
       context: ./badge
       dockerfile: Dockerfile
@@ -127,7 +127,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  macbeaseContent-srv:
+  macbeaseContent:
     build:
       context: ./macbease_content
       dockerfile: Dockerfile
@@ -141,7 +141,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  offer-srv:
+  offer:
     build:
       context: ./offer
       dockerfile: Dockerfile
@@ -155,7 +155,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  quest-srv:
+  quest:
     build:
       context: ./quest
       dockerfile: Dockerfile
@@ -169,7 +169,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  invitation-srv:
+  invitation:
     build:
       context: ./invitation
       dockerfile: Dockerfile
@@ -183,7 +183,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  project-srv:
+  project:
     build:
       context: ./project
       dockerfile: Dockerfile
@@ -197,7 +197,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  itinerary-srv:
+  itinerary:
     build:
       context: ./itinerary
       dockerfile: Dockerfile
@@ -211,7 +211,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  joinLink-srv:
+  joinLink:
     build:
       context: ./joinLink
       dockerfile: Dockerfile
@@ -225,7 +225,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  tile-srv:
+  tile:
     build:
       context: ./tiles
       dockerfile: Dockerfile
@@ -239,7 +239,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  org-srv:
+  org:
     build:
       context: ./org
       dockerfile: Dockerfile
@@ -253,7 +253,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  unsorted-srv:
+  unsorted:
     build:
       context: ./unsorted
       dockerfile: Dockerfile
@@ -267,7 +267,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  ticket-srv:
+  ticket:
     build:
       context: ./ticket
       dockerfile: Dockerfile
@@ -281,7 +281,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  refund-srv:
+  refund:
     build:
       context: ./refund
       dockerfile: Dockerfile
@@ -295,7 +295,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  blog-srv:
+  blog:
     build:
       context: ./blog
       dockerfile: Dockerfile
@@ -309,7 +309,7 @@ services:
       - app-network
     restart: unless-stopped 
  
-  coupon-srv:
+  coupon:
     build:
       context: ./coupon
       dockerfile: Dockerfile
@@ -323,7 +323,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  memory-srv:
+  memory:
     build:
       context: ./memory
       dockerfile: Dockerfile
@@ -337,7 +337,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  overlay-srv:
+  overlay:
     build:
       context: ./overlay
       dockerfile: Dockerfile
