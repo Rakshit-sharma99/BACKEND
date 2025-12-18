@@ -11,7 +11,7 @@ const path = require("path");
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
 const services = {
-  universe: "universe-srv:5050",
+  universe: "universe:5050",
 };
 
 const generateServiceToken = () => {
@@ -41,7 +41,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -58,7 +58,7 @@ const fetchItineraries = async (query) => {
     }
     const config = generateServiceToken();
     const itineraryData = await axios.post(
-      `http://itinerary-srv:6050/itinerary/api/v1/getItinerariesByIds`,
+      `http://itinerary:6050/itinerary/api/v1/getItinerariesByIds`,
       query,
       config
     );
@@ -123,7 +123,7 @@ const fetchTicketsByIds = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getTicketsbyIds`,
+      `http://ticket:6000/ticket/api/v1/getTicketsbyIds`,
       query,
       config
     );
@@ -140,7 +140,7 @@ const fetchDetailedTicketsByIds = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getDetailedTickets`,
+      `http://ticket:6000/ticket/api/v1/getDetailedTickets`,
       query,
       config
     );
@@ -157,7 +157,7 @@ const fetchTicketTypesCount = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getTicketTypesCount`,
+      `http://ticket:6000/ticket/api/v1/getTicketTypesCount`,
       query,
       config
     );
@@ -174,7 +174,7 @@ const fetchTicketFieldsById = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getTicketFieldsById`,
+      `http://ticket:6000/ticket/api/v1/getTicketFieldsById`,
       query,
       config
     );
@@ -195,7 +195,7 @@ const fetchMultipleClubsData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/fetchMultipleClubsFromIds",
+      "http://multiverse:5020/multiverse/api/v1/club/fetchMultipleClubsFromIds",
       query,
       config
     );
@@ -438,7 +438,7 @@ const fetchReviewedTickets = async (query) => {
 
     const config = generateServiceToken();
     const response = await axios.get(
-      `http://ticket-srv:6000/ticket/api/v1/getReviewedTickets`,
+      `http://ticket:6000/ticket/api/v1/getReviewedTickets`,
       {
         ...config,
         params: { eventId, skip, limit },
@@ -462,7 +462,7 @@ const getUserMetaMap = async (userIds, fields) => {
     }
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/fetchBulkUsers",
+      "http://multiverse:5020/multiverse/api/v1/user/fetchBulkUsers",
       {
         userIds,
         fields,
@@ -487,7 +487,7 @@ const fetchRedeemedTicketsOfEvent = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.get(
-      `http://ticket-srv:6000/ticket/api/v1/getRedeemedTickets?eventId=${query.eventId}`,
+      `http://ticket:6000/ticket/api/v1/getRedeemedTickets?eventId=${query.eventId}`,
       config
     );
     return ticketData.data.tickets;
@@ -619,7 +619,7 @@ const fetchTicketsBoughtByAUserOfAnEvent = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.get(
-      `http://ticket-srv:6000/ticket/api/v1/findEventTicketsBoughtByUser?eventId=${query.eventId}&userId=${query.userId}`,
+      `http://ticket:6000/ticket/api/v1/findEventTicketsBoughtByUser?eventId=${query.eventId}&userId=${query.userId}`,
       config
     );
 

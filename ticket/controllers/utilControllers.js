@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 
 const services = {
-  universe: "universe-srv:5050",
+  universe: "universe:5050",
 };
 
 const generateServiceToken = () => {
@@ -32,7 +32,7 @@ const fetchEventData = async (query) => {
     }
     const config = generateServiceToken();
     const eventData = await axios.post(
-      "http://event-srv:5060/event/api/v1/getEventFieldsById",
+      "http://event:5060/event/api/v1/getEventFieldsById",
       query,
       config
     );
@@ -53,7 +53,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -151,7 +151,7 @@ const getUserMetaMap = async (userIds, fields) => {
     }
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/fetchBulkUsers",
+      "http://multiverse:5020/multiverse/api/v1/user/fetchBulkUsers",
       {
         userIds,
         fields,

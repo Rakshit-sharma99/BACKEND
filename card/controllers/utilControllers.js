@@ -3,7 +3,7 @@ const axios = require("axios");
 const nlp = require("compromise");
 
 const services = {
-  universe: "universe-srv:5050",
+  universe: "universe:5050",
 };
 
 const generateServiceToken = () => {
@@ -56,7 +56,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -101,7 +101,7 @@ const fetchMultipleClubsData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/fetchMultipleClubsFromIds",
+      "http://multiverse:5020/multiverse/api/v1/club/fetchMultipleClubsFromIds",
       query,
       config
     );
@@ -122,7 +122,7 @@ const fetchMultipleCommunitiesData = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/community/fetchMultipleCommunitiesFromIds",
+      "http://multiverse:5020/multiverse/api/v1/community/fetchMultipleCommunitiesFromIds",
       query,
       config
     );
@@ -139,7 +139,7 @@ const fetchRelevantResources = async (query) => {
     }
     const config = generateServiceToken();
     const resources = await axios.get(
-      `http://resource-srv:5040/resource/api/v1/searchFromAllResources?query=${query}`,
+      `http://resource:5040/resource/api/v1/searchFromAllResources?query=${query}`,
       config
     );
     return resources.data;
@@ -155,7 +155,7 @@ const fetchRelevantEvents = async (query) => {
     }
     const config = generateServiceToken();
     const events = await axios.get(
-      `http://event-srv:5060/event/api/v1/searchEvents?q=${query}`,
+      `http://event:5060/event/api/v1/searchEvents?q=${query}`,
       config
     );
     return events.data;
@@ -171,7 +171,7 @@ const fetchPastOrFutureEvents = async (query) => {
     }
     const config = generateServiceToken();
     const events = await axios.get(
-      `http://event-srv:5060/event/api/v1/getPastOrFutureEvents?mode=${query.mode}&size=${query.size}`,
+      `http://event:5060/event/api/v1/getPastOrFutureEvents?mode=${query.mode}&size=${query.size}`,
       config
     );
     return events.data;
@@ -207,7 +207,7 @@ const fetchRelevantProfessors = async (regexPatterns) => {
     };
 
     const professors = await axios.post(
-      `http://multiverse-srv:5020/multiverse/api/v1/user/getUsersWithDynamicQuery`,
+      `http://multiverse:5020/multiverse/api/v1/user/getUsersWithDynamicQuery`,
       body,
       config
     );
@@ -228,7 +228,7 @@ const fetchRelevantClubs = async (regexPatterns) => {
     };
 
     const clubs = await axios.post(
-      `http://multiverse-srv:5020/multiverse/api/v1/club/searchClubsWithRegex`,
+      `http://multiverse:5020/multiverse/api/v1/club/searchClubsWithRegex`,
       body,
       config
     );
@@ -249,7 +249,7 @@ const fetchRelevantCommunities = async (regexPatterns) => {
     };
 
     const communities = await axios.post(
-      `http://multiverse-srv:5020/multiverse/api/v1/community/searchCommunitiesWithRegex`,
+      `http://multiverse:5020/multiverse/api/v1/community/searchCommunitiesWithRegex`,
       body,
       config
     );
@@ -265,7 +265,7 @@ const fetchRelatedTags = async (tag) => {
   try {
     const config = generateServiceToken();
     const tags = await axios.get(
-      `http://bag-srv:5050/bag/api/v1/masterSearch?tag=${tag}`,
+      `http://bag:5050/bag/api/v1/masterSearch?tag=${tag}`,
       config
     );
     return tags.data;
@@ -281,7 +281,7 @@ const fetchClubsRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/getClubsRecommendation",
+      "http://multiverse:5020/multiverse/api/v1/club/getClubsRecommendation",
       query,
       config
     );
@@ -298,7 +298,7 @@ const fetchCommunitiesRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/community/getCommunitiesRecommendation",
+      "http://multiverse:5020/multiverse/api/v1/community/getCommunitiesRecommendation",
       query,
       config
     );
@@ -312,7 +312,7 @@ const fetchSampleResources = async () => {
   try {
     const config = generateServiceToken();
     const resources = await axios.get(
-      `http://resource-srv:5040/resource/api/v1/getSampleResources`,
+      `http://resource:5040/resource/api/v1/getSampleResources`,
       config
     );
     return resources.data;

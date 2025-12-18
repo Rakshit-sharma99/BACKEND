@@ -23,7 +23,7 @@ const getUnsortedWords = async ()=>{
         const config = generateServiceToken();
 
         const response = await axios.get(
-            "http://unsorted-srv:6090/unsorted/api/v1/getUnsortedWords",
+            "http://unsorted:6090/unsorted/api/v1/getUnsortedWords",
             config
         );
         const {unsortedWords} = response.data;

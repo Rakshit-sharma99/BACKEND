@@ -28,7 +28,7 @@ const fetchEventData = async (query) => {
     }
     const config = generateServiceToken();
     const eventData = await axios.post(
-      "http://event-srv:5060/event/api/v1/getEventFieldsById",
+      "http://event:5060/event/api/v1/getEventFieldsById",
       query,
       config
     );
@@ -50,7 +50,7 @@ const checkEventAuthorization = async (query) => {
     const config = generateServiceToken();
 
     const response = await axios.get(
-      `http://event-srv:5060/event/api/v1/checkEventAuthorization?eventId=${eventId}&userId=${userId}`,
+      `http://event:5060/event/api/v1/checkEventAuthorization?eventId=${eventId}&userId=${userId}`,
       config
     );
 
@@ -68,7 +68,7 @@ const getUserMetaMap = async (userIds, fields) => {
     }
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/fetchBulkUsers",
+      "http://multiverse:5020/multiverse/api/v1/user/fetchBulkUsers",
       {
         userIds,
         fields,
@@ -93,7 +93,7 @@ const fetchTicketFieldsById = async (query) => {
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getTicketFieldsById`,
+      `http://ticket:6000/ticket/api/v1/getTicketFieldsById`,
       query,
       config
     );

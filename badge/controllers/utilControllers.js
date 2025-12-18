@@ -63,7 +63,7 @@ const getClubFieldsById = async(organisationId,fields) => {
         fields: fields
       }
       const response = await axios.post(
-          `http://universe-srv:5050/universe/api/v1/club/getClubFieldsById`,
+          `http://universe:5050/universe/api/v1/club/getClubFieldsById`,
           body,
           config
       );
@@ -82,7 +82,7 @@ const getCommunityFieldsById = async(organisationId,fields) => {
         fields: fields
       }
       const response = await axios.post(
-          `http://universe-srv:5050/universe/api/v1/community/getCommunityFieldsById`,
+          `http://universe:5050/universe/api/v1/community/getCommunityFieldsById`,
           body,
           config
       );
@@ -164,7 +164,7 @@ const getUserById = async (id, fields) => {
       fields: fields
     }
     const response = await axios.post(
-      `http://universe-srv:5050/universe/api/v1/user/getUserFieldsById`, 
+      `http://universe:5050/universe/api/v1/user/getUserFieldsById`, 
       body,
       config);
     const user = response.data;

@@ -2,7 +2,7 @@ const axios = require("axios");
 const jwt = require("jsonwebtoken");
 
 const services = {
-    universe:"universe-srv:5050"
+    universe:"universe:5050"
 };
 
 const generateServiceToken = () => {
@@ -56,7 +56,7 @@ const fetchClubData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/getClubFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/club/getClubFieldsById",
       query,
       config
     );
@@ -73,7 +73,7 @@ const getUserMetaMap = async (userIds, fields) => {
     }
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/fetchBulkUsers",
+      "http://multiverse:5020/multiverse/api/v1/user/fetchBulkUsers",
       {
         userIds,
         fields,
@@ -93,7 +93,7 @@ const fetchUsersByFields = async (body) => {
   try {
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUsersByFields",
+      "http://multiverse:5020/multiverse/api/v1/user/getUsersByFields",
       body,
       config
     );
@@ -109,7 +109,7 @@ const fetchMacbeaseContentByField = async (body) => {
   try {
     const config = generateServiceToken();
     const macbeaseContent = await axios.post(
-      `http://macbease-content-srv:5070/macbeaseContent/api/v1/getMacbeaseContentByField`,
+      `http://macbease-content:5070/macbeaseContent/api/v1/getMacbeaseContentByField`,
       body,
       config
     );

@@ -10,8 +10,8 @@ const path = require("path");
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
 const services = {
-  universe: "universe-srv:5050",
-  quest: "quest-srv:6010"
+  universe: "universe:5050",
+  quest: "quest:6010"
 };
 
 const generateServiceToken = () => {
@@ -41,7 +41,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );

@@ -34,7 +34,7 @@ const fetchContent = async (query) => {
       params.append("select", query.select.trim());
     }
 
-    const url = `http://content-srv:5000/content/api/v1/getContent?${params.toString()}`;
+    const url = `http://content:5000/content/api/v1/getContent?${params.toString()}`;
 
     const contentData = await axios.get(url, config);
 
@@ -69,7 +69,7 @@ const fetchMultipleContents = async (query) => {
       body.filters = query.filters;
     }
 
-    const url = `http://content-srv:5000/content/api/v1/getMultipleContents`;
+    const url = `http://content:5000/content/api/v1/getMultipleContents`;
 
     const contentData = await axios.post(url, body, config);
 
@@ -104,7 +104,7 @@ const searchContentsFromIds = async (query) => {
       body.search = query.search.trim();
     }
 
-    const url = `http://content-srv:5000/content/api/v1/searchContentFromIds`;
+    const url = `http://content:5000/content/api/v1/searchContentFromIds`;
 
     const contentData = await axios.post(url, body, config);
 
@@ -122,7 +122,7 @@ const searchCardsFromTags = async (query) => {
 
     const body = { tag: query };
 
-    const url = `http://card-srv:5030/card/api/v1/getCardsFromTag`;
+    const url = `http://card:5030/card/api/v1/getCardsFromTag`;
 
     const cardsData = await axios.post(url, body, config);
 

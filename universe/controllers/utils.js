@@ -1125,7 +1125,7 @@ const fetchOrgData = async (query) => {
   try {
     const config = generateServiceToken();
     const orgData = await axios.post(
-      "http://org-srv:6080/org/api/v1/findOrg",
+      "http://org:6080/org/api/v1/findOrg",
       query,
       config
     );
@@ -1140,7 +1140,7 @@ const createNewOrg = async (query) => {
   try {
     const config = generateServiceToken();
     const orgData = await axios.post(
-      "http://org-srv:6080/org/api/v1/createOrg",
+      "http://org:6080/org/api/v1/createOrg",
       query,
       config
     );
@@ -1155,7 +1155,7 @@ const fetchContentFromIds = async(query) => {
   try {
     const config = generateServiceToken();
     const contents = await axios.post(
-      "http://content-srv:5000/content/api/v1/searchContentFromIds",
+      "http://content:5000/content/api/v1/searchContentFromIds",
       query,
       config
     );
@@ -1169,7 +1169,7 @@ const fetchMacbeaseContentFromIds = async(query) => {
   try {
     const config = generateServiceToken();
     const macbeaseContents = await axios.post(
-      "http://macbease-content-srv:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
+      "http://macbease-content:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
       query,
       config
     );
@@ -1183,7 +1183,7 @@ const fetchItineraryFromIds = async(query) => {
   try {
     const config = generateServiceToken();
     const itineraries = await axios.post(
-      "http://itinerary-srv:6050/itinerary/api/v1/getItinerariesByIds",
+      "http://itinerary:6050/itinerary/api/v1/getItinerariesByIds",
       query,
       config
     );
@@ -1197,7 +1197,7 @@ const fetchInvitationById = async(query) => {
   try {
     const config = generateServiceToken();
     const invitation = await axios.post(
-      "http://invitation-srv:6030/invitation/api/v1/getInvitationById",
+      "http://invitation:6030/invitation/api/v1/getInvitationById",
       query,
       config
     );
@@ -1211,7 +1211,7 @@ const fetchJoinLinkById = async(query) => {
   try {
     const config = generateServiceToken();
     const joinLink = await axios.post(
-      "http://join-link-srv:6060/joinLink/api/v1/getJoinLinkById",
+      "http://join-link:6060/joinLink/api/v1/getJoinLinkById",
       query,
       config
     );
@@ -1225,7 +1225,7 @@ const fetchBags = async(query) => {
   try {
     const config = generateServiceToken();
     const bags = await axios.post(
-      "http://bag-srv:5090/bag/api/v1/fetchBags",
+      "http://bag:5090/bag/api/v1/fetchBags",
       query,
       config
     );

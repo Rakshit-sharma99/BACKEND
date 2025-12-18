@@ -20,7 +20,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: quest-srv
+  name: quest
 spec:
   selector:
     app: quest

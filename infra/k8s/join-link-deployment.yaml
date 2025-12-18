@@ -20,7 +20,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: join-link-srv
+  name: join-link
 spec:
   selector:
     app: join-link

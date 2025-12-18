@@ -5,7 +5,7 @@ const schedule = require("node-schedule");
 const nlp = require("compromise");
 
 const services = {
-  universe: "universe-srv:5050",
+  universe: "universe:5050",
 };
 
 const generateServiceToken = () => {
@@ -35,7 +35,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -80,7 +80,7 @@ const fetchClubData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/getClubFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/club/getClubFieldsById",
       query,
       config
     );
@@ -116,7 +116,7 @@ const fetchClubsRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/club/getClubsRecommendation",
+      "http://multiverse:5020/multiverse/api/v1/club/getClubsRecommendation",
       query,
       config
     );
@@ -137,7 +137,7 @@ const fetchCommunityData = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/community/getCommunityFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/community/getCommunityFieldsById",
       query,
       config
     );
@@ -173,7 +173,7 @@ const fetchCommunitiesRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/community/getCommunitiesRecommendation",
+      "http://multiverse:5020/multiverse/api/v1/community/getCommunitiesRecommendation",
       query,
       config
     );
@@ -286,7 +286,7 @@ const fetchRelatedTags = async (tag) => {
   try {
     const config = generateServiceToken();
     const tags = await axios.get(
-      `http://bag-srv:5090/bag/api/v1/masterSearch?tag=${tag}`,
+      `http://bag:5090/bag/api/v1/masterSearch?tag=${tag}`,
       config
     );
     return tags.data;
@@ -307,7 +307,7 @@ const fetchMacbeaseContentFromLastTimeStamp = async ({
   try {
     const config = generateServiceToken();
     const macbeaseContent = await axios.get(
-      `http://macbease-content-srv:5070/macbeaseContent/api/v1/getContentFromLastTimeStamp?timeStamp=${timeStamp}&operator=${operator}&sort=${sort}&limit=${limit}&rangeStart=${rangeStart}&rangeEnd=${rangeEnd}&sample=${sample}`,
+      `http://macbease-content:5070/macbeaseContent/api/v1/getContentFromLastTimeStamp?timeStamp=${timeStamp}&operator=${operator}&sort=${sort}&limit=${limit}&rangeStart=${rangeStart}&rangeEnd=${rangeEnd}&sample=${sample}`,
       config
     );
     return macbeaseContent.data;
@@ -321,7 +321,7 @@ const fetchMacbeaseContentFromIds = async ({ ids, select }) => {
     const config = generateServiceToken();
     const body = { ids, select };
     const macbeaseContent = await axios.post(
-      `http://macbease-content-srv:5070/macbeaseContent/api/v1/getMacbeaseContentByIds`,
+      `http://macbease-content:5070/macbeaseContent/api/v1/getMacbeaseContentByIds`,
       body,
       config
     );
@@ -336,7 +336,7 @@ const fetchCardsFromIds = async ({ ids, select }) => {
     const config = generateServiceToken();
     const body = { ids, select };
     const cards = await axios.post(
-      `http://card-srv:5030/card/api/v1/getCardsByIds`,
+      `http://card:5030/card/api/v1/getCardsByIds`,
       body,
       config
     );
@@ -350,7 +350,7 @@ const fetchRandomCardsForFeed = async () => {
   try {
     const config = generateServiceToken();
     const cards = await axios.get(
-      `http://card-srv:5030/card/api/v1/getRandomCardsForFeed`,
+      `http://card:5030/card/api/v1/getRandomCardsForFeed`,
       config
     );
     return cards.data;

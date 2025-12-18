@@ -28,7 +28,7 @@ function lemmatize(tags) {
 async function getRelatedTags(query) {
   try {
     const response = await axios.post(
-      `http://bag-srv:5090/bag/api/v1/getRelatedTags`,
+      `http://bag:5090/bag/api/v1/getRelatedTags`,
       { query }
     );
     return response.data;

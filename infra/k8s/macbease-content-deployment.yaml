@@ -20,7 +20,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: macbease-content-srv
+  name: macbease-content
 spec:
   selector:
     app: macbease-content

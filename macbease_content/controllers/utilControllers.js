@@ -4,7 +4,7 @@ const { getMessaging } = require("firebase-admin/messaging");
 const schedule = require("node-schedule");
 
 const services = {
-  universe: "universe-srv:5050",
+  universe: "universe:5050",
 };
 
 const generateServiceToken = () => {
@@ -34,7 +34,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse-srv:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
       query,
       config
     );

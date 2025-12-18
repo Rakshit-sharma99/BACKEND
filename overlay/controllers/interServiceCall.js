@@ -2,7 +2,7 @@ const axios = require("axios");
 const jwt = require("jsonwebtoken");
 
 const services = {
-    universe:"universe-srv:5050"
+    universe:"universe:5050"
 };
 
 const generateServiceToken = () => {
@@ -37,7 +37,7 @@ const fetchTicketFieldsByQuery = async (query) => {
     const config = generateServiceToken();
 
     const response = await axios.post(
-      `http://ticket-srv:6000/ticket/api/v1/getTicketFieldsByQuery`,
+      `http://ticket:6000/ticket/api/v1/getTicketFieldsByQuery`,
       {
         searchBy,
         fields,
