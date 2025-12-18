@@ -54,7 +54,7 @@ jobs:
           echo "=== Building and Deploying with Docker Compose ==="
 
           # Ensure .env folders are in place inside workspace
-          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted
+          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted env/memory env/overlay env/coupon
 
           # Copy from /home/ubuntu env store if present (adjust path if your envs live elsewhere)
           [ -f /home/ubuntu/env/badge/.env ] && cp /home/ubuntu/env/badge/.env env/badge/.env || echo "Warning: badge .env not found at /home/ubuntu/env/badge/.env"
