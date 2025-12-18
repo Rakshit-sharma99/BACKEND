@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  ipls:
+  ipls-srv:
     build:
       context: ./ipls
       dockerfile: Dockerfile
@@ -15,7 +15,7 @@ services:
       - app-network
     restart: unless-stopped  # Automatically restart
 
-  universe:
+  universe-srv:
     build:
       context: ./universe
       dockerfile: Dockerfile
@@ -29,7 +29,7 @@ services:
       - app-network
     restart: unless-stopped 
      
-  multiverse:
+  multiverse-srv:
     build:
       context: ./multiverse
       dockerfile: Dockerfile
@@ -43,7 +43,7 @@ services:
       - app-network
     restart: unless-stopped  
 
-  content:
+  content-srv:
     build:
       context: ./content
       dockerfile: Dockerfile
@@ -57,7 +57,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  card:
+  card-srv:
     build:
       context: ./card
       dockerfile: Dockerfile
@@ -71,7 +71,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  resource:
+  resource-srv:
     build:
       context: ./resource
       dockerfile: Dockerfile
@@ -85,7 +85,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  event:
+  event-srv:
     build:
       context: ./event
       dockerfile: Dockerfile
@@ -99,7 +99,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  bag:
+  bag-srv:
     build:
       context: ./bag
       dockerfile: Dockerfile
@@ -113,7 +113,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  badge:
+  badge-srv:
     build:
       context: ./badge
       dockerfile: Dockerfile
@@ -127,7 +127,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  macbeaseContent:
+  macbeaseContent-srv:
     build:
       context: ./macbease_content
       dockerfile: Dockerfile
@@ -141,7 +141,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  offer:
+  offer-srv:
     build:
       context: ./offer
       dockerfile: Dockerfile
@@ -155,7 +155,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  quest:
+  quest-srv:
     build:
       context: ./quest
       dockerfile: Dockerfile
@@ -169,7 +169,7 @@ services:
       - app-network
     restart: unless-stopped
 
-  invitation:
+  invitation-srv:
     build:
       context: ./invitation
       dockerfile: Dockerfile
@@ -183,7 +183,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  project:
+  project-srv:
     build:
       context: ./project
       dockerfile: Dockerfile
@@ -197,7 +197,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  itinerary:
+  itinerary-srv:
     build:
       context: ./itinerary
       dockerfile: Dockerfile
@@ -211,7 +211,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  joinLink:
+  joinLink-srv:
     build:
       context: ./joinLink
       dockerfile: Dockerfile
@@ -225,7 +225,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  tile:
+  tile-srv:
     build:
       context: ./tiles
       dockerfile: Dockerfile
@@ -239,7 +239,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  org:
+  org-srv:
     build:
       context: ./org
       dockerfile: Dockerfile
@@ -253,7 +253,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  unsorted:
+  unsorted-srv:
     build:
       context: ./unsorted
       dockerfile: Dockerfile
@@ -267,7 +267,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  ticket:
+  ticket-srv:
     build:
       context: ./ticket
       dockerfile: Dockerfile
@@ -281,7 +281,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  refund:
+  refund-srv:
     build:
       context: ./refund
       dockerfile: Dockerfile
@@ -295,13 +295,55 @@ services:
       - app-network
     restart: unless-stopped 
 
-  blog:
+  blog-srv:
     build:
       context: ./blog
       dockerfile: Dockerfile
     image: spargens/blog
     env_file:
       - ./env/blog/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  coupon-srv:
+    build:
+      context: ./coupon
+      dockerfile: Dockerfile
+    image: spargens/coupon
+    env_file:
+      - ./env/coupon/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  memory-srv:
+    build:
+      context: ./memory
+      dockerfile: Dockerfile
+    image: spargens/memory
+    env_file:
+      - ./env/memory/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped 
+
+  overlay-srv:
+    build:
+      context: ./overlay
+      dockerfile: Dockerfile
+    image: spargens/overlay
+    env_file:
+      - ./env/overlay/.env
     depends_on:
       - kafka
       - redis

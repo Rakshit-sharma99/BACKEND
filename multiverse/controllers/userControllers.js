@@ -119,9 +119,73 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+const getUsersByFields = async (req, res) => {
+  try {
+    const { filters = {}, fields = [] } = req.body;
+
+    if (!filters || typeof filters !== "object") {
+      return res.status(400).json({
+        success: false,
+        message: "Filters object is required",
+      });
+    }
+
+    if (fields && !Array.isArray(fields)) {
+      return res.status(400).json({
+        success: false,
+        message: "Fields must be an array",
+      });
+    }
+
+    const query = {};
+
+    for (const key in filters) {
+      const value = filters[key];
+
+      if (Array.isArray(value)) {
+        if (key === "_id") {
+          query[key] = {
+            $in: value
+              .filter(mongoose.Types.ObjectId.isValid)
+              .map((id) => new mongoose.Types.ObjectId(id)),
+          };
+        } else {
+          query[key] = { $in: value };
+        }
+      } else {
+        query[key] = value;
+      }
+    }
+
+    let projection = null;
+    if (fields.length > 0) {
+      projection = fields.join(" ");
+    }
+
+    const users = await User.find(query)
+      .select(projection)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: users.length,
+      users,
+    });
+
+  } catch (error) {
+    console.error("getUsersByFields error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+    });
+  }
+};
+
 module.exports = {
   getUserFieldsById,
   getUsersWithDynamicQuery,
   insertNewFields,
   fetchBulkUsers,
+  getUsersByFields
 };

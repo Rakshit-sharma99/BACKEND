@@ -889,6 +889,8 @@ const fetchMemoryCollections = async (req, res) => {
           "course"
         ]);
 
+        console.log("memory users",memoryUsers);
+
     //fetching macbease contributions
     let macbeaseContributions = [];
     if (user.role === "Creator") {

@@ -4,11 +4,7 @@ kind: Config
 deploy:
   kubectl:
     manifests:
-      - ./infra/k8s/kafka-deployment.yaml
-      - ./infra/k8s/ingress-srv.yaml
-      - ./infra/k8s/redis-deployment.yaml
-      - ./infra/k8s/overlay-deployment.yaml
-      - ./infra/k8s/universe-depl.yaml
+      - ./infra/k8s/*
 
 build:
   local:

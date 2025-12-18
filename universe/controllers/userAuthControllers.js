@@ -10,6 +10,8 @@ const { sendMail, fetchOrgData, createNewOrg } = require("../controllers/utils")
 const { OpenAI } = require("openai");
 const { default: mongoose } = require("mongoose");
 const { OAuth2Client } = require("google-auth-library");
+const AppConfig = require("../models/appConfig");
+const semver = require("semver");
 
 const schedule = require("node-schedule");
 const nodemailer = require("nodemailer");
@@ -870,6 +872,53 @@ const reactivateAccount = async (req, res) => {
   }
 };
 
+const getAppConfig = async (req, res) => {
+  try {
+    const currentVersion = req.query.version;
+    const platform = req.query.platform || "android";
+    if (platform === "android" && !currentVersion) {
+      console.log("missing data");
+      return res.status(400).json({
+        success: false,
+        message: "App version is required in query (?version=2.0.1)",
+        query: req.query,
+      });
+    }
+
+    // Fetch latest config (only 1 doc maintained)
+    const config = await AppConfig.findOne({ platform });
+    if (!config) {
+      return res.status(404).json({
+        success: false,
+        message: "No config found",
+      });
+    }
+
+    const { latestVersion, mandatoryVersion } = config;
+    let updateType = "none";
+
+    if (semver.lt(currentVersion, latestVersion)) {
+      if (semver.lt(currentVersion, mandatoryVersion)) {
+        updateType = "immediate";
+      } else {
+        updateType = "flexible";
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      updateType,
+      ...config,
+    });
+  } catch (err) {
+    console.error("Error in getAppConfig:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -887,4 +936,5 @@ module.exports = {
   generateInterest,
   reactivateAccount,
   emailVerification2,
+  getAppConfig
 };

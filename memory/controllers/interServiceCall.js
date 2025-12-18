@@ -81,10 +81,24 @@ const getUserMetaMap = async (userIds, fields) => {
       config
     );
 
-    return data.reduce((acc, user) => {
-      acc[user._id] = user;
-      return acc;
-    }, {});
+
+    return data
+  } catch (err) {
+    console.error("❌ Failed to fetch user metadata:", err.message);
+    return {};
+  }
+};
+
+const fetchUsersByFields = async (body) => {
+  try {
+    const config = generateServiceToken();
+    const { data } = await axios.post(
+      "http://multiverse-srv:5020/multiverse/api/v1/user/getUsersByFields",
+      body,
+      config
+    );
+
+    return data
   } catch (err) {
     console.error("❌ Failed to fetch user metadata:", err.message);
     return {};
@@ -109,5 +123,6 @@ module.exports = {
     fetchNativeUserData,
     fetchClubData,
     getUserMetaMap,
-    fetchMacbeaseContentByField
+    fetchMacbeaseContentByField,
+    fetchUsersByFields
 }

@@ -1532,6 +1532,77 @@ const saveInterest = async (req, res) => {
   }
 };
 
+const insertNewFields = async (req, res) => {
+  try {
+    const allUsers = await User.find({});
+
+    const bulkOps = allUsers.map((user) => ({
+      updateOne: {
+        filter: { _id: user._id },
+        update: {
+          $set: {
+            uid: "682f0418482d651a6df66c23",
+            universeMetaData: {
+              location: "Phagwara,Punjab,India",
+              logo: "public/universes/lpu_logo.jpg",
+              name: "Lovely Professional University",
+              callSign: "universe",
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await User.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} users`);
+
+    res.status(200).json({
+      message: "Users updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const getMemoryListUsers = async (req, res) => {
+  try {
+    // Ensure user is authenticated
+    const userId = req.user.id;
+    if (!userId) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ msg: "Unauthorized access." });
+    }
+
+    // Find the logged-in user
+    const user = await User.findById(userId).select("memoryList");
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ msg: "User not found." });
+    }
+
+    // If memory list is empty
+    if (!user.memoryList || user.memoryList.length === 0) {
+      return res.status(StatusCodes.OK).json({ users: [] });
+    }
+
+    // Fetch all users in the memoryList
+    const memoryUsers = await User.find(
+      { _id: { $in: user.memoryList } },
+      { name: 1, image: 1, course: 1 }
+    );
+
+    return res.status(StatusCodes.OK).json({ users: memoryUsers });
+  } catch (error) {
+    console.error("Error fetching memory list users:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Failed to fetch memory list users.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getUser,
   updateUser,
@@ -1574,5 +1645,7 @@ module.exports = {
   readContentTeam,
   removeFromTeam,
   getContentTeamAdmins,
-  saveInterest
+  saveInterest,
+  insertNewFields,
+  getMemoryListUsers
 };
