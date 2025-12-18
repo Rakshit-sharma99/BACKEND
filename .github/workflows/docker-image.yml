@@ -83,7 +83,7 @@ jobs:
           [ -f /home/ubuntu/env/overlay/.env ] && cp /home/ubuntu/env/overlay/.env env/overlay/.env || echo "Warning: overlay .env not found at /home/ubuntu/env/overlay/.env"
           [ -f /home/ubuntu/env/coupon/.env ] && cp /home/ubuntu/env/coupon/.env env/coupon/.env || echo "Warning: coupon .env not found at /home/ubuntu/env/coupon/.env"
 
-          docker build -t spargens/ipls ./ipls
+          docker build -t spargens/ipls ./ipls 
           docker build -t spargens/universe ./universe
           docker compose up -d --build
           echo "=== Verifying Deployment ==="
