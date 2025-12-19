@@ -127,7 +127,7 @@ services:
       - app-network
     restart: unless-stopped 
 
-  macbease-content:
+  macbeaseContent:
     build:
       context: ./macbease_content
       dockerfile: Dockerfile
