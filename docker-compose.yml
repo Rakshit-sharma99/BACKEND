@@ -168,7 +168,7 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-
+ 
   invitation:
     build:
       context: ./invitation
