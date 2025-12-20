@@ -1806,16 +1806,29 @@ const getEventFieldsById = async (req, res) => {
   try {
     const { id,ids, fields } = req.body;
 
-    if (!id) {
-      return res.status(400).json({ error: "Event ID is required." });
+    if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+      return res
+        .status(400)
+        .json({ error: "Event ID or array of Event IDs is required." });
     }
 
-    if (!fields || !Array.isArray(fields) || fields.length === 0) {
-      return res.status(400).json({ error: "An array of fields is required." });
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
     }
 
     // Convert array of fields to space-separated string for Mongoose projection
-    const projection = Array.isArray(fields) ? fields.join(" ") : fields;
+    const projection = isArrayProjection ? fields.join(" ") : fields;
 
      if (Array.isArray(ids) && ids.length > 0) {
       const events = await Event.find({ _id: { $in: ids } }).select(projection);
