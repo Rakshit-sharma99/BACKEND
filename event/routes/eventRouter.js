@@ -31,6 +31,8 @@ const {
   getPastOrFutureEvents,
   getEventFieldsById,
   checkEventAuthorization,
+  getPastEvents,
+  getEventGallery,
 } = require("../controllers/eventControllers");
 
 router.post("/createEvent", createEvent);
@@ -62,5 +64,7 @@ router.get("/mailEventStats", mailEventStats);
 router.get("/getPastOrFutureEvents", getPastOrFutureEvents);
 router.post("/getEventFieldsById", getEventFieldsById);
 router.get("/checkEventAuthorization", checkEventAuthorization);
+router.post("/getPastEvents", getPastEvents);
+router.post("/getEventGallery", getEventGallery);
 
 module.exports = router;

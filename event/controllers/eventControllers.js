@@ -1804,7 +1804,7 @@ const getPastOrFutureEvents = async (req, res) => {
 
 const getEventFieldsById = async (req, res) => {
   try {
-    const { id, fields } = req.body;
+    const { id,ids, fields } = req.body;
 
     if (!id) {
       return res.status(400).json({ error: "Event ID is required." });
@@ -1815,7 +1815,17 @@ const getEventFieldsById = async (req, res) => {
     }
 
     // Convert array of fields to space-separated string for Mongoose projection
-    const projection = fields.join(" ");
+    const projection = Array.isArray(fields) ? fields.join(" ") : fields;
+
+     if (Array.isArray(ids) && ids.length > 0) {
+      const events = await Event.find({ _id: { $in: ids } }).select(projection);
+
+      if (!events || events.length === 0) {
+        return res.status(404).json({ error: "Events not found." });
+      }
+
+      return res.status(200).json({ data: events });
+    }
 
     const event = await Event.findById(id).select(projection);
 
@@ -1858,6 +1868,119 @@ const checkEventAuthorization = async (req, res) => {
   }
 };
 
+const getPastEvents = async (req, res) => {
+  try {
+    const {
+      monthsAgo = 3,
+      daysAgo,
+      startDate,
+      projection,
+      limit = 8,
+    } = req.body;
+
+    let fromDate = new Date();
+
+    // Priority-based date resolution
+    if (startDate) {
+      fromDate = new Date(startDate);
+    } else if (daysAgo) {
+      fromDate.setDate(fromDate.getDate() - Number(daysAgo));
+    } else {
+      fromDate.setMonth(fromDate.getMonth() - Number(monthsAgo));
+    }
+
+    const validStatuses = ["past and unclear", "past and clear", "expired"];
+
+    const events = await Event.aggregate([
+      {
+        $match: {
+          status: { $in: validStatuses },
+          eventDate: { $gte: fromDate },
+        },
+      },
+      {
+        $addFields: {
+          bookingsCount: { $size: "$bookedBy" },
+        },
+      },
+      {
+        $sort: {
+          bookingsCount: -1,
+          eventDate: -1,
+        },
+      },
+      {
+        $limit: Number(limit),
+      },
+      {
+        $project: projection || {},
+      },
+    ]);
+
+    return res.status(200).json({ data: events });
+  } catch (error) {
+    console.error("Error fetching past events:", error);
+    return res.status(500).json({
+      error: "Server error while fetching past events",
+    });
+  }
+};
+
+const getEventGallery = async (req, res) => {
+  try {
+    const { eventIds } = req.body;
+
+    if (!Array.isArray(eventIds) || eventIds.length === 0) {
+      return res.status(400).json({
+        error: "eventIds array is required",
+      });
+    }
+
+    const objectIds = eventIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return res.status(400).json({
+        error: "No valid event IDs provided",
+      });
+    }
+
+    const events = await Event.aggregate([
+      {
+        $match: {
+          _id: { $in: objectIds },
+        },
+      },
+      {
+        $project: {
+          name: 1,
+          eventDate: 1,
+          place: 1,
+          gallery: {
+            $filter: {
+              input: "$gallery",
+              as: "g",
+              cond: { $eq: ["$$g.featured", true] },
+            },
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      data: events,
+    });
+  } catch (error) {
+    console.error("Error fetching event gallery:", error);
+    return res.status(500).json({
+      error: "Server error while fetching event gallery",
+    });
+  }
+};
+
+
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -1888,4 +2011,6 @@ module.exports = {
   getPastOrFutureEvents,
   getEventFieldsById,
   checkEventAuthorization,
+  getPastEvents,
+  getEventGallery
 };

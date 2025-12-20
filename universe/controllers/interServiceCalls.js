@@ -132,9 +132,100 @@ const searchCardsFromTags = async (query) => {
   }
 };
 
+const fetchEventData = async (query) => {
+  try {
+    const { id, ids, fields } = query;
+
+   const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return;
+    }
+
+    // Validate id or ids
+    const hasSingleId = !!id;
+    const hasMultipleIds = Array.isArray(ids) && ids.length > 0;
+
+    if (!hasSingleId && !hasMultipleIds) {
+      return;
+    }
+
+    const config = generateServiceToken();
+    const eventData = await axios.post(
+      "http://event:5060/event/api/v1/getEventFieldsById",
+      query,
+      config
+    );
+    return eventData.data.data;
+  } catch (error) {
+    console.log("Error fetching event data:",error);
+  }
+};
+
+const fetchPastEvents = async ({
+  monthsAgo,
+  daysAgo,
+  startDate,
+  projection,
+  limit,
+}) => {
+  try {
+    const config = generateServiceToken();
+
+    const response = await axios.post(
+      "http://event:5060/event/api/v1/getPastEvents",
+      {
+        monthsAgo,
+        daysAgo,
+        startDate,
+        projection,
+        limit,
+      },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.log("Error fetching past events:", error);
+    return [];
+  }
+};
+
+const fetchEventGallery = async (eventIds) => {
+  try {
+    if (!Array.isArray(eventIds) || eventIds.length === 0) {
+      return [];
+    }
+
+    const config = generateServiceToken();
+
+    const response = await axios.post(
+      "http://event:5060/event/api/v1/getEventGallery",
+      { eventIds },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.log("Error fetching event gallery:", error);
+    return [];
+  }
+};
+
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
   searchContentsFromIds,
   searchCardsFromTags,
+  fetchEventData,
+  fetchPastEvents,
+  fetchEventGallery
 };

@@ -9,6 +9,7 @@ const {
   clubProjection,
   communityProjection,
 } = require("./genericProjections");
+const { fetchEventData, fetchPastEvents, fetchEventGallery } = require("../interServiceCalls");
 
 module.exports = {
   pagination: async (block) => {
@@ -28,7 +29,7 @@ module.exports = {
     };
 
     const [eventsData, clubsData, communitiesData] = await Promise.all([
-      fetchRecords(Event, grouped.eventIds, eventProjection),
+      fetchEventData({ids:grouped.eventIds,fields:eventProjection}),
       fetchRecords(Club, grouped.clubIds, clubProjection),
       fetchRecords(Community, grouped.communityIds, communityProjection),
     ]);
@@ -38,7 +39,7 @@ module.exports = {
 
   featured_events: async (block) => {
     const eventIds = block.payload.map((p) => p.eventId);
-    return await Event.find({ _id: { $in: eventIds } }, eventProjection).lean();
+    return fetchEventData({ids:eventIds,fields:eventProjection})
   },
 
   top_clubs: async (block, userId) => {
@@ -284,69 +285,26 @@ module.exports = {
     const id = banner[idKey];
     if (!id) return null;
 
+    if(Model==="Event"){
+      const data = await fetchEventData({id,fields:projection});
+      return data || null;
+    }
+
     const data = await Model.findById(id, projection).lean();
 
     return data || null;
   },
 
   past_events: async (block) => {
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-    const validStatuses = ["past and unclear", "past and clear", "expired"];
-
-    const events = await Event.aggregate([
-      {
-        $match: {
-          status: { $in: validStatuses },
-          eventDate: { $gte: threeMonthsAgo },
-        },
-      },
-      {
-        $addFields: {
-          bookingsCount: { $size: "$bookedBy" },
-        },
-      },
-      {
-        $sort: {
-          bookingsCount: -1,
-        },
-      },
-      {
-        $limit: 8,
-      },
-      {
-        $project: eventProjection,
-      },
-    ]);
-
-    return events;
+     return fetchPastEvents({
+    projection: eventProjection,
+  });
   },
 
   event_gallery: async (block) => {
     const eventIds = block.payload.map((p) => p.eventId);
 
-    return await Event.aggregate([
-      {
-        $match: {
-          _id: { $in: eventIds.map((id) => new mongoose.Types.ObjectId(id)) },
-        },
-      },
-      {
-        $project: {
-          name: 1,
-          eventDate: 1,
-          place: 1,
-          gallery: {
-            $filter: {
-              input: "$gallery",
-              as: "g",
-              cond: { $eq: ["$$g.featured", true] },
-            },
-          },
-        },
-      },
-    ]);
+    return fetchEventGallery(eventIds);
   },
 
   people: async (block, userId) => {
