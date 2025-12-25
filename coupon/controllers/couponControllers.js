@@ -92,4 +92,44 @@ const getAvailableCoupons = async (req, res) => {
   }
 };
 
-module.exports = { createCoupon, getAvailableCoupons };
+const getCouponById = async (req, res) => {
+  try {
+    let { couponId,userId,eventId } = req.query;
+
+    if (!couponId || !eventId) {
+      return res.status(400).json({ error: "couponId and eventId are required" });
+    }
+
+    if(!userId){
+      userId = req.user.id;
+    }
+
+    // Find coupons that match conditions
+    const coupons = await Coupon.findOne({
+        _id: couponId,
+        isActive: true,
+        $and: [
+          {
+            $or: [
+              { validForEvents: { $size: 0 } },
+              { validForEvents: eventId },
+            ],
+          },
+          {
+            $or: [{ validForUsers: { $size: 0 } }, { validForUsers: userId }],
+          },
+        ],
+        usedBy: { $ne: userId }, // just validation, redemption happens later
+      });
+
+    return res.status(200).json({
+      message: "Coupon fetched successfully",
+      coupons,
+    });
+  } catch (err) {
+    console.error("Error fetching coupon by id:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports = { createCoupon, getAvailableCoupons, getCouponById};
