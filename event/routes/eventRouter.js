@@ -33,6 +33,23 @@ const {
   checkEventAuthorization,
   getPastEvents,
   getEventGallery,
+  addExtraFieldsToEvent,
+  promoteEvent,
+  demoteEvent,
+  getEventPermissions,
+  assignDefaultPermissions,
+  updateEventPermission,
+  addToGallery,
+  getEventGalleryPaginated,
+  getEventGalleryContributors,
+  changeGalleryFeatured,
+  addTagsToEvent,
+  getCurrentWeekEvents,
+  getPromotedEvents,
+  getTopPastEvents,
+  addExtraFieldsToTicketType,
+  getLatestEvents,
+  toggleWaitlist,
 } = require("../controllers/eventControllers");
 
 router.post("/createEvent", createEvent);
@@ -66,5 +83,22 @@ router.post("/getEventFieldsById", getEventFieldsById);
 router.get("/checkEventAuthorization", checkEventAuthorization);
 router.post("/getPastEvents", getPastEvents);
 router.post("/getEventGallery", getEventGallery);
+router.post("/addExtraFieldsToEvent", addExtraFieldsToEvent);
+router.post("/promoteEvent", promoteEvent);
+router.post("/demoteEvent", demoteEvent);
+router.get("/getEventPermissions", getEventPermissions);
+router.post("/assignDefaultPermissions", assignDefaultPermissions);
+router.post("/updateEventPermission", updateEventPermission);
+router.post("/addToGallery", addToGallery);
+router.get("/getEventGalleryPaginated", getEventGalleryPaginated);
+router.get("/getEventGalleryContributors", getEventGalleryContributors);
+router.post("/changeGalleryFeatured", changeGalleryFeatured);
+router.post("/addTagsToEvent", addTagsToEvent);
+router.get("/getCurrentWeekEvents", getCurrentWeekEvents);
+router.get("/getPromotedEvents", getPromotedEvents);
+router.get("/getTopPastEvents", getTopPastEvents);
+router.post("/addExtraFieldsToTicketType", addExtraFieldsToTicketType);
+router.get("/getLatestEvents", getLatestEvents);
+router.post("/toggleWaitlist", toggleWaitlist);
 
 module.exports = router;

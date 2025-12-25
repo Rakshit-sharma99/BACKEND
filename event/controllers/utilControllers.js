@@ -5,6 +5,7 @@ const Mailgen = require("mailgen");
 const AWS = require("aws-sdk");
 
 const PDFDocument = require("pdfkit");
+const ExcelJS = require("exceljs");
 const { v4: uuidv4 } = require("uuid");
 const stream = require("stream");
 const path = require("path");
@@ -428,6 +429,139 @@ const generateTicketPDFAndUpload = async ({
     }
 
     doc.end(); // Finish writing
+  });
+};
+
+const generateTicketExcelAndUpload = async ({
+  tickets,
+  eventName,
+  totalTicketsSold,
+  totalRevenue,
+  graphData,
+  clubName,
+}) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Ticket Sales Report");
+
+      // Report Header
+      worksheet.mergeCells("A1:B1");
+      worksheet.getCell("A1").value = `${eventName} - Ticket Sales Report`;
+      worksheet.getCell("A1").font = { size: 18, bold: true };
+
+      // Summary Data
+      worksheet.addRow(["Total Tickets Sold:", totalTicketsSold]);
+      worksheet.addRow([
+        "Total Revenue Generated:",
+        `INR ${totalRevenue.toLocaleString()}`,
+      ]);
+      worksheet.addRow([]); // Blank row for spacing
+
+      // Daily Sales Data (Graph Data)
+      worksheet.addRow(["Daily Sales:", ""]);
+      worksheet.addRow(["Date", "Revenue (INR)"]).font = { bold: true };
+      graphData.forEach((item) => {
+        worksheet.addRow([item.label, `INR ${item.value.toLocaleString()}`]);
+      });
+      worksheet.addRow([]); // Blank row for spacing
+
+      // Dynamically get all unique form data keys to use as column headers
+      const allFormDataKeys = new Set();
+      tickets.forEach((ticket) => {
+        Object.keys(ticket.extraFieldsData || {}).forEach((key) => {
+          allFormDataKeys.add(key);
+        });
+      });
+      const formDataKeysArray = [...allFormDataKeys];
+
+      // Static headers for the ticket table
+      const baseHeaders = [
+        "Name",
+        "Reg. No",
+        "Course",
+        "Type",
+        "Amount",
+        "Generated At",
+        "Email",
+      ];
+
+      // Combine static headers with dynamic form data headers
+      const headers = [...baseHeaders, ...formDataKeysArray];
+      worksheet.addRow(headers).font = { bold: true };
+
+      // Set column widths dynamically
+      const baseColumns = [
+        { key: "name", width: 20 },
+        { key: "regNo", width: 15 },
+        { key: "course", width: 15 },
+        { key: "type", width: 15 },
+        { key: "amount", width: 15 },
+        { key: "generatedAt", width: 25 },
+        { key: "email", width: 30 },
+      ];
+
+      const formDataColumns = formDataKeysArray.map((key) => ({
+        key: key,
+        width: 25, // Set a default width for form data columns
+      }));
+
+      worksheet.columns = [...baseColumns, ...formDataColumns];
+
+      // Add each ticket as a row
+      tickets.forEach((ticket) => {
+        const rowData = {
+          name: ticket?.userMetaData[0]?.name,
+          regNo: ticket?.userMetaData[0]?.reg,
+          course: ticket?.userMetaData[0]?.course,
+          type: ticket.type,
+          amount: `INR ${ticket.amtPaid}`,
+          generatedAt: new Date(ticket.generatedAt).toLocaleString(),
+          email: ticket?.userMetaData[0]?.email,
+        };
+
+        // Add form data to the row object
+        formDataKeysArray.forEach((key) => {
+          rowData[key] = ticket.extraFieldsData?.[key] || "";
+        });
+
+        worksheet.addRow(rowData);
+      });
+
+      // Footer
+      worksheet.addRow([]); // Blank row for spacing
+      worksheet.addRow([`Report Generated At: ${new Date().toLocaleString()}`]);
+      if (clubName) {
+        worksheet.addRow([`Reported To: ${clubName}`]);
+      }
+
+      const fileBuffer = await workbook.xlsx.writeBuffer();
+
+      const fileKey = `reports/${eventName.replace(
+        /\s+/g,
+        "_"
+      )}-${uuidv4()}.xlsx`;
+
+      const uploadParams = {
+        Bucket: process.env.S3_BUCKET,
+        Key: fileKey,
+        Body: fileBuffer,
+        ContentType:
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      };
+
+      s3.upload(uploadParams, (err, data) => {
+        if (err) {
+          console.error("S3 upload error:", err);
+          reject(err);
+        } else {
+          resolve(`${process.env.S3_OBJECT_URL}${fileKey}`);
+        }
+      });
+    } catch (error) {
+      console.error("Error generating or uploading Excel:", error);
+      reject(error);
+    }
   });
 };
 
@@ -1156,6 +1290,54 @@ const reminder = `<!DOCTYPE html>
 
 `;
 
+const fetchAvailableCoupon = async (query) => {
+  try {
+    if (!query.eventId || !query.userId) {
+      return;
+    }
+    const config = generateServiceToken();
+    const couponData = await axios.get(
+      `http://coupon:7020/coupon/api/v1/getAvailableCoupons?eventId=${query.eventId}&userId=${query.userId}`,
+      config
+    );
+    return couponData.data.coupons;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const fetchTicketFieldsByQuery = async (query) => {
+   try {
+    const { searchBy, fields, single } = payload;
+
+    if (
+      !searchBy ||
+      typeof searchBy !== "object" ||
+      !Array.isArray(fields) ||
+      fields.length === 0
+    ) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+
+    const response = await axios.post(
+      `http://ticket:6000/ticket/api/v1/getTicketFieldsByQuery`,
+      {
+        searchBy,
+        fields,
+        single,
+      },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("fetchTicketFieldsByQuery error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
 module.exports = {
   fetchItineraries,
   fetchNativeUserData,
@@ -1176,5 +1358,8 @@ module.exports = {
   generateEmailReportHtml,
   fetchMultipleClubsData,
   autoGenEventMemoryHTML,
-  reminder
+  reminder,
+  generateTicketExcelAndUpload,
+  fetchAvailableCoupon,
+  fetchTicketFieldsByQuery
 };

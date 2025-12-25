@@ -96,6 +96,28 @@ const FAQSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const postProductionSchema = new mongoose.Schema(
+  {
+    bills: {
+      type: [String],
+      default: [],
+    },
+    reminder1: {
+      type: Boolean,
+      default: false,
+    },
+    reminder2: {
+      type: Boolean,
+      default: false,
+    },
+    autoGen: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  { _id: false }
+);
+
 const eventSchema = new mongoose.Schema(
   {
     url: String,
@@ -181,6 +203,127 @@ const eventSchema = new mongoose.Schema(
         ref: "Itinerary",
       },
     ],
+    extraFieldsRequired: {
+      type: Boolean,
+    default: false,
+  },
+  extraFields: [
+    {
+      fieldName: { type: String, required: true },
+      type: {
+        type: String,
+        enum: ["String", "Number", "Boolean", "Date", "Enum","Doc"],
+        required: true,
+      },
+      enumValues: {
+        type: [String], // Ensures it's an array of strings
+        default: undefined, // So it's omitted if not set
+      },
+      placeholder: {
+        type: String,
+      },
+      mandatory: {
+        type: Boolean,
+      },
+      regex: {
+        type: String,
+      },
+      maxSelection: {
+        type: Number,
+      },
+    },
+  ],
+  isPromoted: { type: Boolean, default: false },
+  promotionLevel: { type: Number, default: 0 },
+  promotionExpiry: { type: Date },
+  permissions: {
+    whoCanSeeStats: {
+      type: [String],
+      default: [],
+    },
+    whoCanScanTickets: {
+      type: [String],
+      default: [],
+    },
+    whoCanEditEvent: {
+      type: [String],
+      default: [],
+    },
+    whoCanAnswerFAQ: {
+      type: [String],
+      default: [],
+    },
+  },
+  gallery: [
+    {
+      type: {
+        type: String,
+        enum: ["image", "video"],
+        required: true,
+      },
+      url: {
+        type: String,
+        required: true,
+      },
+      tags: [
+        {
+          x: { type: Number, required: true },
+          y: { type: Number, required: true },
+          user: {
+            _id: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+              required: true,
+            },
+            name: { type: String, required: true },
+            image: { type: String },
+          },
+        },
+      ],
+      postedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+      userMetaData: {
+        name: String,
+        image: String,
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now,
+      },
+      downloadedBy: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      featured: {
+        type: Boolean,
+        default: false,
+      },
+    },
+  ],
+  memoriesUploaded: {
+    type: Boolean,
+    default: false,
+  },
+  tags: {
+    type: Array,
+  },
+  postProduction: {
+    type: postProductionSchema,
+    default: () => ({}),
+  },
+  platformFeeEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  platformFee: {
+    type: Number,
+    default: 2.5,
+  },
 
     uid: {
       type: String,
