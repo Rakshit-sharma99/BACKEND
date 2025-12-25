@@ -47,13 +47,15 @@ const createCoupon = async (req, res) => {
 
 const getAvailableCoupons = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    let { eventId,userId } = req.query;
 
     if (!eventId) {
-      return res.status(400).json({ error: "userId and eventId are required" });
+      return res.status(400).json({ error: "eventId are required" });
     }
 
-    const userId = req.user.id;
+    if(!userId){
+      userId = req.user.id;
+    }
 
     // Find coupons that match conditions
     const coupons = await Coupon.find(
