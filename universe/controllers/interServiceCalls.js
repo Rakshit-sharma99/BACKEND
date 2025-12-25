@@ -219,6 +219,22 @@ const fetchEventGallery = async (eventIds) => {
   }
 };
 
+const fetchCouponById = async (query) => {
+  try {
+    if (!query.couponId || !query.eventId || !query.userId) {
+      return;
+    }
+    const config = generateServiceToken();
+    const couponData = await axios.get(
+      `http://coupon:7020/coupon/api/v1/getCouponById?couponId=${query.couponId}&eventId=${query.eventId}&userId=${query.userId}`,
+      config
+    );
+    return couponData.data.coupons;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 
 module.exports = {
   fetchContent,
@@ -227,5 +243,6 @@ module.exports = {
   searchCardsFromTags,
   fetchEventData,
   fetchPastEvents,
-  fetchEventGallery
+  fetchEventGallery,
+  fetchCouponById
 };
