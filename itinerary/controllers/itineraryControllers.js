@@ -293,7 +293,7 @@ const addToNotifyList = async (req, res) => {
 //Controller 6
 const getItinerariesByIds = async (req, res) => {
   try {
-    const { itineraryIds } = req.body;
+    const { itineraryIds,ticketId } = req.body;
 
     if (!Array.isArray(itineraryIds)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -303,7 +303,26 @@ const getItinerariesByIds = async (req, res) => {
 
     const itineraries = await Itinerary.find({ _id: { $in: itineraryIds } });
 
-    return res.status(StatusCodes.OK).json({ itineraries });
+    let scannedList = [];
+    if (ticketId) {
+      const ticket_query = {
+      ticketId,
+      fields: ["checkPoints"],
+    };
+    const ticket = await fetchTicketFieldsById(ticket_query);
+      scannedList = ticket.checkPoints.map((sl) => sl.toString());
+    }
+
+    const finalData = itineraries.map((i) => {
+      const obj = i.toObject(); // convert Mongoose doc -> plain JS object
+      delete obj.attendanceList; // remove the field
+      return {
+        ...obj,
+        scanned: scannedList.includes(i._id.toString()),
+      };
+    });
+
+    return res.status(StatusCodes.OK).json({ itineraries:finalData });
   } catch (error) {
     console.error(error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -380,13 +399,16 @@ const editItinerary = async (req, res) => {
         .json({ message: "Itinerary not found" });
     }
 
-    // Check authorization based on eventId from the itinerary
-    const isAuthorized = await checkEventAuthorization({
-      userId: req.user.id,
-      eventId: itinerary.eventId,
-    });
+    const event_query = {
+      id: itinerary.eventId,
+      fields: ["permissions"],
+    };
+    const event = await fetchEventData(event_query);
+    const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
+      ? event.permissions.whoCanEditEvent.includes(req.user.id)
+      : false;
 
-    if (!isAuthorized) {
+    if (!authorized) {
       return res.status(StatusCodes.FORBIDDEN).json({
         message: "You are not authorized to edit this itinerary.",
       });
