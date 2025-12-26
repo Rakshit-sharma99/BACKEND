@@ -22,6 +22,7 @@ const {
   getUserMetaMap,
   fetchItineraries,
 } = require("./utilControllers");
+const { io } = require("../app");
 
 // middleware
 const checkAuthorization = async (ticketId, role, id) => {
@@ -328,86 +329,151 @@ const markAllItineraries = async ({ ticketId, eventId, userId }) => {
 };
 
 //Controller 2
+// const scanTicket = async (req, res) => {
+//   const { ticketId, eventId } = req.body;
+
+//   if (!ticketId || !eventId) {
+//     return res
+//       .status(StatusCodes.BAD_REQUEST)
+//       .json({ msg: "Missing ticketId or eventId." });
+//   }
+
+//   try {
+//     // Step 1: Authorization
+//     const isAuthorized = await checkAuthorization(
+//       ticketId,
+//       req.user.role,
+//       req.user.id
+//     );
+
+//     if (!isAuthorized) {
+//       return res
+//         .status(StatusCodes.FORBIDDEN)
+//         .json({ msg: "You are not authorized to scan this ticket." });
+//     }
+
+//     // Step 2: Fetch ticket
+//     const ticket = await Ticket.findById(ticketId);
+//     if (!ticket) {
+//       return res
+//         .status(StatusCodes.NOT_FOUND)
+//         .json({ msg: "Ticket not found." });
+//     }
+
+//     // Step 3: Fetch user info
+//     const user_query = {
+//       id: ticket.boughtBy,
+//       fields: ["name", "image", "reg", "pushToken"],
+//     };
+//     const userInfo = await fetchUserData(user_query);
+
+//     // Step 4: Validate ticket
+//     const isValidTicket =
+//       ticket.status === "active" && ticket.eventId.toString() === eventId;
+
+//     if (!isValidTicket) {
+//       return res.status(StatusCodes.BAD_REQUEST).json({
+//         msg: "Ticket is either already redeemed or does not belong to this event.",
+//         userInfo,
+//       });
+//     }
+
+//     // Step 5: Redeem ticket
+//     ticket.status = "redeemed";
+//     await ticket.save();
+
+//     // Step 6: Schedule notification
+//     const delay = 3 * 1000; // 3 seconds
+//     const fireAt = new Date(Date.now() + delay);
+//     schedule.scheduleJob(`push_${userInfo._id}`, fireAt, async () => {
+//       const event_query = {
+//         id: eventId,
+//         fields: ["name"],
+//       };
+//       const eventInfo = await fetchEventData(event_query);
+
+//       if (userInfo?.pushToken) {
+//         scheduleNotification(
+//           [userInfo.pushToken],
+//           `Welcome to ${eventInfo.name}`,
+//           `Enjoy the event and Carpe Diem!`
+//         );
+//       }
+//     });
+
+//     return res
+//       .status(StatusCodes.OK)
+//       .json({ msg: "Ticket scan successful.", userInfo });
+//   } catch (error) {
+//     console.error("🎟️ Error scanning ticket:", error);
+//     return res
+//       .status(StatusCodes.INTERNAL_SERVER_ERROR)
+//       .json({ msg: "Something went wrong during ticket scan." });
+//   }
+// };
+
 const scanTicket = async (req, res) => {
   const { ticketId, eventId } = req.body;
-
-  if (!ticketId || !eventId) {
-    return res
-      .status(StatusCodes.BAD_REQUEST)
-      .json({ msg: "Missing ticketId or eventId." });
-  }
-
   try {
-    // Step 1: Authorization
-    const isAuthorized = await checkAuthorization(
-      ticketId,
-      req.user.role,
-      req.user.id
-    );
+    const event_query = {
+    id: eventId,
+    fields: ["name","permissions"],
+  };
+    const eventData = await fetchEventData(event_query);
+    const isAuthorized =
+      req.user.role === "admin" ||
+      eventData.permissions["whoCanScanTickets"].includes(req.user.id);
+    if (isAuthorized) {
+      let ticket = await Ticket.findById(ticketId);
+      if (ticket) {
+        const userInfo = await fetchUserData({
+          id: ticket.boughtBy,
+          fields: ["name", "reg", "image", "pushToken"],
+        })
+        if (
+          ticket.status === "active" &&
+          ticket.eventId.toString() === eventId
+        ) {
+          ticket.status = "redeemed";
+          await ticket.save();
+          await markAllItineraries({
+            eventId,
+            ticketId,
+            userId: ticket.boughtBy,
+          });
 
-    if (!isAuthorized) {
-      return res
-        .status(StatusCodes.FORBIDDEN)
-        .json({ msg: "You are not authorized to scan this ticket." });
-    }
-
-    // Step 2: Fetch ticket
-    const ticket = await Ticket.findById(ticketId);
-    if (!ticket) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .json({ msg: "Ticket not found." });
-    }
-
-    // Step 3: Fetch user info
-    const user_query = {
-      id: ticket.boughtBy,
-      fields: ["name", "image", "reg", "pushToken"],
-    };
-    const userInfo = await fetchUserData(user_query);
-
-    // Step 4: Validate ticket
-    const isValidTicket =
-      ticket.status === "active" && ticket.eventId.toString() === eventId;
-
-    if (!isValidTicket) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        msg: "Ticket is either already redeemed or does not belong to this event.",
-        userInfo,
-      });
-    }
-
-    // Step 5: Redeem ticket
-    ticket.status = "redeemed";
-    await ticket.save();
-
-    // Step 6: Schedule notification
-    const delay = 3 * 1000; // 3 seconds
-    const fireAt = new Date(Date.now() + delay);
-    schedule.scheduleJob(`push_${userInfo._id}`, fireAt, async () => {
-      const event_query = {
-        id: eventId,
-        fields: ["name"],
-      };
-      const eventInfo = await fetchEventData(event_query);
-
-      if (userInfo?.pushToken) {
-        scheduleNotification(
-          [userInfo.pushToken],
-          `Welcome to ${eventInfo.name}`,
-          `Enjoy the event and Carpe Diem!`
-        );
+          //scheduling a job for notification to the buyer
+          let threeSec = new Date(Date.now() + 1 * 3 * 1000);
+          schedule.scheduleJob(`push_${userInfo._id}`, threeSec, async () => {
+            scheduleNotification(
+              [userInfo.pushToken],
+              `Welcome to ${eventData.name}`,
+              `Enjoy the event and Carpe Diem!`
+            );
+          });
+          io.emit(`ticketScan_${ticketId}`, {
+            itinerary: "the event",
+          });
+          return res
+            .status(StatusCodes.OK)
+            .json({ msg: "Ticket scan successful.", userInfo });
+        } else {
+          io.emit(`ticketAlreadyScanned_${ticketId}`, {
+            itinerary: "the event",
+          });
+          return res
+            .status(StatusCodes.OK)
+            .json({ msg: "Ticket already scanned!" });
+        }
+      } else {
+        return res.status(StatusCodes.OK).json({ msg: "Invalid ticket id." });
       }
-    });
-
-    return res
-      .status(StatusCodes.OK)
-      .json({ msg: "Ticket scan successful.", userInfo });
+    } else {
+      return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
+    }
   } catch (error) {
-    console.error("🎟️ Error scanning ticket:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ msg: "Something went wrong during ticket scan." });
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
   }
 };
 
