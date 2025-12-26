@@ -129,7 +129,7 @@ const ITINERARY_UPDATE_OPERATION = {
     topicSuffix: "_itinerary_update_operation",
 
     validate: (data) => {
-      const { operation, targetType, field } = payload;
+      const { operation, targetType, field } = data;
 
     if (!["SET", "PUSH", "PULL", "INC"].includes(operation)) {
       throw new Error("Invalid operation type");
@@ -147,13 +147,13 @@ const ITINERARY_UPDATE_OPERATION = {
       throw new Error("value is required");
     }
 
-    if (targetType === "SINGLE" && !payload.itineraryId) {
+    if (targetType === "SINGLE" && !data.itineraryId) {
       throw new Error("itineraryId required for SINGLE");
     }
 
     if (
       targetType === "MULTIPLE" &&
-      (!Array.isArray(payload.itineraryIds) || payload.itineraryIds.length === 0)
+      (!Array.isArray(data.itineraryIds) || data.itineraryIds.length === 0)
     ) {
       throw new Error("itineraryIds must be non-empty array");
     }
