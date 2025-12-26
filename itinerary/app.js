@@ -1,5 +1,6 @@
 require("dotenv").config();
 require("./config/kafka_producer");
+require("./config/kafka_listener");
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
