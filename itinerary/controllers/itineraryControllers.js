@@ -436,6 +436,57 @@ const editItinerary = async (req, res) => {
   }
 };
 
+const getItineraryFieldsById = async (req, res) => {
+  try {
+    const { id,ids, fields } = req.body;
+
+    if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+      return res
+        .status(400)
+        .json({ error: "Itinerary ID or array of Itinerary IDs is required." });
+    }
+
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
+    }
+
+    // Convert array of fields to space-separated string for Mongoose projection
+    const projection = isArrayProjection ? fields.join(" ") : fields;
+
+     if (Array.isArray(ids) && ids.length > 0) {
+      const itineraries = await Itinerary.find({ _id: { $in: ids } }).select(projection);
+
+      if (!itineraries || itineraries.length === 0) {
+        return res.status(404).json({ error: "Itineraries not found." });
+      }
+
+      return res.status(200).json({ data: itineraries });
+    }
+
+    const itinerary = await Itinerary.findById(id).select(projection);
+
+    if (!itinerary) {
+      return res.status(404).json({ error: "itinerary not found." });
+    }
+
+    return res.status(200).json({ data: itinerary });
+  } catch (err) {
+    console.error("Error fetching itinerary fields:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   createItinerary,
   updateItineraryStatus,
@@ -445,4 +496,5 @@ module.exports = {
   getItinerariesByIds,
   fetchRSVPList,
   editItinerary,
+  getItineraryFieldsById
 };

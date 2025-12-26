@@ -10,6 +10,7 @@ const {
   fetchRSVPList,
   editItinerary,
   rsvpItinerary,
+  getItineraryFieldsById,
 } = require("../controllers/itineraryControllers");
 
 router.post("/createItinerary", createItinerary);
@@ -20,5 +21,6 @@ router.post("/addToNotifyList", addToNotifyList);
 router.post("/getItinerariesByIds", getItinerariesByIds);
 router.get("/fetchRSVPList", fetchRSVPList);
 router.post("/editItinerary", editItinerary);
+router.post("/getItineraryFieldsById", getItineraryFieldsById);
 
 module.exports = router;
