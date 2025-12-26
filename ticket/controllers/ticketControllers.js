@@ -20,6 +20,7 @@ const {
   fetchNativeClubData,
   scheduleNotification,
   getUserMetaMap,
+  fetchItineraries,
 } = require("./utilControllers");
 
 // middleware
@@ -136,6 +137,8 @@ const generateTicket = async (req, res) => {
     razorpay_signature,
     amtPaid,
     type,
+    extraFieldsData,
+    couponId,
   } = req.body;
 
   try {
@@ -203,6 +206,8 @@ const generateTicket = async (req, res) => {
           boughtBy: req.user.id,
           generatedAt: new Date(),
           type,
+          extraFieldsData,
+          couponId,
         },
       ],
       { session }
@@ -275,6 +280,50 @@ const generateTicket = async (req, res) => {
       .send(
         "Something went wrong. If money was deducted, a refund will be processed."
       );
+  }
+};
+
+// util function to mark all itineraries as scanned
+const markAllItineraries = async ({ ticketId, eventId, userId }) => {
+  try {
+    const ticketData = await Ticket.findById(ticketId, {
+      type: 1,
+      checkPoints: 1,
+    });
+
+    const event_query = {
+    id: eventId,
+    fields: ["itineraries"],
+  };
+
+  const { itineraries } = await fetchEventData(event_query);
+
+    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+
+    // filter itineraries where this ticket type is allowed
+    const allowedItineraries = itinerariesData.filter((i) =>
+      i.allowed.includes(ticketData.type)
+    );
+
+    const allowedItinerariesIds = allowedItineraries.map((a) => a._id);
+
+    // update ticket checkpoints
+    ticketData.checkPoints = allowedItinerariesIds;
+    await ticketData.save();
+
+    // update attendance lists for all itineraries in parallel
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",{
+      operation:"PUSH",
+      targetType:"MULTIPLE",
+      field:"attendanceList",
+      value:userId,
+      itineraryIds:allowedItinerariesIds
+    })
+
+    return { success: true };
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.message };
   }
 };
 

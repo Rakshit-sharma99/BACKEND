@@ -169,10 +169,28 @@ const getUserMetaMap = async (userIds, fields) => {
   }
 };
 
+const fetchItineraries = async (query) => {
+  try {
+    if (!Array.isArray(query.itineraryIds) || query.itineraryIds.length === 0) {
+      return [];
+    }
+    const config = generateServiceToken();
+    const itineraryData = await axios.post(
+      `http://itinerary:6050/itinerary/api/v1/getItinerariesByIds`,
+      query,
+      config
+    );
+    return itineraryData.data.itineraries;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 module.exports = {
   fetchEventData,
   fetchUserData,
   fetchNativeClubData,
   scheduleNotification,
   getUserMetaMap,
+  fetchItineraries
 };
