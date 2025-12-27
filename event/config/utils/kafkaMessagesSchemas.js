@@ -101,8 +101,31 @@ const EDIT_EVENT = {
   },
 };
 
+/**
+ * @typedef {Object} CREATE_MEMORY_PAYLOAD
+ * @property {Object} memoryData
+ */
+
+const CREATE_MEMORY = {
+  EDIT_EVENT: {
+    topicSuffix: '_create_memory',
+
+    validate: (data) => {
+
+      if (!data.memoryData || !typeof data.memoryData==='object') {
+        throw new Error('memoryData must be object');
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...FEATURED_SECONDARY_ACTION,
   ...ASK_FOR_REVIEW,
   ...EDIT_EVENT,
+  ...CREATE_MEMORY
 };

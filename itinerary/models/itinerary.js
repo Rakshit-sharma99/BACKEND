@@ -64,6 +64,12 @@ const itinerarySchema = new mongoose.Schema(
       enum: ["Upcoming", "Ongoing", "Completed", "Canceled"],
       default: "Upcoming",
     },
+    attendanceList: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true }
 );

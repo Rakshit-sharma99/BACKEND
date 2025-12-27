@@ -74,6 +74,8 @@ const awardRouter = require("./routes/awardRouter");
 const blockRouter = require("./routes/blockRouter");
 // const eventRegisterRouter = require("./routes/eventRegisterRouter");
 const unsortedRouter = require("./routes/unsortedRouter");
+const Session = require("./models/session");
+const recentSearchesRouter = require("./routes/recentSearchesRouter");
 
 app.set("trust proxy", 1);
 app.use(cors());
@@ -152,6 +154,7 @@ app.use("/universe/api/v1/coupon", authenticate, couponRouter);
 app.use("/universe/api/v1/memory", authenticate, memoryRouter);
 app.use("/universe/api/v1/award", authenticate, awardRouter);
 app.use("/universe/api/v1/block", authenticate, blockRouter);
+app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
 

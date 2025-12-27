@@ -4,7 +4,7 @@ const joinLinkSchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ["Club", "Community"],
+      enum: ["Club", "Community", "Memory"],
       required: true,
     },
     belongsTo: {
@@ -37,6 +37,9 @@ const joinLinkSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    metaData: {
+      type: Object,
+    },
     uid: {
     type: String,
   },

@@ -293,7 +293,7 @@ const addToNotifyList = async (req, res) => {
 //Controller 6
 const getItinerariesByIds = async (req, res) => {
   try {
-    const { itineraryIds } = req.body;
+    const { itineraryIds,ticketId } = req.body;
 
     if (!Array.isArray(itineraryIds)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -303,7 +303,26 @@ const getItinerariesByIds = async (req, res) => {
 
     const itineraries = await Itinerary.find({ _id: { $in: itineraryIds } });
 
-    return res.status(StatusCodes.OK).json({ itineraries });
+    let scannedList = [];
+    if (ticketId) {
+      const ticket_query = {
+      ticketId,
+      fields: ["checkPoints"],
+    };
+    const ticket = await fetchTicketFieldsById(ticket_query);
+      scannedList = ticket.checkPoints.map((sl) => sl.toString());
+    }
+
+    const finalData = itineraries.map((i) => {
+      const obj = i.toObject(); // convert Mongoose doc -> plain JS object
+      delete obj.attendanceList; // remove the field
+      return {
+        ...obj,
+        scanned: scannedList.includes(i._id.toString()),
+      };
+    });
+
+    return res.status(StatusCodes.OK).json({ itineraries:finalData });
   } catch (error) {
     console.error(error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -380,13 +399,16 @@ const editItinerary = async (req, res) => {
         .json({ message: "Itinerary not found" });
     }
 
-    // Check authorization based on eventId from the itinerary
-    const isAuthorized = await checkEventAuthorization({
-      userId: req.user.id,
-      eventId: itinerary.eventId,
-    });
+    const event_query = {
+      id: itinerary.eventId,
+      fields: ["permissions"],
+    };
+    const event = await fetchEventData(event_query);
+    const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
+      ? event.permissions.whoCanEditEvent.includes(req.user.id)
+      : false;
 
-    if (!isAuthorized) {
+    if (!authorized) {
       return res.status(StatusCodes.FORBIDDEN).json({
         message: "You are not authorized to edit this itinerary.",
       });
@@ -414,6 +436,57 @@ const editItinerary = async (req, res) => {
   }
 };
 
+const getItineraryFieldsById = async (req, res) => {
+  try {
+    const { id,ids, fields } = req.body;
+
+    if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+      return res
+        .status(400)
+        .json({ error: "Itinerary ID or array of Itinerary IDs is required." });
+    }
+
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
+    }
+
+    // Convert array of fields to space-separated string for Mongoose projection
+    const projection = isArrayProjection ? fields.join(" ") : fields;
+
+     if (Array.isArray(ids) && ids.length > 0) {
+      const itineraries = await Itinerary.find({ _id: { $in: ids } }).select(projection);
+
+      if (!itineraries || itineraries.length === 0) {
+        return res.status(404).json({ error: "Itineraries not found." });
+      }
+
+      return res.status(200).json({ data: itineraries });
+    }
+
+    const itinerary = await Itinerary.findById(id).select(projection);
+
+    if (!itinerary) {
+      return res.status(404).json({ error: "itinerary not found." });
+    }
+
+    return res.status(200).json({ data: itinerary });
+  } catch (err) {
+    console.error("Error fetching itinerary fields:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 module.exports = {
   createItinerary,
   updateItineraryStatus,
@@ -423,4 +496,5 @@ module.exports = {
   getItinerariesByIds,
   fetchRSVPList,
   editItinerary,
+  getItineraryFieldsById
 };

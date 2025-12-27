@@ -4,10 +4,19 @@ const express = require("express");
 const admin = require("firebase-admin");
 const helmet = require("helmet");
 const http = require("http");
-
+const socketIo = require("socket.io");
 const app = express();
 const server = http.createServer(app);
+const io = socketIo(server, {
+  path: "/ticket/socket.io",
+  cors: {
+    origin: ["http://localhost:5173", "https://app.macbease.com"],
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 
+module.exports = {io}
 const ticketRouter = require("./routes/ticketRouter");
 
 const connectDB = require("./db/connect");

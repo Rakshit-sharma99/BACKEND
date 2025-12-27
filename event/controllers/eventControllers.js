@@ -18,7 +18,10 @@ const {
   fetchTicketsBoughtByAUserOfAnEvent,
   generateEmailReportHtml,
   fetchMultipleClubsData,
-  autoGenEventMemoryHTML
+  autoGenEventMemoryHTML,
+  generateTicketExcelAndUpload,
+  fetchAvailableCoupon,
+  fetchTicketFieldsByQuery
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
@@ -1014,7 +1017,7 @@ const getTickets = async (req, res) => {
 //Controller 16
 const generateTicketListPdf = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    const { eventId, format = "PDF file" } = req.query;
 
     if (!eventId) {
       return res
@@ -1073,24 +1076,39 @@ const generateTicketListPdf = async (req, res) => {
 
     // Generate and upload PDF
     let pdfUrl;
-    try {
-      pdfUrl = await generateTicketPDFAndUpload({
-        tickets,
+    if(format === "PDF file"){
+      try {
+        pdfUrl = await generateTicketPDFAndUpload({
+          tickets,
+          eventName: event.name,
+          graphData,
+          totalRevenue,
+          totalTicketsSold: ticketsSold,
+          clubName: event.belongsTo?.name || "Unknown Club",
+        });
+      } catch (pdfError) {
+        console.error("PDF generation failed:", pdfError);
+        return res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .send("Could not generate PDF report.");
+      }
+    }
+
+    let excelUrl = "";
+
+    if (format === "Excel file") {
+      excelUrl = await generateTicketExcelAndUpload({
+        tickets: tickets,
         eventName: event.name,
         graphData,
         totalRevenue,
         totalTicketsSold: ticketsSold,
-        clubName: event.belongsTo?.name || "Unknown Club",
+        clubName: event.belongsTo.name,
       });
-    } catch (pdfError) {
-      console.error("PDF generation failed:", pdfError);
-      return res
-        .status(StatusCodes.INTERNAL_SERVER_ERROR)
-        .send("Could not generate PDF report.");
     }
 
     console.log("PDF report generated:", pdfUrl);
-    return res.status(StatusCodes.OK).json({ reportURL: pdfUrl });
+    return res.status(StatusCodes.OK).json({ reportURL: format === "PDF file" ? pdfUrl : excelUrl });
   } catch (error) {
     console.error("Error in generating ticket list PDF:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Server error");
@@ -1192,9 +1210,11 @@ const checkTicketAvailability = async (req, res) => {
       }
     });
 
+    const coupons = await fetchAvailableCoupon({eventId,userId:req.user.id})
+
     return res
       .status(StatusCodes.OK)
-      .json({ ticketTypesSales, itineraries: enrichedItineraries });
+      .json({ ticketTypesSales, itineraries: enrichedItineraries, coupons });
   } catch (error) {
     console.error("checkTicketAvailability error:", error.message);
     return res
@@ -1474,10 +1494,11 @@ const checkEventStatus = async (req, res) => {
     };
 
     const event = await Event.findById(eventId, {
-      status: 1,
-      ticketAvailable: 1,
-      belongsTo: 1,
-      universeMetaData: 1,
+      bookedBy: 0,
+      cumulativeRevenue: 0,
+      courseAnalytics: 0,
+      faq: 0,
+      ticketSellingDays: 0,
     });
 
     if (!event) {
@@ -1486,7 +1507,7 @@ const checkEventStatus = async (req, res) => {
 
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
-      fields: ["adminId"],
+      fields: ["adminId","mainAdmin"],
       callSign: event.universeMetaData.callSign,
     });
 
@@ -1514,7 +1535,13 @@ const checkEventStatus = async (req, res) => {
         alreadyBooked: false,
         ticketType: null,
         ticketId: null,
-        hasAdminAccess,
+        hasFullAccess: false,
+        hasAdminAccess: false,
+        canSeeStats: false,
+        canScanTickets: false,
+        canEditEvent: false,
+        canAnswerFAQ: false,
+        eventData: event,
       });
     }
 
@@ -1530,6 +1557,20 @@ const checkEventStatus = async (req, res) => {
       ticketType: matchedTicket?.type || null,
       ticketId: matchedTicket?._id || null,
       hasAdminAccess,
+      hasFullAccess: club.mainAdmin === req.user.id,
+      canSeeStats: (event.permissions.whoCanSeeStats || []).includes(
+        req.user.id
+      ),
+      canScanTickets: (event.permissions.whoCanScanTickets || []).includes(
+        req.user.id
+      ),
+      canEditEvent: (event.permissions.whoCanEditEvent || []).includes(
+        req.user.id
+      ),
+      canAnswerFAQ: (event.permissions.whoCanAnswerFAQ || []).includes(
+        req.user.id
+      ),
+      eventData: event,
     });
   } catch (error) {
     console.error("❌ checkEventStatus error:", error);
@@ -1692,8 +1733,8 @@ const mailEventStats = async (req, res) => {
     const intro = "";
     const outro = "";
     const subject = "Event report";
-    // const destination = [event.authorizedPerson.email];
-    const destination = ["amartyasingh1010@gmail.com"];
+    const destination = [event.authorizedPerson?.email || event.eventManagerMail];
+    // const destination = ["amartyasingh1010@gmail.com"];
 
     // Fetch ticket details
     const query = { ticketIds };
@@ -1742,6 +1783,395 @@ const mailEventStats = async (req, res) => {
   } catch (error) {
     console.error("Error sending report:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Server error");
+  }
+};
+
+const addExtraFieldsToEvent = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ msg: "You are not authorized to access this route." });
+    }
+    const { eventId } = req.query;
+    const { extraFields, extraFieldsRequired } = req.body;
+
+    if (!Array.isArray(extraFields) || extraFields.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "extraFields must be a non-empty array." });
+    }
+
+    // Validate individual field structures
+    for (const field of extraFields) {
+      if (!field.fieldName || !field.type) {
+        return res.status(400).json({
+          message: "Each extraField must contain fieldName and type.",
+        });
+      }
+      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
+      if (!allowedTypes.includes(field.type)) {
+        return res.status(400).json({
+          message: `Invalid type "${
+            field.type
+          }". Allowed types are: ${allowedTypes.join(", ")}`,
+        });
+      }
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    // Update fields
+    event.extraFields = extraFields;
+    event.extraFieldsRequired = !!extraFieldsRequired;
+
+    await event.save();
+
+    res
+      .status(200)
+      .json({ message: "Extra fields updated successfully", event });
+  } catch (error) {
+    console.error("Error updating extra fields:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const promoteEvent = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "You are not authorized to access this route",
+      });
+    }
+
+    const { id, duration, promotionLevel } = req.body;
+
+    // Validate inputs
+    if (!duration || typeof duration !== "string") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Duration is required (e.g., '6h', '2d').",
+      });
+    }
+
+    if (promotionLevel == null || isNaN(promotionLevel)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Promotion level must be a number." });
+    }
+
+    // Find event
+    const event = await Event.findById(id);
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Event not found." });
+    }
+
+    // Parse duration (supports hours 'h' and days 'd')
+    const regex = /^(\d+)(h|d)$/i;
+    const match = duration.match(regex);
+
+    if (!match) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid duration format. Use '6h' or '2d' etc.",
+      });
+    }
+
+    const amount = parseInt(match[1], 10);
+    const unit = match[2].toLowerCase();
+
+    let expiry = new Date();
+    if (unit === "h") {
+      expiry.setHours(expiry.getHours() + amount);
+    } else if (unit === "d") {
+      expiry.setDate(expiry.getDate() + amount);
+    }
+
+    // Update event
+    event.isPromoted = true;
+    event.promotionLevel = Number(promotionLevel);
+    event.promotionExpiry = expiry;
+    await event.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Event promoted successfully.",
+      event: {
+        id: event._id,
+        isPromoted: event.isPromoted,
+        promotionLevel: event.promotionLevel,
+        promotionExpiry: event.promotionExpiry,
+      },
+    });
+  } catch (err) {
+    console.log("Error promoting event :", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong!",
+    });
+  }
+};
+
+const demoteEvent = async (req, res) => {
+  try {
+    const { id } = req.query;
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Event not found." });
+    }
+
+    // Reset promotion fields
+    event.isPromoted = false;
+    event.promotionLevel = 0;
+    event.promotionExpiry = null;
+
+    await event.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Event demoted successfully.",
+      event: {
+        id: event._id,
+        isPromoted: event.isPromoted,
+        promotionLevel: event.promotionLevel,
+        promotionExpiry: event.promotionExpiry,
+      },
+    });
+  } catch (error) {
+    console.error("Error demoting event:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: "Server error while demoting event." });
+  }
+};
+
+const getEventPermissions = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    // Fetch permissions + members/admins/team info
+    const event = await Event.findById(eventId).select("permissions belongsTo universeMetaData");
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const club = await fetchNativeClubData({
+      id: event.belongsTo.id,
+      fields: ["adminId","members","team"],
+      callSign: event.universeMetaData.callSign,
+    });
+
+    const permissions = event.permissions || {};
+
+    // Collect all unique user IDs across all permission keys
+    const allUserIds = [
+      ...(permissions.whoCanSeeStats || []),
+      ...(permissions.whoCanScanTickets || []),
+      ...(permissions.whoCanEditEvent || []),
+      ...(permissions.whoCanAnswerFAQ || []),
+    ];
+
+    const uniqueUserIds = [...new Set(allUserIds.map((id) => id.toString()))];
+
+    const userMap = await getUserMetaMap(uniqueUserIds,["name","image","pushToken"]);
+
+    // Build role lookup sets
+    const adminSet = new Set(club.adminId.map((id) => id.toString()));
+    const memberSet = new Set(club.members.map((id) => id.toString()));
+    const teamMap = club.team.reduce((acc, t) => {
+      acc[t.id.toString()] = t.pos || "team"; // store position if available
+      return acc;
+    }, {});
+
+    // Replace IDs in permissions with user objects + role
+    const populatedPermissions = {};
+    for (const [key, ids] of Object.entries(permissions)) {
+      populatedPermissions[key] = (ids || []).map((id) => {
+        const strId = id.toString();
+        let role = "member";
+
+        if (teamMap[strId]) {
+          role = "team";
+        } else if (adminSet.has(strId)) {
+          role = "admin";
+        } else if (memberSet.has(strId)) {
+          role = "member";
+        }
+
+        return {
+          _id: strId,
+          role,
+          ...(userMap[strId] || {}),
+        };
+      });
+    }
+
+    res.status(200).json({
+      eventId,
+      permissions: populatedPermissions,
+    });
+  } catch (error) {
+    console.error("Error fetching event permissions:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+const assignDefaultPermissions = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "You are not authorized to access this route",
+      });
+    }
+
+    const events = await Event.find().select("belongsTo permissions universeMetaData");
+    if (!events.length) {
+      return res.status(404).json({ message: "No events found" });
+    }
+
+    let updatedEvents = [];
+
+    for (const event of events) {
+      const clubId = event.belongsTo?.id;
+      if (!clubId) continue;
+
+      const club = await fetchNativeClubData({
+      id: clubId,
+      fields: ["adminId","members","team","mainAdmin"],
+      callSign: event.universeMetaData.callSign,
+    });
+      if (!club) continue;
+
+      const newPermissions = {
+        ...event.permissions,
+        whoCanSeeStats: club.mainAdmin ? [club.mainAdmin] : [],
+        whoCanScanTickets: club.adminId || [],
+        whoCanEditEvent: club.mainAdmin ? [club.mainAdmin] : [],
+        whoCanAnswerFAQ: club.adminId || [],
+      };
+
+      await Event.updateOne(
+        { _id: event._id },
+        { $set: { permissions: newPermissions } }
+      );
+
+      updatedEvents.push({
+        eventId: event._id,
+        permissions: newPermissions,
+      });
+    }
+
+    res.status(200).json({
+      message: "Permissions updated successfully for all events",
+      updatedEvents,
+    });
+  } catch (error) {
+    console.error("Error assigning permissions:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+const updateEventPermission = async (req, res) => {
+  try {
+    const { eventId, permissionKey } = req.query;
+    const { selector = [], value = [] } = req.body; // selector is array now
+
+    // Fetch club
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Club not found" });
+    }
+
+    const club = await fetchNativeClubData({
+      id: event.belongsTo.id,
+      fields: ["adminId","members","team","mainAdmin"],
+      callSign: event.universeMetaData.callSign,
+    });
+    if (!club) {
+      return res.status(404).json({ message: "Club not found" });
+    }
+
+    // Authorization check
+    if (req.user.role !== "admin" && req.user.id !== club.mainAdmin) {
+      return res
+        .status(403)
+        .json({ message: "Not authorized to update permissions" });
+    }
+
+    // Validate permission key
+    const validKeys = [
+      "whoCanSeeStats",
+      "whoCanScanTickets",
+      "whoCanEditEvent",
+      "whoCanAnswerFAQ",
+    ];
+    if (!validKeys.includes(permissionKey)) {
+      return res.status(400).json({ message: "Invalid permission key" });
+    }
+
+    let updated = [];
+
+    // 🔑 Handle selectors
+    if (selector.includes("Select All")) {
+      updated = club.members || [];
+    } else {
+      for (const sel of selector) {
+        const normalized = sel.trim().toLowerCase();
+        if (normalized === "select admins") {
+          updated.push(...(club.adminId || []));
+        } else if (normalized === "select core team") {
+          updated.push(...(club.team || []).map((t) => t.id));
+        } else if (normalized === "select members") {
+          updated.push(...(club.members || []));
+        }
+      }
+
+      // Fallback to explicit value
+      if (updated.length === 0 && value.length > 0) {
+        updated = value;
+      }
+    }
+
+    // Deduplicate & save
+    const uniqueIds = [...new Set(updated.map(String))];
+    event.permissions[permissionKey] = uniqueIds;
+    await event.save();
+
+    const userMap = await getUserMetaMap(uniqueIds,["name","image","pushToken"])
+
+    // Helper to determine role inside the club
+    const getRole = (id) => {
+      if ((club.team || []).map((t) => String(t.id)).includes(id))
+        return "team";
+      if ((club.adminId || []).map(String).includes(id)) return "admin";
+      if ((club.members || []).map(String).includes(id)) return "member";
+      return "member"; // fallback
+    };
+
+    const populated = uniqueIds.map((id) => ({
+      _id: id,
+      ...(userMap[id] || {}),
+      role: getRole(id), //  Add role based on club data
+    }));
+
+    res.status(200).json({
+      message: `Permission '${permissionKey}' updated successfully`,
+      updatedPermission: populated, // contains name, image, pushToken, role
+      permissions: event.permissions, // still raw IDs
+    });
+  } catch (error) {
+    console.error("Error updating event permission:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -1804,18 +2234,41 @@ const getPastOrFutureEvents = async (req, res) => {
 
 const getEventFieldsById = async (req, res) => {
   try {
-    const { id, fields } = req.body;
+    const { id,ids, fields } = req.body;
 
-    if (!id) {
-      return res.status(400).json({ error: "Event ID is required." });
+    if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
+      return res
+        .status(400)
+        .json({ error: "Event ID or array of Event IDs is required." });
     }
 
-    if (!fields || !Array.isArray(fields) || fields.length === 0) {
-      return res.status(400).json({ error: "An array of fields is required." });
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
     }
 
     // Convert array of fields to space-separated string for Mongoose projection
-    const projection = fields.join(" ");
+    const projection = isArrayProjection ? fields.join(" ") : fields;
+
+     if (Array.isArray(ids) && ids.length > 0) {
+      const events = await Event.find({ _id: { $in: ids } }).select(projection);
+
+      if (!events || events.length === 0) {
+        return res.status(404).json({ error: "Events not found." });
+      }
+
+      return res.status(200).json({ data: events });
+    }
 
     const event = await Event.findById(id).select(projection);
 
@@ -1858,6 +2311,806 @@ const checkEventAuthorization = async (req, res) => {
   }
 };
 
+const getPastEvents = async (req, res) => {
+  try {
+    const {
+      monthsAgo = 3,
+      daysAgo,
+      startDate,
+      projection,
+      limit = 8,
+    } = req.body;
+
+    let fromDate = new Date();
+
+    // Priority-based date resolution
+    if (startDate) {
+      fromDate = new Date(startDate);
+    } else if (daysAgo) {
+      fromDate.setDate(fromDate.getDate() - Number(daysAgo));
+    } else {
+      fromDate.setMonth(fromDate.getMonth() - Number(monthsAgo));
+    }
+
+    const validStatuses = ["past and unclear", "past and clear", "expired"];
+
+    const events = await Event.aggregate([
+      {
+        $match: {
+          status: { $in: validStatuses },
+          eventDate: { $gte: fromDate },
+        },
+      },
+      {
+        $addFields: {
+          bookingsCount: { $size: "$bookedBy" },
+        },
+      },
+      {
+        $sort: {
+          bookingsCount: -1,
+          eventDate: -1,
+        },
+      },
+      {
+        $limit: Number(limit),
+      },
+      {
+        $project: projection || {},
+      },
+    ]);
+
+    return res.status(200).json({ data: events });
+  } catch (error) {
+    console.error("Error fetching past events:", error);
+    return res.status(500).json({
+      error: "Server error while fetching past events",
+    });
+  }
+};
+
+const getEventGallery = async (req, res) => {
+  try {
+    const { eventIds } = req.body;
+
+    if (!Array.isArray(eventIds) || eventIds.length === 0) {
+      return res.status(400).json({
+        error: "eventIds array is required",
+      });
+    }
+
+    const objectIds = eventIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return res.status(400).json({
+        error: "No valid event IDs provided",
+      });
+    }
+
+    const events = await Event.aggregate([
+      {
+        $match: {
+          _id: { $in: objectIds },
+        },
+      },
+      {
+        $project: {
+          name: 1,
+          eventDate: 1,
+          place: 1,
+          gallery: {
+            $filter: {
+              input: "$gallery",
+              as: "g",
+              cond: { $eq: ["$$g.featured", true] },
+            },
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      data: events,
+    });
+  } catch (error) {
+    console.error("Error fetching event gallery:", error);
+    return res.status(500).json({
+      error: "Server error while fetching event gallery",
+    });
+  }
+};
+
+const addToGallery = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    const userId = req.user.id;
+    const { media } = req.body;
+
+    // Check if user has bought a ticket for this event
+    const hasTicket = await fetchTicketFieldsByQuery({
+      searchBy: { eventId: mongoose.Types.ObjectId(eventId),boughtBy:userId },
+      fields: ["boughtBy"],
+      single:true
+    });
+
+    // if (!hasTicket) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "You must buy a ticket to upload media to this event.",
+    //   });
+    // }
+
+    // Validate media array
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No media provided.",
+      });
+    }
+
+    const user_query = {
+      id: userId,
+      fields: ["name", "image"],
+    };
+    const userData = await fetchUserData(user_query);
+
+
+    // Add postedBy field to each media item
+    const formattedMedia = media.map((item) => ({
+      ...item,
+      postedBy: userId,
+      userMetaData: {
+        name: userData.name,
+        image: userData.image,
+      },
+      downloadedBy: [], // default empty array
+    }));
+
+    // Push media to event gallery
+    const updatedEvent = await Event.findByIdAndUpdate(
+      eventId,
+      { $push: { gallery: { $each: formattedMedia } } },
+      { new: true }
+    );
+
+    if (updatedEvent) {
+      // Create a memory
+      let tags = formattedMedia.flatMap((media) =>
+        (media.tags ?? []).map((tag) => ({ ...tag.user, type: "people" }))
+      );
+      tags = tags.filter((t) => t._id !== userId);
+      const memoryData = {
+        createdBy: userId,
+        type: "media",
+        template: "Events",
+        title: updatedEvent.name,
+        tags,
+        assets: formattedMedia,
+        date: new Date(),
+        visibility: "inThisMemory",
+        creatorMetaData: {
+          name: userData.name,
+          image: userData.image,
+        },
+        callSign:req.user.callSign
+      };
+      await sendKafkaMessage("CREATE_MEMORY","memory",{memoryData});
+    }
+
+    if (!updatedEvent) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    // Respond with updated gallery
+    return res.status(200).json({
+      success: true,
+      message: "Media added to gallery successfully.",
+      gallery: updatedEvent.gallery,
+    });
+  } catch (err) {
+    console.error("Error adding media to gallery:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while adding media to gallery.",
+    });
+  }
+};
+
+const getEventGalleryPaginated = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const mediaType = req.query.mediaType;
+
+    if (!eventId) {
+      return res.status(400).json({
+        success: false,
+        message: "Event ID is required",
+      });
+    }
+
+    // Fetch event with gallery + bookedBy
+    const event = await Event.findById(eventId).select("gallery bookedBy");
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    let gallery = event.gallery || [];
+
+    // Filter by image/video if specified
+    if (mediaType && ["image", "video"].includes(mediaType)) {
+      gallery = gallery.filter((g) => g.type === mediaType);
+    }
+
+    const totalCount = gallery.length;
+    const totalPages = Math.ceil(totalCount / limit);
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+
+    const paginatedGallery = gallery.slice(startIndex, endIndex);
+
+    // ✅ Count unique contributors (only for first page)
+    let contributorCount = undefined;
+    let attendedCount = undefined;
+    if (page === 1) {
+      const uniqueContributors = new Set();
+
+      gallery.forEach((item) => {
+        // Add the uploader
+        if (item.postedBy) {
+          uniqueContributors.add(String(item.postedBy));
+        }
+
+        // Add all tagged users
+        if (Array.isArray(item.tags)) {
+          item.tags.forEach((tag) => {
+            if (tag.user && tag.user._id) {
+              uniqueContributors.add(String(tag.user._id));
+            }
+          });
+        }
+      });
+
+      contributorCount = uniqueContributors.size;
+      attendedCount = event.bookedBy.length;
+    }
+
+    res.status(200).json({
+      success: true,
+      page,
+      limit,
+      totalCount,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+      attended: attendedCount,
+      contributors: contributorCount, // may be undefined for page > 1
+      data: paginatedGallery,
+    });
+  } catch (error) {
+    console.error("Error fetching event gallery:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Something went wrong while fetching gallery.",
+    });
+  }
+};
+
+const getEventGalleryContributors = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid event ID",
+      });
+    }
+
+    // Step 1: Aggregate all contributor IDs (postedBy + tags.user._id)
+    const event = await Event.findById(eventId, { gallery: 1 }).lean();
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    // Use a map to count occurrences
+    const contributorCountMap = new Map();
+
+    event.gallery?.forEach((media) => {
+      // Count uploader
+      if (media.postedBy) {
+        const id = media.postedBy.toString();
+        contributorCountMap.set(id, (contributorCountMap.get(id) || 0) + 1);
+      }
+
+      // Count tagged users
+      media.tags?.forEach((tag) => {
+        if (tag.user && tag.user._id) {
+          const id = tag.user._id.toString();
+          contributorCountMap.set(id, (contributorCountMap.get(id) || 0) + 1);
+        }
+      });
+    });
+
+    if (contributorCountMap.size === 0) {
+      return res.status(200).json({
+        success: true,
+        contributors: [],
+        message: "No contributors found",
+      });
+    }
+
+    const contributorIds = Array.from(contributorCountMap.keys());
+
+    // Step 2: Fetch user profiles
+    const userPromises = contributorIds.map((id) =>
+      fetchUserData({ id, fields: ["name", "image"] })
+    );
+    const users = await Promise.all(userPromises);
+
+    // Step 3: Merge with counts
+    const contributors = users.map((user) => ({
+      _id: user._id,
+      name: user.name,
+      image: user.image,
+      occurrences: contributorCountMap.get(user._id.toString()) || 0,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: contributors.length,
+      contributors,
+    });
+  } catch (error) {
+    console.error("Error fetching event gallery contributors:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+function formatDateReadable(date) {
+  if (!date) return "";
+
+  const d = new Date(date);
+
+  const day = d.getDate();
+  const month = d.toLocaleString("en-US", { month: "long" });
+
+  // Determine suffix
+  const suffix =
+    day % 10 === 1 && day !== 11
+      ? "st"
+      : day % 10 === 2 && day !== 12
+      ? "nd"
+      : day % 10 === 3 && day !== 13
+      ? "rd"
+      : "th";
+
+  return `${day}${suffix} of ${month}`;
+}
+
+// secondary actions after auto event memory insertion
+const sendEventMemoryEmail = async (insertedMemories, userMap, eventData) => {
+  try {
+    for (const mem of insertedMemories) {
+      const user = userMap.get(mem.createdBy.toString());
+      if (!user?.email) continue;
+
+      sendMail(
+        user.name,
+        "A new event memory was added to your Memory Lane.",
+        `${eventData.name} held on ${formatDateReadable(
+          new Date(eventData.eventDate)
+        )}.`,
+        "A new memory added!",
+        user.email,
+        {},
+        autoGenEventMemoryHTML({
+          memoryId: mem._id,
+          userId: user._id,
+          eventDate: formatDateReadable(new Date(eventData.eventDate)),
+          eventName: eventData.name,
+          userName: user.name,
+        })
+      )
+        .then(({ ses, params }) => {
+          ses.sendEmail(params, (err) => {
+            if (err) console.log("SES send error:", err);
+          });
+        })
+        .catch((err) => console.log("Mail send failed:", err));
+    }
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const changeGalleryFeatured = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ msg: "You are not authorized to access this route." });
+    }
+
+    const { eventId, galleryId } = req.query;
+    const { featured = false } = req.body;
+
+    if (!eventId || !galleryId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "eventId and galleryId are required",
+      });
+    }
+
+    // Find the specific event and gallery item
+    const event = await Event.findOne(
+      { _id: eventId, "gallery._id": galleryId },
+      { "gallery.$": 1 }
+    );
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event or gallery item not found",
+      });
+    }
+
+    // Change the value
+    const updatedEvent = await Event.findOneAndUpdate(
+      { _id: eventId, "gallery._id": galleryId },
+      { $set: { "gallery.$.featured": featured } },
+      { new: true }
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Gallery item featured set to ${featured}`,
+      featured,
+    });
+  } catch (error) {
+    console.error("Error changing gallery featured:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to change gallery featured",
+    });
+  }
+};
+
+const addTagsToEvent = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ msg: "You are not authorized to access this route." });
+    }
+
+    const { tags, eventId } = req.body;
+
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return res.status(400).json({ msg: "Tags must be a non-empty array" });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      eventId,
+      {
+        $push: {
+          tags: {
+            $each: tags,
+          },
+        },
+      },
+      { new: true, runValidators: true }
+    );
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ msg: "Done!", eventTitle: event.name, tags: event.tags });
+  } catch (error) {
+    console.error("Error adding tags:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Failed to add tags",
+    });
+  }
+};
+
+const getCurrentWeekEvents = async (req, res) => {
+  try {
+    const nextSevenDays = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+    const events = await Event.aggregate([
+      {
+        $match: {
+          status: "featured",
+          eventDate: { $gte: new Date(), $lte: nextSevenDays },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          belongsTo: 1,
+          url: 1,
+          eventDate: 1,
+          startTime: 1,
+          endTime: 1,
+          place: 1,
+        },
+      },
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched events of the week successfully",
+      events,
+    });
+  } catch (error) {
+    console.error("Error fetching week events:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ msg: "Something went wrong" });
+  }
+};
+
+const getPromotedEvents = async (req, res) => {
+  try {
+    const events = await Event.aggregate([
+      {
+        $match: {
+          status: "featured",
+          isPromoted: true,
+        },
+      },
+      {
+        $sort: {
+          promotionLevel: -1,
+          rating: -1,
+        },
+      },
+      {
+        $addFields: {
+          startsFrom: {
+            $min: {
+              $map: {
+                input: "$ticketTypes",
+                as: "t",
+                in: { $toDouble: "$$t.price" },
+              },
+            },
+          },
+        },
+      },
+
+      {
+        $project: {
+          name: 1,
+          url: 1,
+          place: 1,
+          eventDate: 1,
+          startTime: 1,
+          endTime: 1,
+          belongsTo: 1,
+          startsFrom: 1,
+        },
+      },
+    ]);
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched Promoted events successfully",
+      events,
+    });
+  } catch (error) {
+    console.error("Error in fetching promoted events: ", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
+  }
+};
+
+const getTopPastEvents = async (req, res) => {
+  try {
+    const events = await Event.aggregate([
+      {
+        $match: {
+          eventDate: { $lt: new Date() },
+        },
+      },
+
+      {
+        $addFields: {
+          bookings: { $size: "$bookedBy" },
+        },
+      },
+
+      {
+        $sort: {
+          bookings: -1,
+        },
+      },
+      {
+        $limit: 7,
+      },
+      {
+        $project: {
+          name: 1,
+          url: 1,
+          place: 1,
+          eventDate: 1,
+          startTime: 1,
+          endTime: 1,
+          belongsTo: 1,
+        },
+      },
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched top events successfully",
+      events,
+    });
+  } catch (error) {
+    console.error("Error in fetching top events: ", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: "Something went wrong",
+    });
+  }
+};
+
+const addExtraFieldsToTicketType = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    const { type, extraFieldsRequired, extraFields } = req.body;
+
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: "Ticket type is required.",
+      });
+    }
+
+    // 1️⃣ Check if event exists
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    // 2️⃣ Check if the ticket type exists inside ticketTypes[]
+    const idx = event.ticketTypes.findIndex((t) => t.type === type);
+
+    if (idx === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket type not found inside ticketTypes.",
+      });
+    }
+
+    // 3️⃣ Update the values directly in the object
+    event.ticketTypes[idx].extraFieldsRequired = extraFieldsRequired;
+    event.ticketTypes[idx].extraFields = extraFields;
+
+    await event.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Ticket type updated successfully.",
+      data: event.ticketTypes[idx],
+    });
+  } catch (error) {
+    console.log("Error updating ticket type:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+
+const getLatestEvents = async (req, res) => {
+  try {
+    const batch = parseInt(req.query.batch) || 1; // page number
+    const limit = parseInt(req.query.limit) || 10; // items per batch
+    const skip = (batch - 1) * limit;
+
+    const events = await Event.find(
+      {},
+      {
+        bookedBy: 0,
+        faq: 0,
+        ticketSellingDays: 0,
+        cumulativeRevenue: 0,
+        courseAnalytics: 0,
+        permissions: 0,
+        gallery: 0,
+        postProduction: 0,
+      }
+    )
+      .sort({ eventDate: -1 }) // newest first
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Event.countDocuments();
+
+    return res.json({
+      success: true,
+      batch,
+      limit,
+      total,
+      totalBatches: Math.ceil(total / limit),
+      events,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, message: "Server Error" });
+  }
+};
+
+const toggleWaitlist = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { eventId } = req.body;
+
+    if (!eventId) return res.status(400).json({ message: "Event ID required" });
+
+    const event = await Event.findById(eventId);
+
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const isWishlisted = event.waitlist?.includes(userId);
+
+    if (isWishlisted) {
+      // remove user from waitlist
+      event.waitlist.pull(userId);
+      await event.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Removed from waitlist",
+        wishlisted: false,
+        count: event.waitlist.length,
+      });
+    } else {
+      // add user to waitlist
+      event.waitlist.push(userId);
+      await event.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Added to waitlist",
+        wishlisted: true,
+        count: event.waitlist.length,
+      });
+    }
+  } catch (err) {
+    console.log(err);
+    return res
+      .status(500)
+      .json({ message: "Something went wrong", error: err.message });
+  }
+};
+
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -1888,4 +3141,23 @@ module.exports = {
   getPastOrFutureEvents,
   getEventFieldsById,
   checkEventAuthorization,
+  getPastEvents,
+  getEventGallery,
+  addExtraFieldsToEvent,
+  promoteEvent,
+  demoteEvent,
+  getEventPermissions,
+  assignDefaultPermissions,
+  updateEventPermission,
+  addToGallery,
+  getEventGalleryPaginated,
+  getEventGalleryContributors,
+  changeGalleryFeatured,
+  addTagsToEvent,
+  getCurrentWeekEvents,
+  getPromotedEvents,
+  getTopPastEvents,
+  addExtraFieldsToTicketType,
+  getLatestEvents,
+  toggleWaitlist
 };

@@ -20,7 +20,10 @@ const {
   fetchNativeClubData,
   scheduleNotification,
   getUserMetaMap,
+  fetchItineraries,
+  fetchItinerary,
 } = require("./utilControllers");
+const { io } = require("../app");
 
 // middleware
 const checkAuthorization = async (ticketId, role, id) => {
@@ -136,6 +139,8 @@ const generateTicket = async (req, res) => {
     razorpay_signature,
     amtPaid,
     type,
+    extraFieldsData,
+    couponId,
   } = req.body;
 
   try {
@@ -203,6 +208,8 @@ const generateTicket = async (req, res) => {
           boughtBy: req.user.id,
           generatedAt: new Date(),
           type,
+          extraFieldsData,
+          couponId,
         },
       ],
       { session }
@@ -278,18 +285,232 @@ const generateTicket = async (req, res) => {
   }
 };
 
+// util function to mark all itineraries as scanned
+const markAllItineraries = async ({ ticketId, eventId, userId }) => {
+  try {
+    const ticketData = await Ticket.findById(ticketId, {
+      type: 1,
+      checkPoints: 1,
+    });
+
+    const event_query = {
+    id: eventId,
+    fields: ["itineraries"],
+  };
+
+  const { itineraries } = await fetchEventData(event_query);
+
+    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+
+    // filter itineraries where this ticket type is allowed
+    const allowedItineraries = itinerariesData.filter((i) =>
+      i.allowed.includes(ticketData.type)
+    );
+
+    const allowedItinerariesIds = allowedItineraries.map((a) => a._id);
+
+    // update ticket checkpoints
+    ticketData.checkPoints = allowedItinerariesIds;
+    await ticketData.save();
+
+    // update attendance lists for all itineraries in parallel
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",{
+      operation:"PUSH",
+      targetType:"MULTIPLE",
+      field:"attendanceList",
+      value:userId,
+      itineraryIds:allowedItinerariesIds
+    })
+
+    return { success: true };
+  } catch (error) {
+    console.error(error);
+    return { success: false, error: error.message };
+  }
+};
+
 //Controller 2
+// const scanTicket = async (req, res) => {
+//   const { ticketId, eventId } = req.body;
+
+//   if (!ticketId || !eventId) {
+//     return res
+//       .status(StatusCodes.BAD_REQUEST)
+//       .json({ msg: "Missing ticketId or eventId." });
+//   }
+
+//   try {
+//     // Step 1: Authorization
+//     const isAuthorized = await checkAuthorization(
+//       ticketId,
+//       req.user.role,
+//       req.user.id
+//     );
+
+//     if (!isAuthorized) {
+//       return res
+//         .status(StatusCodes.FORBIDDEN)
+//         .json({ msg: "You are not authorized to scan this ticket." });
+//     }
+
+//     // Step 2: Fetch ticket
+//     const ticket = await Ticket.findById(ticketId);
+//     if (!ticket) {
+//       return res
+//         .status(StatusCodes.NOT_FOUND)
+//         .json({ msg: "Ticket not found." });
+//     }
+
+//     // Step 3: Fetch user info
+//     const user_query = {
+//       id: ticket.boughtBy,
+//       fields: ["name", "image", "reg", "pushToken"],
+//     };
+//     const userInfo = await fetchUserData(user_query);
+
+//     // Step 4: Validate ticket
+//     const isValidTicket =
+//       ticket.status === "active" && ticket.eventId.toString() === eventId;
+
+//     if (!isValidTicket) {
+//       return res.status(StatusCodes.BAD_REQUEST).json({
+//         msg: "Ticket is either already redeemed or does not belong to this event.",
+//         userInfo,
+//       });
+//     }
+
+//     // Step 5: Redeem ticket
+//     ticket.status = "redeemed";
+//     await ticket.save();
+
+//     // Step 6: Schedule notification
+//     const delay = 3 * 1000; // 3 seconds
+//     const fireAt = new Date(Date.now() + delay);
+//     schedule.scheduleJob(`push_${userInfo._id}`, fireAt, async () => {
+//       const event_query = {
+//         id: eventId,
+//         fields: ["name"],
+//       };
+//       const eventInfo = await fetchEventData(event_query);
+
+//       if (userInfo?.pushToken) {
+//         scheduleNotification(
+//           [userInfo.pushToken],
+//           `Welcome to ${eventInfo.name}`,
+//           `Enjoy the event and Carpe Diem!`
+//         );
+//       }
+//     });
+
+//     return res
+//       .status(StatusCodes.OK)
+//       .json({ msg: "Ticket scan successful.", userInfo });
+//   } catch (error) {
+//     console.error("🎟️ Error scanning ticket:", error);
+//     return res
+//       .status(StatusCodes.INTERNAL_SERVER_ERROR)
+//       .json({ msg: "Something went wrong during ticket scan." });
+//   }
+// };
+
 const scanTicket = async (req, res) => {
   const { ticketId, eventId } = req.body;
-
-  if (!ticketId || !eventId) {
-    return res
-      .status(StatusCodes.BAD_REQUEST)
-      .json({ msg: "Missing ticketId or eventId." });
-  }
-
   try {
-    // Step 1: Authorization
+    const event_query = {
+    id: eventId,
+    fields: ["name","permissions"],
+  };
+    const eventData = await fetchEventData(event_query);
+    const isAuthorized =
+      req.user.role === "admin" ||
+      eventData.permissions["whoCanScanTickets"].includes(req.user.id);
+    if (isAuthorized) {
+      let ticket = await Ticket.findById(ticketId);
+      if (ticket) {
+        const userInfo = await fetchUserData({
+          id: ticket.boughtBy,
+          fields: ["name", "reg", "image", "pushToken"],
+        })
+        if (
+          ticket.status === "active" &&
+          ticket.eventId.toString() === eventId
+        ) {
+          ticket.status = "redeemed";
+          await ticket.save();
+          await markAllItineraries({
+            eventId,
+            ticketId,
+            userId: ticket.boughtBy,
+          });
+
+          //scheduling a job for notification to the buyer
+          let threeSec = new Date(Date.now() + 1 * 3 * 1000);
+          schedule.scheduleJob(`push_${userInfo._id}`, threeSec, async () => {
+            scheduleNotification(
+              [userInfo.pushToken],
+              `Welcome to ${eventData.name}`,
+              `Enjoy the event and Carpe Diem!`
+            );
+          });
+          io.emit(`ticketScan_${ticketId}`, {
+            itinerary: "the event",
+          });
+          return res
+            .status(StatusCodes.OK)
+            .json({ msg: "Ticket scan successful.", userInfo });
+        } else {
+          io.emit(`ticketAlreadyScanned_${ticketId}`, {
+            itinerary: "the event",
+          });
+          return res
+            .status(StatusCodes.OK)
+            .json({ msg: "Ticket already scanned!" });
+        }
+      } else {
+        return res.status(StatusCodes.OK).json({ msg: "Invalid ticket id." });
+      }
+    } else {
+      return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+// util function to find maximum allowed itineraries on a ticket
+const findAllAllowedItineraries = async ({ ticketId, eventId }) => {
+  try {
+    const ticketData = await Ticket.findById(ticketId, {
+      type: 1,
+      checkPoints: 1,
+    });
+
+  const event_query = {
+    id: eventId,
+    fields: ["itineraries"],
+  };
+
+  const { itineraries } = await fetchEventData(event_query);
+
+    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+
+    // filter itineraries where this ticket type is allowed
+    const allowedItineraries = itinerariesData.filter((i) =>
+      i.allowed.includes(ticketData.type)
+    );
+
+    return allowedItineraries.length;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const checkPointScan = async (req, res) => {
+  try {
+    const { ticketId, eventId, itineraryId } = req.body;
+
+    // Authorization
     const isAuthorized = await checkAuthorization(
       ticketId,
       req.user.role,
@@ -297,68 +518,110 @@ const scanTicket = async (req, res) => {
     );
 
     if (!isAuthorized) {
-      return res
-        .status(StatusCodes.FORBIDDEN)
-        .json({ msg: "You are not authorized to scan this ticket." });
+      return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
     }
 
-    // Step 2: Fetch ticket
-    const ticket = await Ticket.findById(ticketId);
-    if (!ticket) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .json({ msg: "Ticket not found." });
+     const [
+      eventData,
+      itineraryData,
+      ticketData,
+      userData
+    ] = await Promise.all([
+      fetchEventData({ id: eventId, fields: ["name", "itineraries"] }),
+      fetchItinerary({ id: itineraryId, fields: ["allowed", "title"] }),
+      Ticket.findById(ticketId, {
+        type: 1,
+        checkPoints: 1,
+        boughtBy: 1,
+      }).lean(),
+      fetchUserData({
+        id: ticketData.boughtBy,
+        fields: ["name", "reg", "image", "pushToken"],
+      })
+    ]);
+
+    if (!eventData || !itineraryData || !ticketData) {
+      return res.status(StatusCodes.NOT_FOUND).send("Invalid IDs provided.");
     }
 
-    // Step 3: Fetch user info
-    const user_query = {
-      id: ticket.boughtBy,
-      fields: ["name", "image", "reg", "pushToken"],
-    };
-    const userInfo = await fetchUserData(user_query);
+    // Check if event includes the itinerary
+    const validItinerary = eventData.itineraries.some((id) =>
+      id.equals(itineraryId)
+    );
+    if (!validItinerary) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Invalid itinerary id provided.");
+    }
 
-    // Step 4: Validate ticket
-    const isValidTicket =
-      ticket.status === "active" && ticket.eventId.toString() === eventId;
+    // Check if ticket type is valid for the itinerary
+    const validTicket = itineraryData.allowed.includes(ticketData.type);
+    if (!validTicket) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Invalid ticket provided.");
+    }
 
-    if (!isValidTicket) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
-        msg: "Ticket is either already redeemed or does not belong to this event.",
-        userInfo,
+    // Check if the ticket is already scanned for that check point
+    const validCheckPoint = !(ticketData.checkPoints ?? []).some((id) =>
+      id.equals(itineraryId)
+    );
+
+    if (!validCheckPoint) {
+      io.emit(`ticketAlreadyScanned_${ticketId}`, {
+        itinerary: itineraryData.title,
       });
+      return res
+        .status(StatusCodes.OK)
+        .json({ msg: "Ticket already scanned!" });
     }
 
-    // Step 5: Redeem ticket
-    ticket.status = "redeemed";
-    await ticket.save();
+    // Atomically update ticket (prevent race condition & duplicates)
+    const ticketUpdate = await Ticket.updateOne(
+      { _id: ticketId },
+      { $addToSet: { checkPoints: itineraryId } }
+    );
 
-    // Step 6: Schedule notification
-    const delay = 3 * 1000; // 3 seconds
-    const fireAt = new Date(Date.now() + delay);
-    schedule.scheduleJob(`push_${userInfo._id}`, fireAt, async () => {
-      const event_query = {
-        id: eventId,
-        fields: ["name"],
-      };
-      const eventInfo = await fetchEventData(event_query);
+    const maxItineraiesAllowed = await findAllAllowedItineraries({
+      ticketId,
+      eventId,
+    });
+    const ticket = await Ticket.findById(ticketId, {
+      checkPoints: 1,
+      status: 1,
+    });
+    if ((ticket.checkPoints ?? []).length === maxItineraiesAllowed) {
+      ticket.status = "redeemed";
+      await ticket.save();
+    }
 
-      if (userInfo?.pushToken) {
-        scheduleNotification(
-          [userInfo.pushToken],
-          `Welcome to ${eventInfo.name}`,
-          `Enjoy the event and Carpe Diem!`
-        );
-      }
+    if (ticketUpdate.modifiedCount === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Ticket already scanned for this purpose.");
+    }
+
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",
+      {
+      operation:"PUSH",
+      targetType:"SINGLE",
+      field:"attendanceList",
+      value:ticketData.boughtBy,
+      itineraryId
+    })
+
+    io.emit(`ticketScan_${ticketId}`, {
+      itinerary: itineraryData.title,
     });
 
     return res
-      .status(StatusCodes.OK)
-      .json({ msg: "Ticket scan successful.", userInfo });
+      .status(200)
+      .json({ msg: "Ticket scan successful.", userInfo: userData });
   } catch (error) {
-    console.error("🎟️ Error scanning ticket:", error);
+    console.error("checkPointScan error:", error);
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ msg: "Something went wrong during ticket scan." });
+      .send("Something went wrong.");
   }
 };
 
@@ -837,6 +1100,111 @@ const getTicketFieldsByQuery = async (req, res) => {
   }
 };
 
+async function fetchPayments(paymentIds) {
+  const authHeader = `Basic ${Buffer.from(
+    `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+  ).toString("base64")}`;
+
+  const results = [];
+
+  for (const paymentId of paymentIds) {
+    try {
+      const response = await axios.get(
+        `https://api.razorpay.com/v1/payments/${paymentId}`,
+        { headers: { Authorization: authHeader } }
+      );
+      results.push({ id: paymentId, status: "success", data: response.data });
+    } catch (err) {
+      results.push({
+        id: paymentId,
+        status: "error",
+        error: err.response?.data || err.message,
+      });
+    }
+  }
+
+  return results;
+}
+
+//checking incomplete tickets
+const checkIncompleteTickets = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(421).send("Something went wrong.");
+    const matchedTickets = await Ticket.find({
+      boughtBy: null,
+      paymentId: { $exists: true },
+      $or: [
+        { refundRequested: { $exists: false } }, // missing
+        { refundRequested: false }, // explicitly false
+        { refundRequested: null }, // explicitly null
+      ],
+    });
+    const paymentIds = matchedTickets.map((t) => t.paymentId);
+    const paymentDetails = await fetchPayments(paymentIds);
+    const finalData = paymentDetails.map((pd, index) => ({
+      paymentId: paymentIds[index],
+      phone: pd.data.contact,
+      amtPaid: pd.data.amount / 100,
+    }));
+    return res.status(200).json({ found: matchedTickets.length, finalData });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+//fetch payment details
+const fetchPaymentDetails = async (req, res) => {
+  try {
+    const { paymentId } = req.query;
+
+    // Validate request
+    if (!paymentId) {
+      return res
+        .status(400)
+        .json({ error: "Missing required field: paymentId" });
+    }
+
+    // Call helper
+    const payments = await fetchPayments([paymentId]);
+
+    // Fetch ticket data
+    const ticket = await Ticket.findOne({ paymentId });
+
+    // Fetch event data
+    const eventData = await fetchEventData({id:ticket.eventId,fields:["platformFeeEnabled"]});
+
+    if (!payments || payments.length === 0) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    return res.status(200).json({
+      msg: "Payment details fetched successfully.",
+      paymentDetail: {
+        ...payments[0],
+        couponId: ticket.couponId || null,
+        refundRequested: ticket.refundRequested || false,
+        refundStatus: ticket.refundStatus || null,
+        refundId: ticket.refundId || null,
+        platformFeeEnabled: eventData.platformFeeEnabled,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payment details:", error.message || error);
+
+    // Razorpay may give error response object, bubble it up
+    if (error.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({ error: error.error?.description || "Razorpay API error" });
+    }
+
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -851,5 +1219,8 @@ module.exports = {
   getReviewedTickets,
   getRedeemedTickets,
   findEventTicketsBoughtByUser,
-  getTicketFieldsByQuery
+  getTicketFieldsByQuery,
+  checkPointScan,
+  checkIncompleteTickets,
+  fetchPaymentDetails
 };

@@ -43,8 +43,6 @@ const getJoinLinkData = async (req, res) => {
     const { linkId } = req.query;
     const userId = req.user?.id;
 
-    console.log(req.query);
-
     // 1. Validate linkId
     if (!mongoose.Types.ObjectId.isValid(linkId)) {
       return res
@@ -73,6 +71,7 @@ const getJoinLinkData = async (req, res) => {
       type: link.type,
       belongsTo: link.belongsTo,
       expiry: link.expiry,
+      metaData: link.metaData,
       canBeUsed,
     });
   } catch (error) {

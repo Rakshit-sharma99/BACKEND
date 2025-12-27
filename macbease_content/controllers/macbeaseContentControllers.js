@@ -74,7 +74,7 @@ const createContent = async (req, res) => {
       };
       await sendKafkaMessage(
         "CONTENT_ADDEDTO_PROJECT",
-        req.user.callSign,
+        "project",
         payload
       );
     }

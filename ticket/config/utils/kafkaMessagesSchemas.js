@@ -114,8 +114,60 @@ const CREATE_REFUND = {
   },
 };
 
+/**
+ * @typedef {Object} ITINERARY_UPDATE_OPERATION_PAYLOAD
+ * @property {"SET"|"PUSH"|"PULL"|"INC"} operation
+ * @property {"SINGLE"|"MULTIPLE"} targetType
+ * @property {string} field                // field name in itinerary
+ * @property {*} value                     // value to apply
+ * @property {string} itineraryId         // SINGLE
+ * @property {string[]} [itineraryIds]      // MULTIPLE
+ */
+
+const ITINERARY_UPDATE_OPERATION = {
+  CREATE_REFUND: {
+    topicSuffix: "_itinerary_update_operation",
+
+    validate: (data) => {
+      const { operation, targetType, field } = data;
+
+    if (!["SET", "PUSH", "PULL", "INC"].includes(operation)) {
+      throw new Error("Invalid operation type");
+    }
+
+    if (!["SINGLE", "MULTIPLE"].includes(targetType)) {
+      throw new Error("Invalid targetType");
+    }
+
+    if (!field || typeof field !== "string") {
+      throw new Error("field must be a string");
+    }
+
+    if (typeof payload.value === "undefined") {
+      throw new Error("value is required");
+    }
+
+    if (targetType === "SINGLE" && !data.itineraryId) {
+      throw new Error("itineraryId required for SINGLE");
+    }
+
+    if (
+      targetType === "MULTIPLE" &&
+      (!Array.isArray(data.itineraryIds) || data.itineraryIds.length === 0)
+    ) {
+      throw new Error("itineraryIds must be non-empty array");
+    }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_TICKET_TO_USER_SCHEMA,
   ...ADD_TICKET_TO_EVENT_SCHEMA,
   ...CREATE_REFUND,
+  ...ITINERARY_UPDATE_OPERATION
 };
