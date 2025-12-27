@@ -186,11 +186,33 @@ const fetchItineraries = async (query) => {
   }
 };
 
+const fetchItinerary = async (query) => {
+  try {
+    if (
+      !query.id ||
+      !Array.isArray(query.fields) ||
+      query.fields.length === 0
+    ) {
+      return;
+    }
+    const config = generateServiceToken();
+    const itineraryData = await axios.post(
+      `http://itinerary:6050/itinerary/api/v1/getItineraryFieldsById`,
+      query,
+      config
+    );
+    return itineraryData.data.data;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 module.exports = {
   fetchEventData,
   fetchUserData,
   fetchNativeClubData,
   scheduleNotification,
   getUserMetaMap,
-  fetchItineraries
+  fetchItineraries,
+  fetchItinerary
 };

@@ -21,6 +21,7 @@ const {
   scheduleNotification,
   getUserMetaMap,
   fetchItineraries,
+  fetchItinerary,
 } = require("./utilControllers");
 const { io } = require("../app");
 
@@ -474,6 +475,153 @@ const scanTicket = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+// util function to find maximum allowed itineraries on a ticket
+const findAllAllowedItineraries = async ({ ticketId, eventId }) => {
+  try {
+    const ticketData = await Ticket.findById(ticketId, {
+      type: 1,
+      checkPoints: 1,
+    });
+
+  const event_query = {
+    id: eventId,
+    fields: ["itineraries"],
+  };
+
+  const { itineraries } = await fetchEventData(event_query);
+
+    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+
+    // filter itineraries where this ticket type is allowed
+    const allowedItineraries = itinerariesData.filter((i) =>
+      i.allowed.includes(ticketData.type)
+    );
+
+    return allowedItineraries.length;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const checkPointScan = async (req, res) => {
+  try {
+    const { ticketId, eventId, itineraryId } = req.body;
+
+    // Authorization
+    const isAuthorized = await checkAuthorization(
+      ticketId,
+      req.user.role,
+      req.user.id
+    );
+
+    if (!isAuthorized) {
+      return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
+    }
+
+     const [
+      eventData,
+      itineraryData,
+      ticketData,
+      userData
+    ] = await Promise.all([
+      fetchEventData({ id: eventId, fields: ["name", "itineraries"] }),
+      fetchItinerary({ id: itineraryId, fields: ["allowed", "title"] }),
+      Ticket.findById(ticketId, {
+        type: 1,
+        checkPoints: 1,
+        boughtBy: 1,
+      }).lean(),
+      fetchUserData({
+        id: ticketData.boughtBy,
+        fields: ["name", "reg", "image", "pushToken"],
+      })
+    ]);
+
+    if (!eventData || !itineraryData || !ticketData) {
+      return res.status(StatusCodes.NOT_FOUND).send("Invalid IDs provided.");
+    }
+
+    // Check if event includes the itinerary
+    const validItinerary = eventData.itineraries.some((id) =>
+      id.equals(itineraryId)
+    );
+    if (!validItinerary) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Invalid itinerary id provided.");
+    }
+
+    // Check if ticket type is valid for the itinerary
+    const validTicket = itineraryData.allowed.includes(ticketData.type);
+    if (!validTicket) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Invalid ticket provided.");
+    }
+
+    // Check if the ticket is already scanned for that check point
+    const validCheckPoint = !(ticketData.checkPoints ?? []).some((id) =>
+      id.equals(itineraryId)
+    );
+
+    if (!validCheckPoint) {
+      io.emit(`ticketAlreadyScanned_${ticketId}`, {
+        itinerary: itineraryData.title,
+      });
+      return res
+        .status(StatusCodes.OK)
+        .json({ msg: "Ticket already scanned!" });
+    }
+
+    // Atomically update ticket (prevent race condition & duplicates)
+    const ticketUpdate = await Ticket.updateOne(
+      { _id: ticketId },
+      { $addToSet: { checkPoints: itineraryId } }
+    );
+
+    const maxItineraiesAllowed = await findAllAllowedItineraries({
+      ticketId,
+      eventId,
+    });
+    const ticket = await Ticket.findById(ticketId, {
+      checkPoints: 1,
+      status: 1,
+    });
+    if ((ticket.checkPoints ?? []).length === maxItineraiesAllowed) {
+      ticket.status = "redeemed";
+      await ticket.save();
+    }
+
+    if (ticketUpdate.modifiedCount === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Ticket already scanned for this purpose.");
+    }
+
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",
+      {
+      operation:"PUSH",
+      targetType:"SINGLE",
+      field:"attendanceList",
+      value:ticketData.boughtBy,
+      itineraryId
+    })
+
+    io.emit(`ticketScan_${ticketId}`, {
+      itinerary: itineraryData.title,
+    });
+
+    return res
+      .status(200)
+      .json({ msg: "Ticket scan successful.", userInfo: userData });
+  } catch (error) {
+    console.error("checkPointScan error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
   }
 };
 
@@ -952,6 +1100,111 @@ const getTicketFieldsByQuery = async (req, res) => {
   }
 };
 
+async function fetchPayments(paymentIds) {
+  const authHeader = `Basic ${Buffer.from(
+    `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+  ).toString("base64")}`;
+
+  const results = [];
+
+  for (const paymentId of paymentIds) {
+    try {
+      const response = await axios.get(
+        `https://api.razorpay.com/v1/payments/${paymentId}`,
+        { headers: { Authorization: authHeader } }
+      );
+      results.push({ id: paymentId, status: "success", data: response.data });
+    } catch (err) {
+      results.push({
+        id: paymentId,
+        status: "error",
+        error: err.response?.data || err.message,
+      });
+    }
+  }
+
+  return results;
+}
+
+//checking incomplete tickets
+const checkIncompleteTickets = async (req, res) => {
+  try {
+    if (req.user.role !== "admin")
+      return res.status(421).send("Something went wrong.");
+    const matchedTickets = await Ticket.find({
+      boughtBy: null,
+      paymentId: { $exists: true },
+      $or: [
+        { refundRequested: { $exists: false } }, // missing
+        { refundRequested: false }, // explicitly false
+        { refundRequested: null }, // explicitly null
+      ],
+    });
+    const paymentIds = matchedTickets.map((t) => t.paymentId);
+    const paymentDetails = await fetchPayments(paymentIds);
+    const finalData = paymentDetails.map((pd, index) => ({
+      paymentId: paymentIds[index],
+      phone: pd.data.contact,
+      amtPaid: pd.data.amount / 100,
+    }));
+    return res.status(200).json({ found: matchedTickets.length, finalData });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+//fetch payment details
+const fetchPaymentDetails = async (req, res) => {
+  try {
+    const { paymentId } = req.query;
+
+    // Validate request
+    if (!paymentId) {
+      return res
+        .status(400)
+        .json({ error: "Missing required field: paymentId" });
+    }
+
+    // Call helper
+    const payments = await fetchPayments([paymentId]);
+
+    // Fetch ticket data
+    const ticket = await Ticket.findOne({ paymentId });
+
+    // Fetch event data
+    const eventData = await fetchEventData({id:ticket.eventId,fields:["platformFeeEnabled"]});
+
+    if (!payments || payments.length === 0) {
+      return res.status(404).json({ error: "Payment not found" });
+    }
+
+    return res.status(200).json({
+      msg: "Payment details fetched successfully.",
+      paymentDetail: {
+        ...payments[0],
+        couponId: ticket.couponId || null,
+        refundRequested: ticket.refundRequested || false,
+        refundStatus: ticket.refundStatus || null,
+        refundId: ticket.refundId || null,
+        platformFeeEnabled: eventData.platformFeeEnabled,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching payment details:", error.message || error);
+
+    // Razorpay may give error response object, bubble it up
+    if (error.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({ error: error.error?.description || "Razorpay API error" });
+    }
+
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -966,5 +1219,8 @@ module.exports = {
   getReviewedTickets,
   getRedeemedTickets,
   findEventTicketsBoughtByUser,
-  getTicketFieldsByQuery
+  getTicketFieldsByQuery,
+  checkPointScan,
+  checkIncompleteTickets,
+  fetchPaymentDetails
 };

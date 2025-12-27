@@ -54,6 +54,31 @@ const ticketSchema = new mongoose.Schema(
         ref: "Itinerary",
       },
     ],
+    checkPoints: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Itinerary",
+      default: [],
+    },
+    ],
+    extraFieldsData: {
+      type: Object,
+    },
+    refundRequested: {
+      type: Boolean,
+      default: false,
+    },
+    refundStatus: {
+      type: Number,
+      enum: [0, 1], //0-> not initiated  1->inititated
+    },
+    refundId: {
+      type: String,
+    },
+    couponId: {
+      type: mongoose.Types.ObjectId,
+      ref: "Coupon",
+    },
   },
   { timestamps: true }
 );
