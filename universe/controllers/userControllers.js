@@ -13,6 +13,7 @@ const {
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
 const { lemmatize } = require("./commonControllers");
+const { fetchSearchedEvents, fetchSearchedCards } = require("./interServiceCalls");
 require("dotenv").config();
 
 const securePassword = async (password) => {
@@ -1603,6 +1604,169 @@ const getMemoryListUsers = async (req, res) => {
   }
 };
 
+const getSearchResults = async (req, res) => {
+  try {
+    let query = req.query.query?.trim() || "";
+    const key = req.query.key || "All"; // <= added
+    const MIN_SCORE = 0.5; // relevance threshold
+
+    if (!query) return res.status(200).json({ success: true, results: [] });
+
+    async function fetchClubs() {
+      return await Club.aggregate([
+        {
+          $search: {
+            index: "default",
+            compound: {
+              should: [
+                {
+                  autocomplete: { query, path: "name", fuzzy: { maxEdits: 1 } },
+                },
+                {
+                  text: {
+                    query,
+                    path: ["motto", "tags"],
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $addFields: { membersCount: { $size: "$members" } } },
+        {
+          $project: {
+            name: 1,
+            motto: 1,
+            featuringImg: 1,
+            secondaryImg: 1,
+            type: { $literal: "club" },
+            score: { $meta: "searchScore" },
+          },
+        },
+        { $sort: { score: -1, membersCount: -1 } },
+        { $limit: key === "club" ? 12 : 12 },
+      ]);
+    }
+
+    async function fetchEvents() {
+      return fetchSearchedEvents(query);
+    }
+
+    async function fetchCommunities() {
+      return await Community.aggregate([
+        {
+          $search: {
+            index: "default",
+            compound: {
+              should: [
+                {
+                  autocomplete: {
+                    query,
+                    path: "title",
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+                {
+                  text: {
+                    query,
+                    path: ["description", "label", "tags"],
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            title: 1,
+            label: 1,
+            secondaryCover: 1,
+            type: { $literal: "community" },
+            score: { $meta: "searchScore" },
+          },
+        },
+        { $sort: { score: -1 } },
+        { $limit: key === "community" ? 12 : 12 },
+      ]);
+    }
+
+    async function fetchUsers() {
+      return await User.aggregate([
+        {
+          $search: {
+            index: "default",
+            compound: {
+              should: [
+                {
+                  autocomplete: { query, path: "name", fuzzy: { maxEdits: 1 } },
+                },
+                {
+                  autocomplete: {
+                    query,
+                    path: "fullName",
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+                { text: { query, path: "interests", fuzzy: { maxEdits: 1 } } },
+                { text: { query, path: "course", fuzzy: { maxEdits: 1 } } },
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            name: 1,
+            fullName: 1,
+            image: 1,
+            course: 1,
+            interests: 1,
+            type: { $literal: "user" },
+            score: { $meta: "searchScore" },
+          },
+        },
+        { $sort: { score: -1 } },
+        { $limit: key === "user" ? 12 : 12 },
+      ]);
+    }
+
+    async function fetchCards() {
+      return fetchSearchedCards(query)
+    }
+
+    // fetch based on key mode
+    const [clubs, events, communities, users, cards] = await Promise.all([
+      ["Clubs", "All"].includes(key) ? fetchClubs() : [],
+      ["Events", "All"].includes(key) ? fetchEvents() : [],
+      ["Communities", "All"].includes(key) ? fetchCommunities() : [],
+      ["People", "All"].includes(key) ? fetchUsers() : [],
+      ["Cards", "All"].includes(key) ? fetchCards() : [],
+    ]);
+
+    console.log("events count", events.length);
+
+    // default ALL search mode
+    const categoryBlocks = [
+      { type: "club", data: clubs, top: clubs[0]?.score || 0 },
+      { type: "event", data: events, top: events[0]?.score || 0 },
+      { type: "community", data: communities, top: communities[0]?.score || 0 },
+      { type: "user", data: users, top: users[0]?.score || 0 },
+      { type: "card", data: cards, top: cards[0]?.score || 0 },
+    ];
+
+    categoryBlocks.sort((a, b) => b.top - a.top);
+
+    const results = categoryBlocks.flatMap((c) =>
+      c.data.filter((s) => s.score >= MIN_SCORE).slice(key === "All" ? -4 : -12)
+    );
+    return res.json({ success: true, results });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+
 module.exports = {
   getUser,
   updateUser,
@@ -1647,5 +1811,6 @@ module.exports = {
   getContentTeamAdmins,
   saveInterest,
   insertNewFields,
-  getMemoryListUsers
+  getMemoryListUsers,
+  getSearchResults
 };

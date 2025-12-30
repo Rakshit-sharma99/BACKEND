@@ -235,6 +235,45 @@ const fetchCouponById = async (query) => {
   }
 };
 
+const fetchSearchedEvents = async (query) => {
+  try {
+    if (!query) {
+      return [];
+    }
+
+    const config = generateServiceToken();
+
+    const response = await axios.get(
+      `http://event:5060/event/api/v1/getSearchedEvents?query=${query}`,
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.log("Error fetching searched events:", error);
+    return [];
+  }
+};
+
+const fetchSearchedCards = async (query) => {
+  try {
+    if (!query) {
+      return [];
+    }
+
+    const config = generateServiceToken();
+
+    const response = await axios.get(
+      `http://card:5030/card/api/v1/getSearchedCards?query=${query}`,
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.log("Error fetching searched cards:", error);
+    return [];
+  }
+};
 
 module.exports = {
   fetchContent,
@@ -244,5 +283,7 @@ module.exports = {
   fetchEventData,
   fetchPastEvents,
   fetchEventGallery,
-  fetchCouponById
+  fetchCouponById,
+  fetchSearchedEvents,
+  fetchSearchedCards
 };
