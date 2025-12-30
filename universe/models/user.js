@@ -22,7 +22,6 @@ const userSchema = new mongoose.Schema(
     },
     reg: {
       type: Number,
-      required: [true, "Please provide the registration number."],
     },
     course: {
       type: String,
