@@ -50,6 +50,7 @@ const {
   addExtraFieldsToTicketType,
   getLatestEvents,
   toggleWaitlist,
+  getSearchedEvents,
 } = require("../controllers/eventControllers");
 
 router.post("/createEvent", createEvent);
@@ -100,5 +101,6 @@ router.get("/getTopPastEvents", getTopPastEvents);
 router.post("/addExtraFieldsToTicketType", addExtraFieldsToTicketType);
 router.get("/getLatestEvents", getLatestEvents);
 router.post("/toggleWaitlist", toggleWaitlist);
+router.get("/getSearchedEvents", getSearchedEvents);
 
 module.exports = router;

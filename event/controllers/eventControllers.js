@@ -3110,6 +3110,61 @@ const toggleWaitlist = async (req, res) => {
   }
 };
 
+const getSearchedEvents = async(req,res) => {
+  try{
+    const {query} = req.query;
+    const events = await Event.aggregate([
+        {
+          $search: {
+            index: "default",
+            compound: {
+              should: [
+                {
+                  autocomplete: {
+                    query,
+                    path: "name",
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+                {
+                  text: {
+                    query,
+                    path: ["description", "tags"],
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+              ],
+            },
+          },
+        },
+        { $addFields: { membersCount: { $size: "$bookedBy" } } },
+        {
+          $project: {
+            name: 1,
+            url: 1,
+            description: 1,
+            place: 1,
+            eventDate: 1,
+            belongsTo: 1,
+            ticketAvailable: 1,
+            ticketTypes: 1,
+            status: 1,
+            type: { $literal: "event" },
+            score: { $meta: "searchScore" },
+          },
+        },
+        { $sort: { score: -1, membersCount: -1, eventDate: -1 } },
+        { $limit: 12 },
+      ]);
+
+      return res.status(StatusCodes.OK).json({success:true,data:events});
+
+  }catch(err){
+    console.log("Error fetching searched events:",err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+  }
+}
+
 
 module.exports = {
   createEvent,
@@ -3159,5 +3214,6 @@ module.exports = {
   getTopPastEvents,
   addExtraFieldsToTicketType,
   getLatestEvents,
-  toggleWaitlist
+  toggleWaitlist,
+  getSearchedEvents
 };
