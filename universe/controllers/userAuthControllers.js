@@ -919,6 +919,68 @@ const getAppConfig = async (req, res) => {
   }
 };
 
+function generateUsernames(fullName) {
+  const parts = fullName.trim().split(/\s+/);
+  const first = parts[0].toLowerCase();
+  const last = parts.length > 1 ? parts[parts.length - 1].toLowerCase() : "";
+
+  let candidates = [
+    first,
+    last ? first + last : null,
+    last ? first + "_" + last : null,
+    last ? first.charAt(0) + last : null,
+    last ? last + "_" + first.charAt(0) : null,
+  ].filter(Boolean);
+
+  // Add some numbered variants for fallback
+  for (let i = 1; i <= 5; i++) {
+    candidates.push(first + i);
+    if (last) candidates.push(first + last + i);
+  }
+
+  return [...new Set(candidates)]; // remove duplicates
+}
+
+const suggestUsername = async (req, res) => {
+  try {
+    const { fullName } = req.query;
+    if (!fullName) {
+      return res.status(400).json({ msg: "Full name is required" });
+    }
+
+    // Generate possible usernames
+    const candidates = generateUsernames(fullName);
+
+    // Find already taken usernames from DB
+    const takenUsers = await User.find(
+      { name: { $in: candidates } },
+      { name: 1, _id: 0 }
+    ).lean();
+
+    const takenNames = new Set(takenUsers.map((u) => u.name));
+
+    // Filter available
+    let available = candidates.filter((c) => !takenNames.has(c));
+
+    // If not enough available, generate random suffixes until we have at least 5
+    while (available.length < 5) {
+      const random = Math.floor(Math.random() * 10000);
+      const candidate = fullName.split(/\s+/)[0].toLowerCase() + random;
+      const exists = await User.findOne({ name: candidate }).lean();
+      if (!exists && !available.includes(candidate)) {
+        available.push(candidate);
+      }
+    }
+
+    return res.status(200).json({
+      suggestions: available.slice(0, 5),
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ msg: "Server error" });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -936,5 +998,6 @@ module.exports = {
   generateInterest,
   reactivateAccount,
   emailVerification2,
-  getAppConfig
+  getAppConfig,
+  suggestUsername
 };

@@ -27,6 +27,7 @@ const {
   reactivateAccount,
   emailVerification2,
   getAppConfig,
+  suggestUsername,
 } = require("../controllers/userAuthControllers");
 
 router.post("/register", registerUser);
@@ -48,5 +49,6 @@ router.get("/generateResearchAreas", generateResearchAreas);
 router.post("/generateInterest", generateInterest);
 router.post("/reactivateAccount", reactivateAccount);
 router.get("/getAppConfig", getAppConfig);
+router.get("/suggestUsername", suggestUsername);
 
 module.exports = router;
