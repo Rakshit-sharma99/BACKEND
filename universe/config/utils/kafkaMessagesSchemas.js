@@ -63,7 +63,6 @@ const CREATE_USER = {
         "email",
         "image",
         "uid",
-        "reg"
       ];
 
 
