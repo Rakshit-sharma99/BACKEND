@@ -64,7 +64,7 @@ const sendMail = async (
   }
 
   const emailBody = emailHTML ? emailHTML : mailGenerator.generate(email);
-
+ 
   const params = {
     Source: '"Macbease" <support@macbease.com>',
     Destination: {
