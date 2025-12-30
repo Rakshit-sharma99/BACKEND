@@ -648,13 +648,15 @@ const pushToken = async (req, res) => {
 
 //function to check for availability of username
 const userNameAvailable = async (req, res) => {
-  const { userName, email, reg, profession } = req.query;
+  const { userName, email, reg, profession,college } = req.query;
   const nameExists = await User.findOne({ name: userName }, { _id: 1 });
   const emailExists = await User.findOne({ email: email }, { _id: 1 });
-  if (profession !== "Alumni") {
-    const regExists = await User.findOne({ reg: parseInt(reg) }, { _id: 1 });
-    if (regExists) {
-      return res.status(StatusCodes.OK).send("reg exists");
+  if(college==='Lovely Professional University'){
+    if (profession !== "Alumni") {
+      const regExists = await User.findOne({ reg: parseInt(reg) }, { _id: 1 });
+      if (regExists) {
+        return res.status(StatusCodes.OK).send("reg exists");
+      }
     }
   }
   if (nameExists) {
