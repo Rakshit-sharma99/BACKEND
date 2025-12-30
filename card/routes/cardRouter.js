@@ -16,6 +16,7 @@ const {
   getCardsByIds,
   getRandomCardsForFeed,
   indexedReturn,
+  getSearchedCards,
 } = require("../controllers/cardController");
 
 router.post("/createCard", createCard);
@@ -32,5 +33,6 @@ router.get("/queryReturn", queryReturn);
 router.post("/getCardsByIds", getCardsByIds);
 router.get("/getRandomCardsForFeed", getRandomCardsForFeed);
 router.post("/indexedReturn", indexedReturn);
+router.get("/getSearchedCards", getSearchedCards);
 
 module.exports = router;

@@ -827,6 +827,50 @@ const getRandomCardsForFeed = async (req, res) => {
   }
 };
 
+const getSearchedCards = async(req,res) => {
+  try{
+    const {query} = req.query;
+    const cards = await Card.aggregate([
+        {
+          $search: {
+            index: "default",
+            compound: {
+              should: [
+                {
+                  autocomplete: {
+                    query,
+                    path: "value",
+                    fuzzy: { maxEdits: 1 },
+                  },
+                },
+                { text: { query, path: "tags", fuzzy: { maxEdits: 1 } } },
+              ],
+            },
+          },
+        },
+        {
+          $project: {
+            value: 1,
+            tags: 1,
+            creator: 1,
+            userMetaData: 1,
+            vector: 1,
+            type: { $literal: "card" },
+            score: { $meta: "searchScore" },
+          },
+        },
+        { $sort: { score: -1 } },
+        { $limit: 12 },
+      ]);
+
+      return res.status(StatusCodes.OK).json({success:true,data:cards});
+
+  }catch(err){
+    console.log("Error fetching searched cards:",err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+  }
+}
+
 module.exports = {
   createCard,
   deleteCard,
@@ -842,4 +886,5 @@ module.exports = {
   getCardsByIds,
   getRandomCardsForFeed,
   indexedReturn,
+  getSearchedCards
 };
