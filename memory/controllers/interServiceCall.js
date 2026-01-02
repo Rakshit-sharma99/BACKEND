@@ -109,7 +109,7 @@ const fetchMacbeaseContentByField = async (body) => {
   try {
     const config = generateServiceToken();
     const macbeaseContent = await axios.post(
-      `http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByField`,
+      `http://macbease-content:5070/macbeaseContent/api/v1/getMacbeaseContentByField`,
       body,
       config
     );
