@@ -1744,8 +1744,6 @@ const getSearchResults = async (req, res) => {
       ["Cards", "All"].includes(key) ? fetchCards() : [],
     ]);
 
-    console.log("events count", events.length);
-
     // default ALL search mode
     const categoryBlocks = [
       { type: "club", data: clubs, top: clubs[0]?.score || 0 },

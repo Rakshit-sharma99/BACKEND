@@ -53,6 +53,7 @@ module.exports = {
       {
         $project: {
           secondaryImg: 1,
+          featuringImg:1,
           name: 1,
           tags: 1,
           motto: 1,
@@ -96,6 +97,7 @@ module.exports = {
       {
         $project: {
           secondaryImg: 1,
+          featuringImg:1,
           name: 1,
           tags: 1,
           motto: 1,
@@ -151,6 +153,7 @@ module.exports = {
       {
         $project: {
           secondaryCover: 1,
+          cover:1,
           label: 1,
           activeMembers: 1,
           title: 1,
@@ -181,6 +184,7 @@ module.exports = {
       {
         $project: {
           secondaryCover: 1,
+          cover:1,
           label: 1,
           activeMembers: 1,
           title: 1,
