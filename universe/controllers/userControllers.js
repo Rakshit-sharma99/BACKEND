@@ -1778,6 +1778,49 @@ const getSearchResults = async (req, res) => {
   }
 };
 
+const getTuners = async (req, res) => {
+  try {
+    const { userId, page = 1, batchSize = 12 } = req.query;
+
+    if (!userId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId is required" });
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(batchSize);
+    const limit = parseInt(batchSize);
+
+    const user = await User.findById(userId, { tunedIn_By: 1 }).lean();
+
+    if (!user || !Array.isArray(user.tunedIn_By)) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User or tunedIn_By list not found" });
+    }
+
+    const userIds = user.tunedIn_By.slice(skip, skip + limit);
+
+    const tuners = await User.find(
+      { _id: { $in: userIds } },
+      { name: 1, image: 1, course: 1, passoutYear: 1 }
+    ).lean();
+
+    return res.status(StatusCodes.OK).json({
+      page: parseInt(page),
+      batchSize: limit,
+      count: tuners.length,
+      tuners,
+    });
+  } catch (error) {
+    console.error("Error fetching tuners", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Failed to fetch tuners.",
+      error: error.message,
+    });
+  }
+};
+
 
 module.exports = {
   getUser,
@@ -1824,5 +1867,6 @@ module.exports = {
   saveInterest,
   insertNewFields,
   getMemoryListUsers,
-  getSearchResults
+  getSearchResults,
+  getTuners
 };
