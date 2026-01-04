@@ -1428,6 +1428,20 @@ const getCertificateMemories = async (req, res) => {
   }
 };
 
+const getMemoryCount = async(req,res) => {
+  try{
+    const {userId} = req.query;
+    
+    const count = await Memory.countDocuments({$or: [{createdBy:userId},{savedBy:userId}]});
+
+    return res.status(StatusCodes.OK).json({success:true,data:count})
+
+  }catch(err){
+    console.log("Error getting memory count:",err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+  }
+}
+
 module.exports = {
   createMemory,
   getMemories,
@@ -1448,4 +1462,5 @@ module.exports = {
   getMonthlyMedia,
   getCertificateMemories,
   handleTags, // this function is not used in router, but in event gallery
+  getMemoryCount
 };
