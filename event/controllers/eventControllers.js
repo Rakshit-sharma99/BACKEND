@@ -2400,6 +2400,7 @@ const getEventGallery = async (req, res) => {
           name: 1,
           eventDate: 1,
           place: 1,
+          belongsTo:1,
           gallery: {
             $filter: {
               input: "$gallery",
