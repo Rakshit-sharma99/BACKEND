@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const { query } = require("express");
 
 const generateServiceToken = () => {
   const token = jwt.sign(
@@ -275,6 +276,26 @@ const fetchSearchedCards = async (query) => {
   }
 };
 
+const getMemoryCount = async(query) => {
+  try{
+    if(!query){
+      return 0;
+    }
+
+    const config = generateServiceToken();
+
+    const res = await axios.get(
+      `http://memory:7030/memory/api/v1/getMemoryCount?userId=${query}`,
+      config
+    );
+
+    return res.data.data;
+  }catch(err){
+    console.log("Error getting memory count:",err);
+    return 0;
+  }
+}
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -285,5 +306,6 @@ module.exports = {
   fetchEventGallery,
   fetchCouponById,
   fetchSearchedEvents,
-  fetchSearchedCards
+  fetchSearchedCards,
+  getMemoryCount
 };

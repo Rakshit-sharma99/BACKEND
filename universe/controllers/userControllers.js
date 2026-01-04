@@ -13,7 +13,7 @@ const {
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
 const { lemmatize } = require("./commonControllers");
-const { fetchSearchedEvents, fetchSearchedCards } = require("./interServiceCalls");
+const { fetchSearchedEvents, fetchSearchedCards, getMemoryCount } = require("./interServiceCalls");
 require("dotenv").config();
 
 const securePassword = async (password) => {
@@ -578,6 +578,9 @@ const getBasicUserBio = async (req, res) => {
     const { id } = req.query;
     const user = await User.findById(id, {
       course: 1,
+      image:1,
+      name:1,
+      fullName:1,
       passoutYear: 1,
       clubs: 1,
       role: 1,
@@ -592,6 +595,7 @@ const getBasicUserBio = async (req, res) => {
       incompleteProfile: 1,
       level: 1,
       ip: 1,
+      memoryList:1
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -608,7 +612,7 @@ const getBasicUserBio = async (req, res) => {
     } else {
       tunerIds = [];
     }
-    const [communities, clubs, tunerGraphics] = await Promise.all([
+    const [communities, clubs, tunerGraphics,memoriesCount] = await Promise.all([
       Community.find(
         { _id: { $in: communityIds } },
         { title: 1, secondaryCover: 1 }
@@ -618,6 +622,7 @@ const getBasicUserBio = async (req, res) => {
         { _id: { $in: tunerIds } },
         { name: 1, image: 1, pushToken: 1 }
       ).lean(),
+      getMemoryCount(id)
     ]);
     const outcome = {
       course: user.course,
@@ -630,7 +635,14 @@ const getBasicUserBio = async (req, res) => {
       posts: user.macbeaseContentContribution.length,
       tunedIn_By: user.tunedIn_By ? user.tunedIn_By.length : 0,
       tunerGraphics,
-      organisationData: [...clubs, ...communities],
+      organisationData: [
+        ...(Array.isArray(clubs)
+          ? clubs.map((item) => ({ ...item, type: "club" }))
+          : []),
+        ...(Array.isArray(communities)
+          ? communities.map((item) => ({ ...item, type: "community" }))
+          : []),
+      ],
       deactivated: user.deactivated,
       clubs: user.clubs,
       profession: user.profession,
@@ -639,6 +651,8 @@ const getBasicUserBio = async (req, res) => {
       incompleteProfile: user.incompleteProfile,
       level: user.level,
       ip: user.ip,
+      memoriesCount,
+      memoryList: (user?.memoryList || []).length,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {

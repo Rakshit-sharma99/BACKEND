@@ -215,6 +215,28 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    a_recommended: [
+      {
+        type: {
+          type: String,
+          enum: ["Club", "Community", "Profile"],
+          required: true,
+        },
+        id: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true,
+        },
+      },
+    ],
+    memoryRequests: {
+      type: Array,
+    },
+    pinnedMemories: {
+      type: Array,
+    },
+    memoryList: {
+      type: Array,
+    },
     uid: {
       type: String,
     },
