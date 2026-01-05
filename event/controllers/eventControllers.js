@@ -60,11 +60,9 @@ const createEvent = async (req, res) => {
       "endTime",
       "eventDate",
       "eventEndDate",
-      "postedBy",
       "belongsTo",
       "eventManagerMail",
       "eventManagerPhone",
-      "authorizedPerson",
       "universeMetaData",
     ];
     for (let field of requiredFields) {
