@@ -1189,7 +1189,7 @@ const fetchItineraryFromIds = async(query) => {
     );
     return itineraries.data.itineraries;
   } catch (error) {
-    console.log(error.message);
+    console.log(error);
     return null;
   }
 }

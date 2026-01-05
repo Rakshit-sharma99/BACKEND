@@ -18,6 +18,7 @@ const {
   generateUri,
   fetchMacbeaseContentFromIds,
   fetchInvitationById,
+  fetchItineraryFromIds,
 } = require("../controllers/utils");
 const mongoose = require("mongoose");
 const { getPushTokens } = require("./userControllers");
@@ -1382,11 +1383,15 @@ const getAllEvents = async (req, res) => {
           _id: 0,
         });
 
-        const body = {
-          itineraryIds : event.itineraries
-        } 
+        let itineraries = [];
+        
         // Fetch itinerary details for the event
-        const itineraries = await fetchItineraryFromIds(body);
+        if(Array.isArray(event.itineraries) && event.itineraries.length!==0){
+          const body = {
+            itineraryIds : event.itineraries
+          } 
+          itineraries = await fetchItineraryFromIds(body);
+        }
 
         return {
           ...event,
