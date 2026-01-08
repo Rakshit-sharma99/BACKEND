@@ -60,11 +60,9 @@ const createEvent = async (req, res) => {
       "endTime",
       "eventDate",
       "eventEndDate",
-      "postedBy",
       "belongsTo",
       "eventManagerMail",
       "eventManagerPhone",
-      "authorizedPerson",
       "universeMetaData",
     ];
     for (let field of requiredFields) {
@@ -2400,6 +2398,7 @@ const getEventGallery = async (req, res) => {
           name: 1,
           eventDate: 1,
           place: 1,
+          belongsTo:1,
           gallery: {
             $filter: {
               input: "$gallery",
@@ -3165,6 +3164,40 @@ const getSearchedEvents = async(req,res) => {
   }
 }
 
+const insertNewFields = async (req, res) => {
+  try {
+    const allevents = await Event.find({});
+
+    const bulkOps = allevents.map((event) => ({
+      updateOne: {
+        filter: { _id: event._id },
+        update: {
+          $set: {
+            uid: "682f0418482d651a6df66c23",
+            universeMetaData: {
+              location: "Phagwara,Punjab,India",
+              logo: "public/universes/lpu_logo.jpg",
+              name: "Lovely Professional University",
+              callSign: "universe",
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await Event.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} events`);
+
+    res.status(200).json({
+      message: "Events updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 
 module.exports = {
   createEvent,
@@ -3215,5 +3248,6 @@ module.exports = {
   addExtraFieldsToTicketType,
   getLatestEvents,
   toggleWaitlist,
-  getSearchedEvents
+  getSearchedEvents,
+  insertNewFields
 };

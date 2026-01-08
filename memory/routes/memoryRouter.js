@@ -20,6 +20,7 @@ const {
   getFriendLinkedMemories,
   getMonthlyMedia,
   getCertificateMemories,
+  getMemoryCount,
 } = require("../controllers/memoryControllers");
 
 router.post("/createMemory", createMemory);
@@ -40,5 +41,6 @@ router.get("/searchMemory", searchMemory);
 router.get("/getFriendLinkedMemories", getFriendLinkedMemories);
 router.get("/getMonthlyMedia", getMonthlyMedia);
 router.get("/getCertificateMemories", getCertificateMemories);
+router.get("/getMemoryCount", getMemoryCount);
 
 module.exports = router;

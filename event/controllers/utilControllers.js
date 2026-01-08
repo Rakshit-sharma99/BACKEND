@@ -154,7 +154,7 @@ const fetchDetailedTicketsByIds = async (query) => {
 const fetchTicketTypesCount = async (query) => {
   try {
     if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
-      return;
+      return [];
     }
     const config = generateServiceToken();
     const ticketData = await axios.post(

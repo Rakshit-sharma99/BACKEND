@@ -157,12 +157,13 @@ const getMonthlyMediaPaginated = async ({ userId, page = 1, limit = 1 }) => {
       {
         $project: {
           memoryId: "$_id",
+          date:"$date",
           type: "$assets.type",
           url: "$assets.url",
           tags: "$assets.tags",
           createdAt: "$assets.createdAt",
           monthKey: {
-            $dateToString: { format: "%Y-%m", date: "$assets.createdAt" },
+            $dateToString: { format: "%Y-%m", date: "$date" },
           },
         },
       },
@@ -177,6 +178,7 @@ const getMonthlyMediaPaginated = async ({ userId, page = 1, limit = 1 }) => {
               url: "$url",
               tags: "$tags",
               createdAt: "$createdAt",
+              date:"$date",
               memoryId: "$memoryId",
             },
           },
@@ -190,7 +192,7 @@ const getMonthlyMediaPaginated = async ({ userId, page = 1, limit = 1 }) => {
           assets: {
             $sortArray: {
               input: "$assets",
-              sortBy: { createdAt: -1 },
+              sortBy: { date: -1 },
             },
           },
         },
