@@ -56,10 +56,6 @@ const CREATE_USER = {
       const requiredStringFields = [
         "_id",
         "name",
-        "course",
-        "field",
-        "passoutYear",
-        "level",
         "email",
         "image",
         "uid",
