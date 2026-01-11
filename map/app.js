@@ -24,7 +24,7 @@ app.get("/map/api/v1/hello", (req, res) => {
   res.send("Map service responding!");
 });
 
-const port = process.env.PORT || 7040;
+const port = process.env.PORT || 7050;
 
 const start = async () => {
   try {
