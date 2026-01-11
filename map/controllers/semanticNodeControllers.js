@@ -1,8 +1,8 @@
  const { StatusCodes } = require("http-status-codes");
 const OpenAI = require("openai");
-const mongoose = require("mongoose");
 const SemanticNode = require("../models/semanticNode");
 const Territory = require("../models/territory");
+const { fetchAllClubs, fetchAllCommunities, fetchClubById, fetchCommunityById } = require("./utilControllers");
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -110,7 +110,7 @@ const createNodesForClubs = async (req, res) => {
     }
 
     // ---- Fetch all clubs ----
-    const clubs = await Club.find({}).lean();
+    const clubs = await fetchAllClubs({fields:["_id","name","tags","secondaryImg","members","upcomingEvent","rating","motto","chiefMsg"]})
 
     if (!clubs.length) {
       return res
@@ -173,7 +173,7 @@ const createNodesForCommunities = async (req, res) => {
     }
 
     // ---- Fetch all communities ----
-    const communities = await Community.find({}).lean();
+    const communities = await fetchAllCommunities({fields:["_id","title","tag","secondaryCover","entryRules","members","activeMembers","rating","label"]})
 
     if (!communities.length) {
       return res
@@ -358,14 +358,14 @@ const club_z_scale = async (req, res) => {
     }
     const nodes = await SemanticNode.find({ entityType: "club" });
     for (const node of nodes) {
-      const club = await Club.findById(node.entityId, {
+      const club = await fetchClubById({id:node.entityId,fields:{
         members: 1,
         upcomingEvent: 1,
         content: 1,
         pinnedBy: 1,
         createdOn: 1,
         rating: 1,
-      }).lean();
+      }});
 
       if (!club) continue;
 
@@ -455,7 +455,7 @@ const community_z_scale = async (req, res) => {
     const nodes = await SemanticNode.find({ entityType: "community" });
 
     for (const node of nodes) {
-      const community = await Community.findById(node.entityId).lean();
+      const community = await fetchCommunityById({id:node.entityId,fields:["content","members","onlineMembers","pinnedBy","rating","banList","activeMembers","createdOn"]});
       if (!community) continue;
 
       const activityScore =
@@ -543,8 +543,6 @@ const getSemanticNodesForViewport = async (req, res) => {
   try {
     const { viewport, zoom, types } = req.body;
 
-    console.log("Fetching for", req.body);
-
     // ---------------- Validation ----------------
     if (!viewport || typeof zoom !== "number") {
       return res.status(400).json({
@@ -586,8 +584,6 @@ const getSemanticNodesForViewport = async (req, res) => {
       })
       .sort(zoom < 1.3 ? { "position.importance": -1 } : undefined)
       .lean();
-
-    console.log("Nodes found", nodes.length);
 
     return res.status(200).json({
       success: true,
