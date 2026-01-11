@@ -4,6 +4,9 @@ const express = require("express");
 const helmet = require("helmet");
 const http = require("http");
 const connectDB = require("./db/connect");
+const authenticate = require("./middlewares/authentication");
+const semanticRouter = require("./routes/semanticRouter");
+const territoryRouter = require("./routes/territoryRouter");
 
 const app = express();
 const server = http.createServer(app);
@@ -23,6 +26,9 @@ app.use((req, res, next) => {
 app.get("/map/api/v1/hello", (req, res) => {
   res.send("Map service responding!");
 });
+
+app.use("/map/api/v1/nodes",authenticate,semanticRouter);
+app.use("/map/api/v1/territory",authenticate,territoryRouter); 
 
 const port = process.env.PORT || 7050;
 
