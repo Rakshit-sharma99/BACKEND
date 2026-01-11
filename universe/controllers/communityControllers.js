@@ -3173,6 +3173,49 @@ const fetchCommunityLeaderBoard = async (req, res) => {
   }
 };
 
+const getAllCommunity = async (req, res) => {
+  try {
+    const { fields } = req.body;
+
+    let projection;
+
+    // ✅ If fields is provided, validate it
+    if (fields !== undefined) {
+      const isArrayProjection =
+        Array.isArray(fields) && fields.length > 0;
+
+      const isObjectProjection =
+        fields &&
+        typeof fields === "object" &&
+        !Array.isArray(fields) &&
+        Object.keys(fields).length > 0;
+
+      if (!isArrayProjection && !isObjectProjection) {
+        return res.status(400).json({
+          error: "fields must be a non-empty array or projection object",
+        });
+      }
+
+      projection = isArrayProjection ? fields.join(" ") : fields;
+    }
+
+    // ✅ Fetch clubs
+    const communities = projection
+      ? await Community.find().select(projection)
+      : await Community.find();
+
+    return res.status(200).json({
+      message: "Communities fetched successfully",
+      data: communities,
+    });
+  } catch (error) {
+    console.error("Error fetching communities:", error);
+    return res.status(500).json({
+      error: "Server error while fetching communities",
+    });
+  }
+};
+
 module.exports = {
   createCommunity,
   deleteCommunity,
@@ -3234,5 +3277,6 @@ module.exports = {
   searchCommunities,
   getCommunityFieldsById,
   getRandomCommunities,
-  fetchCommunityLeaderBoard
+  fetchCommunityLeaderBoard,
+  getAllCommunity
 };
