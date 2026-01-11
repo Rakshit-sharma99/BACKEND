@@ -10,7 +10,6 @@
  */
 
 const OpenAI = require("openai");
-const { kmeans } = require("ml-kmeans");
 const _ = require("lodash");
 const { StatusCodes } = require("http-status-codes");
 
@@ -33,6 +32,15 @@ const client = new OpenAI({
 // ─────────────────────────────
 const MIN_NODES_FOR_CLUSTERING = 5;
 const MAX_REPRESENTATIVE_TEXTS = 20;
+
+let kmeans;
+
+async function loadKMeans() {
+  if (!kmeans) {
+    const module = await import("ml-kmeans");
+    kmeans = module.kmeans;
+  }
+}
 
 /**
  * Heuristic for choosing K
@@ -483,6 +491,7 @@ const clusterSemanticNodes = async (req, res) => {
 
     console.log(`Clustering ${nodes.length} nodes into ${K} territories`);
 
+    await loadKMeans();
     // ---- K-Means Clustering ----
     const { clusters: assignments } = kmeans(embeddings, K, {
       maxIterations: 100,
