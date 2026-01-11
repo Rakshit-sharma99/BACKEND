@@ -3019,26 +3019,66 @@ const searchCommunities = async (req, res) => {
 
 const getCommunityFieldsById = async (req, res) => {
   try {
-    const { id, fields } = req.body;
+    const { id, ids, fields } = req.body;
 
-    if (!id) {
-      return res.status(400).json({ error: "Community ID is required." });
+    // ✅ Validate id / ids
+    const hasSingleId = !!id;
+    const hasMultipleIds = Array.isArray(ids) && ids.length > 0;
+
+    if (!hasSingleId && !hasMultipleIds) {
+      return res.status(400).json({
+        error: "Community id or ids array is required",
+      });
     }
 
-    if (!fields || !Array.isArray(fields) || fields.length === 0) {
-      return res.status(400).json({ error: "An array of fields is required." });
+    // ✅ Validate fields (array OR object)
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
     }
 
-    // Convert array of fields to space-separated string for Mongoose projection
-    const projection = fields.join(" ");
+    // ✅ Normalize projection for Mongoose
+    const projection = isArrayProjection ? fields.join(" ") : fields;
 
+    // ✅ Case 1: Multiple IDs
+    if (hasMultipleIds) {
+      const communities = await Community.find({
+        _id: { $in: ids },
+      }).select(projection);
+
+      if (!communities || communities.length === 0) {
+        return res.status(404).json({
+          error: "Communities not found",
+        });
+      }
+
+      return res.status(200).json({
+        data: communities,
+      });
+    }
+
+    // ✅ Case 2: Single ID
     const community = await Community.findById(id).select(projection);
 
     if (!community) {
-      return res.status(404).json({ error: "Community not found." });
+      return res.status(404).json({
+        error: "Community not found",
+      });
     }
 
-    return res.status(200).json({ data: community });
+    return res.status(200).json({
+      data: community,
+    });
   } catch (err) {
     console.error("Error fetching community fields:", err);
     return res.status(500).json({ error: "Server error" });

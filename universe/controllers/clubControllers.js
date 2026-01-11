@@ -3859,11 +3859,15 @@ const getAllClubs = async (req, res) => {
 
 const getClubById = async (req, res) => {
   try {
-    const { id, fields } = req.body;
+    const { id, ids, fields } = req.body;
 
-    if (!id) {
+    // ✅ Validate id / ids
+    const hasSingleId = !!id;
+    const hasMultipleIds = Array.isArray(ids) && ids.length > 0;
+
+    if (!hasSingleId && !hasMultipleIds) {
       return res.status(400).json({
-        error: "Club id is required",
+        error: "Club id or ids array is required",
       });
     }
 
@@ -3889,6 +3893,25 @@ const getClubById = async (req, res) => {
       projection = isArrayProjection ? fields.join(" ") : fields;
     }
 
+    // ✅ Case 1: Multiple IDs
+    if (hasMultipleIds) {
+      const clubs = projection
+        ? await Club.find({ _id: { $in: ids } }).select(projection)
+        : await Club.find({ _id: { $in: ids } });
+
+      if (!clubs || clubs.length === 0) {
+        return res.status(404).json({
+          error: "Clubs not found",
+        });
+      }
+
+      return res.status(200).json({
+        message: "Clubs fetched successfully",
+        data: clubs,
+      });
+    }
+
+    // ✅ Case 2: Single ID
     const club = projection
       ? await Club.findById(id).select(projection)
       : await Club.findById(id);
@@ -3904,9 +3927,9 @@ const getClubById = async (req, res) => {
       data: club,
     });
   } catch (error) {
-    console.error("Error fetching club by id:", error);
+    console.error("Error fetching club(s):", error);
     return res.status(500).json({
-      error: "Server error while fetching club",
+      error: "Server error while fetching club(s)",
     });
   }
 };
