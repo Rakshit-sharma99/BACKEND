@@ -9,8 +9,6 @@
  * 5. Use LLM to name territories
  */
 
-require("dotenv").config();
-
 const OpenAI = require("openai");
 const { kmeans } = require("ml-kmeans");
 const _ = require("lodash");
@@ -20,9 +18,8 @@ const { StatusCodes } = require("http-status-codes");
 // Models
 // ─────────────────────────────
 const SemanticNode = require("../models/semanticNode");
-const Club = require("../models/club");
-const Community = require("../models/community");
 const Territory = require("../models/territory");
+const { fetchClubById, fetchCommunityById } = require("./utilControllers");
 
 // ─────────────────────────────
 // OpenAI Client
@@ -104,13 +101,8 @@ async function getRepresentativeTextsForClusters(
 
     // Fetch domain documents
     const [clubs, communities] = await Promise.all([
-      Club.find({ _id: { $in: clubIds } })
-        .select("name motto tags")
-        .lean(),
-
-      Community.find({ _id: { $in: communityIds } })
-        .select("title label tag")
-        .lean(),
+        fetchClubById({ids:clubIds,fields:["name","motto","tags"]}),
+        fetchCommunityById({ids:communityIds,fields:["title","label","tag"]})
     ]);
 
     const clubById = new Map(clubs.map((c) => [c._id.toString(), c]));
