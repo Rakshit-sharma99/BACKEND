@@ -4,7 +4,7 @@ kind: Config
 deploy:
   kubectl:
     manifests:
-      - ./infra/k8s/*
+      - ./infra/k8s/map-deployment.yaml
 
 build:
   local:
@@ -204,6 +204,14 @@ build:
             dest: .
     - image: spargens/overlay
       context: overlay # folder name of the service
+      docker:
+        dockerfile: Dockerfile
+      sync:
+        manual:
+          - src: "src/**/*.js"
+            dest: .
+    - image: spargens/map
+      context: map # folder name of the service
       docker:
         dockerfile: Dockerfile
       sync:
