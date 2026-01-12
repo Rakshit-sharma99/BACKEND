@@ -677,10 +677,6 @@ const saveMemoryRequest = async (req, res) => {
       operation:"remove"
     })
 
-    if (!updatedUser) {
-      return res.status(StatusCodes.NOT_FOUND).json({ msg: "User not found." });
-    }
-
     const alreadySaved = memory.savedBy.includes(userId);
     if (!alreadySaved) {
       memory.savedBy.push(userId);
@@ -689,7 +685,6 @@ const saveMemoryRequest = async (req, res) => {
 
     return res.status(StatusCodes.OK).json({
       msg: "Memory request saved successfully.",
-      memoryRequests: updatedUser.memoryRequests,
       savedBy: memory.savedBy,
     });
   } catch (error) {
