@@ -405,7 +405,7 @@ services:
       timeout: 5s
       retries: 12
     restart: unless-stopped
-
+ 
   redis:
     image: redis:6.2
     ports:
