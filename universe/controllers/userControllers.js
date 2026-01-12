@@ -1821,6 +1821,37 @@ const getTuners = async (req, res) => {
   }
 };
 
+const getMemoryListRecommendation = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Fetch only the memory field to keep the query efficient
+    const user = await User.findById(userId, { memoryList: 1 }).lean();
+
+    if (!user || !user.memoryList) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User or memory list not found" });
+    }
+
+    // Get the last 12 entries from the memory array
+    const recentMemoryList = user.memoryList.slice(-24).reverse();
+
+    // Fetch the corresponding user data
+    const recommendation = await User.find(
+      { _id: { $in: recentMemoryList } },
+      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 }
+    ).lean();
+
+    return res.status(StatusCodes.OK).json({ recommendation });
+  } catch (error) {
+    console.error("Error fetching recent memories:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Failed to fetch recent memories.",
+      error: error.message,
+    });
+  }
+};
 
 module.exports = {
   getUser,
@@ -1868,5 +1899,6 @@ module.exports = {
   insertNewFields,
   getMemoryListUsers,
   getSearchResults,
-  getTuners
+  getTuners,
+  getMemoryListRecommendation
 };

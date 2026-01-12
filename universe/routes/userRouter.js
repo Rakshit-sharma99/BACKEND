@@ -46,6 +46,7 @@ const {
   getMemoryListUsers,
   getSearchResults,
   getTuners,
+  getMemoryListRecommendation,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -94,5 +95,6 @@ router.get("/insertNewFields", insertNewFields);
 router.get("/getMemoryListUsers", getMemoryListUsers);
 router.get("/getSearchResults",getSearchResults);
 router.get("/getTuners", getTuners);
+router.get("/getMemoryListRecommendation", getMemoryListRecommendation);
 
 module.exports = router;
