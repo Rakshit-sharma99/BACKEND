@@ -367,7 +367,7 @@ services:
 
   kafka:
     image: apache/kafka:latest
-    container_name: multiverse-testing-kafka-1
+    container_name: multiverse-backend-kafka-1
     ports:
       - "9092:9092"   # client connections
       - "9093:9093"   # controller listener (internal)
