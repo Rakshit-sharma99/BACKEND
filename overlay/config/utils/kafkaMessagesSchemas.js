@@ -8,7 +8,7 @@
  */
 
 const USER_OVERLAY_OPERATION = {
-  PERSON_TAG: {
+  USER_OVERLAY_OPERATION: {
     topicSuffix: "_user_overlay_operation",
 
     validate: (data) => {
