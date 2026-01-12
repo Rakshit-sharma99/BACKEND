@@ -63,6 +63,7 @@ const {
   getCommunityFieldsById,
   getRandomCommunities,
   fetchCommunityLeaderBoard,
+  getAllCommunity,
 } = require("../controllers/communityControllers");
 
 router.post("/createCommunity", createCommunity);
@@ -126,5 +127,6 @@ router.get("/searchCommunities", searchCommunities);
 router.post("/getCommunityFieldsById", getCommunityFieldsById);
 router.get("/getRandomCommunities", getRandomCommunities);
 router.get("/fetchCommunityLeaderBoard", fetchCommunityLeaderBoard);
+router.post("/getAllCommunity", getAllCommunity);
 
 module.exports = router;

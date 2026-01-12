@@ -193,3 +193,10 @@ spec:
                 name: overlay
                 port:
                   number: 7040
+          - path: /map
+            pathType: Prefix
+            backend:
+              service:
+                name: map
+                port:
+                  number: 7050

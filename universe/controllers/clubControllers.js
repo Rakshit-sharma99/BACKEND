@@ -3814,6 +3814,127 @@ const addAwardToClub = async (req, res) => {
   }
 };
 
+const getAllClubs = async (req, res) => {
+  try {
+    const { fields } = req.body;
+
+    let projection;
+
+    // ✅ If fields is provided, validate it
+    if (fields !== undefined) {
+      const isArrayProjection =
+        Array.isArray(fields) && fields.length > 0;
+
+      const isObjectProjection =
+        fields &&
+        typeof fields === "object" &&
+        !Array.isArray(fields) &&
+        Object.keys(fields).length > 0;
+
+      if (!isArrayProjection && !isObjectProjection) {
+        return res.status(400).json({
+          error: "fields must be a non-empty array or projection object",
+        });
+      }
+
+      projection = isArrayProjection ? fields.join(" ") : fields;
+    }
+
+    // ✅ Fetch clubs
+    const clubs = projection
+      ? await Club.find().select(projection)
+      : await Club.find();
+
+    return res.status(200).json({
+      message: "Clubs fetched successfully",
+      data: clubs,
+    });
+  } catch (error) {
+    console.error("Error fetching clubs:", error);
+    return res.status(500).json({
+      error: "Server error while fetching clubs",
+    });
+  }
+};
+
+const getClubById = async (req, res) => {
+  try {
+    const { id, ids, fields } = req.body;
+
+    // ✅ Validate id / ids
+    const hasSingleId = !!id;
+    const hasMultipleIds = Array.isArray(ids) && ids.length > 0;
+
+    if (!hasSingleId && !hasMultipleIds) {
+      return res.status(400).json({
+        error: "Club id or ids array is required",
+      });
+    }
+
+    let projection;
+
+    // ✅ Optional projection validation
+    if (fields !== undefined) {
+      const isArrayProjection =
+        Array.isArray(fields) && fields.length > 0;
+
+      const isObjectProjection =
+        fields &&
+        typeof fields === "object" &&
+        !Array.isArray(fields) &&
+        Object.keys(fields).length > 0;
+
+      if (!isArrayProjection && !isObjectProjection) {
+        return res.status(400).json({
+          error: "fields must be a non-empty array or projection object",
+        });
+      }
+
+      projection = isArrayProjection ? fields.join(" ") : fields;
+    }
+
+    // ✅ Case 1: Multiple IDs
+    if (hasMultipleIds) {
+      const clubs = projection
+        ? await Club.find({ _id: { $in: ids } }).select(projection)
+        : await Club.find({ _id: { $in: ids } });
+
+      if (!clubs || clubs.length === 0) {
+        return res.status(404).json({
+          error: "Clubs not found",
+        });
+      }
+
+      return res.status(200).json({
+        message: "Clubs fetched successfully",
+        data: clubs,
+      });
+    }
+
+    // ✅ Case 2: Single ID
+    const club = projection
+      ? await Club.findById(id).select(projection)
+      : await Club.findById(id);
+
+    if (!club) {
+      return res.status(404).json({
+        error: "Club not found",
+      });
+    }
+
+    return res.status(200).json({
+      message: "Club fetched successfully",
+      data: club,
+    });
+  } catch (error) {
+    console.error("Error fetching club(s):", error);
+    return res.status(500).json({
+      error: "Server error while fetching club(s)",
+    });
+  }
+};
+
+
 module.exports = {
   createClub,
   deleteClub,
@@ -3883,4 +4004,6 @@ module.exports = {
   updateClubPermission,
   getTopProfilesOfClub,
   addAwardToClub,
+  getAllClubs,
+  getClubById
 };

@@ -70,6 +70,8 @@ const {
   updateClubPermission,
   getTopProfilesOfClub,
   addAwardToClub,
+  getAllClubs,
+  getClubById,
 } = require("../controllers/clubControllers");
 
 router.post("/createClub", createClub);
@@ -140,5 +142,7 @@ router.post("/assignDefaultPermissions", assignDefaultPermissions);
 router.post("/updateClubPermission", updateClubPermission);
 router.get("/getTopProfilesOfClub", getTopProfilesOfClub);
 router.post("/addAwardToClub", addAwardToClub);
+router.post("/getAllClubs", getAllClubs);
+router.post("/getClubById", getClubById);
 
 module.exports = router;

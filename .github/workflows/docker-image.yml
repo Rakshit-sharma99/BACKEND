@@ -54,7 +54,7 @@ jobs:
           echo "=== Building and Deploying with Docker Compose ==="
 
           # Ensure .env folders are in place inside workspace
-          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted env/memory env/overlay env/coupon
+          mkdir -p env/badge env/bag env/blog env/card env/content env/event env/invitation env/ipls env/itinerary env/joinLink env/macbease_content env/multiverse env/offer env/org env/project env/quest env/refund env/resource env/ticket env/tile env/universe env/unsorted env/memory env/overlay env/coupon env/map
 
           # Copy from /home/ubuntu env store if present (adjust path if your envs live elsewhere)
           [ -f /home/ubuntu/env/badge/.env ] && cp /home/ubuntu/env/badge/.env env/badge/.env || echo "Warning: badge .env not found at /home/ubuntu/env/badge/.env"
@@ -82,6 +82,7 @@ jobs:
           [ -f /home/ubuntu/env/memory/.env ] && cp /home/ubuntu/env/memory/.env env/memory/.env || echo "Warning: memory .env not found at /home/ubuntu/env/memory/.env"
           [ -f /home/ubuntu/env/overlay/.env ] && cp /home/ubuntu/env/overlay/.env env/overlay/.env || echo "Warning: overlay .env not found at /home/ubuntu/env/overlay/.env"
           [ -f /home/ubuntu/env/coupon/.env ] && cp /home/ubuntu/env/coupon/.env env/coupon/.env || echo "Warning: coupon .env not found at /home/ubuntu/env/coupon/.env"
+          [ -f /home/ubuntu/env/map/.env ] && cp /home/ubuntu/env/map/.env env/map/.env || echo "Warning: coupon .env not found at /home/ubuntu/env/map/.env"
 
           docker build -t spargens/ipls ./ipls 
           docker build -t spargens/universe ./universe
