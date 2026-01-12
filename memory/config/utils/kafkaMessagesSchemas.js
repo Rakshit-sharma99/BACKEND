@@ -10,10 +10,10 @@ const UPDATE_USER_MEMORY_LIST = {
     topicSuffix: "_update_user_memory_list",
 
     validate: (data) => {
-      if (data.id !== "string") {
+      if (typeof data.id !== "string") {
         throw new Error("id must be string");
       }
-      if (data.memoryId !== "string") {
+      if (typeof data.memoryId !== "string") {
         throw new Error("memory id must be string");
       }
       if (!["add", "remove"].includes(data.operation)) {
@@ -40,10 +40,10 @@ const UPDATE_CLUB_MEMORY_LIST = {
     topicSuffix: "_update_club_memory_list",
 
     validate: (data) => {
-      if (data.id !== "string") {
+      if (typeof data.id !== "string") {
         throw new Error("id must be string");
       }
-      if (data.memoryId !== "string") {
+      if (typeof data.memoryId !== "string") {
         throw new Error("memory id must be string");
       }
       if (!["add", "remove"].includes(data.operation)) {
@@ -68,7 +68,7 @@ const UPDATE_MEMORY_LIST = {
     topicSuffix: "_update_memory_list",
 
     validate: (data) => {
-      if (data.id !== "string") {
+      if (typeof data.id !== "string") {
         throw new Error("id must be string");
       }
 
@@ -121,10 +121,10 @@ const UPDATE_USER_PINNED_MEMORY = {
     topicSuffix: "_update_user_pinned_memory",
 
     validate: (data) => {
-      if (data.id !== "string") {
+      if (typeof data.id !== "string") {
         throw new Error("id must be string");
       }
-      if (data.memoryId !== "string") {
+      if (typeof data.memoryId !== "string") {
         throw new Error("memory id must be string");
       }
       if (!["add", "remove"].includes(data.operation)) {
