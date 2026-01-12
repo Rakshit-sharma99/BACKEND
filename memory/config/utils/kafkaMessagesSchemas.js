@@ -6,7 +6,7 @@
  */
 
 const UPDATE_USER_MEMORY_LIST = {
-  PERSON_TAG: {
+  UPDATE_USER_MEMORY_LIST: {
     topicSuffix: "_update_user_memory_list",
 
     validate: (data) => {
@@ -36,7 +36,7 @@ const UPDATE_USER_MEMORY_LIST = {
  */
 
 const UPDATE_CLUB_MEMORY_LIST = {
-  PERSON_TAG: {
+  UPDATE_CLUB_MEMORY_LIST: {
     topicSuffix: "_update_club_memory_list",
 
     validate: (data) => {
@@ -64,7 +64,7 @@ const UPDATE_CLUB_MEMORY_LIST = {
  */
 
 const UPDATE_MEMORY_LIST = {
-  PERSON_TAG: {
+  UPDATE_MEMORY_LIST: {
     topicSuffix: "_update_memory_list",
 
     validate: (data) => {
@@ -90,7 +90,7 @@ const UPDATE_MEMORY_LIST = {
  */
 
 const UPDATE_USER_MEMORY_NOTICE = {
-  PERSON_TAG: {
+  UPDATE_USER_MEMORY_NOTICE: {
     topicSuffix: "_update_user_memory_notice",
 
     validate: (data) => {
@@ -117,7 +117,7 @@ const UPDATE_USER_MEMORY_NOTICE = {
  */
 
 const UPDATE_USER_PINNED_MEMORY = {
-  PERSON_TAG: {
+  UPDATE_USER_PINNED_MEMORY: {
     topicSuffix: "_update_user_pinned_memory",
 
     validate: (data) => {
