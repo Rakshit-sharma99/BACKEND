@@ -810,13 +810,13 @@ const setMemoryPinned = async (req, res) => {
 
     if (isPinned) {
       await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY",req.user.callSign,{
-          id:userId,
+          id:userId.toString(),
           memoryId,
           operation:"add"
       })
     } else {
       await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY",req.user.callSign,{
-          id:userId,
+          id:userId.toString(),
           memoryId,
           operation:"remove"
       })
