@@ -2,14 +2,16 @@ const { StatusCodes } = require("http-status-codes");
 const Award = require("../models/award");
 const Club = require("../models/club");
 const User = require("../models/user");
-const Ticket = require("../models/ticket");
 const AwardInstance = require("../models/awardInstance");
-const Memory = require("../models/memory");
 const mongoose = require("mongoose");
-const { generateCertificatePreview1 } = require("./certificateTemplates");
-const { userData } = require("../demoData");
-const { image } = require("pdfkit");
+const { generateCertificatePreview1,
+        generateCertificatePreview2,
+        generateCertificatePreview3,
+        generateCertificatePreview4,
+        generateCertificatePreview5, } = require("./certificateTemplates");
 const { scheduleNotification2, sendMail } = require("./utils");
+const { fetchTicketFieldsByQuery } = require("./interServiceCalls");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 
 /**
  * @desc    Create a new Award (Certificate or Badge)
@@ -249,12 +251,20 @@ const generateCertificatePreview = async (req, res) => {
 
     // Step 5: If everything valid → continue to preview generation
     let previewURL = "";
+    const previewData = {
+      name: "Marcelina Anderson",
+      ...data,
+    };
     if (award.title === "Imperial Crest") {
-      const previewData = {
-        name: "Marcelina Anderson",
-        ...data,
-      };
       previewURL = await generateCertificatePreview1(previewData);
+    } else if (award.title === "Luna Minimal") {
+      previewURL = await generateCertificatePreview2(previewData);
+    } else if (award.title === "Golden Grace") {
+      previewURL = await generateCertificatePreview3(previewData);
+    } else if (award.title === "Crown of Merit") {
+      previewURL = await generateCertificatePreview4(previewData);
+    } else if (award.title === "The Abstract Frame") {
+      previewURL = await generateCertificatePreview5(previewData);
     }
 
     return res.status(StatusCodes.OK).json({
@@ -325,10 +335,11 @@ const dispatchCertificates = async (req, res) => {
         typeof t === "string" ? t : t.type
       );
 
-      const tickets = await Ticket.find({
-        eventId: new mongoose.Types.ObjectId(event.eventId),
-        type: { $in: ticketTypes },
-      }).lean();
+      const tickets = await fetchTicketFieldsByQuery({
+              searchBy: { eventId: new mongoose.Types.ObjectId(event.eventId),
+              type: { $in: ticketTypes } },
+             fields: ["boughtBy"]
+          });
 
       receiversCount += tickets.length;
       eventProfiles = tickets.map((t) => ({ _id: t.boughtBy }));
@@ -436,7 +447,7 @@ async function dispatchCertifcateToProfiles({
         formData,
         dispatcherMetaData,
       });
-      const memory = await Memory.create({
+      const memoryData = {
         createdBy: userData._id,
         type: "a_event",
         title: formData?.title,
@@ -445,8 +456,9 @@ async function dispatchCertifcateToProfiles({
         uploadEnabled: true,
         creatorMetaData: { name: userData.name, image: userData.image },
         awardId: awardInstance._id,
-      });
-      secondaryActionsForCertifcates({ memory, userData });
+      };
+      await sendKafkaMessage("CREATE_MEMORY","memory",{memoryData});
+      secondaryActionsForCertifcates({ memoryData, userData });
     }
   } catch (error) {
     console.log(error);
