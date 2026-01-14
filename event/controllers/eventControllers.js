@@ -3198,6 +3198,40 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+const getFeaturedEvents = async (req, res) => {
+  try {
+    const { fields } = req.body;
+
+    const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return res.status(400).json({
+        error: "fields must be a non-empty array or projection object",
+      });
+    }
+
+    // Convert array of fields to space-separated string for Mongoose projection
+    const projection = isArrayProjection ? fields.join(" ") : fields;
+
+    const events = await Event.find({status:"featured"}).select(projection).lean();
+
+    if (!events) {
+      return res.status(404).json({ error: "Event not found." });
+    }
+
+    return res.status(200).json({ data: events });
+  } catch (err) {
+    console.error("Error fetching featured events:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
 
 module.exports = {
   createEvent,
@@ -3249,5 +3283,6 @@ module.exports = {
   getLatestEvents,
   toggleWaitlist,
   getSearchedEvents,
-  insertNewFields
+  insertNewFields,
+  getFeaturedEvents
 };
