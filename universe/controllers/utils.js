@@ -15,6 +15,7 @@ const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
 const stream = require("stream");
 const path = require("path");
+const Club = require("../models/club");
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
 function getCurrentISTDate() {
@@ -1236,6 +1237,67 @@ const fetchBags = async(query) => {
   }
 }
 
+const fetchRightSequence = async (events) => {
+  try {
+    const now = new Date();
+
+    // Separate featured and old events
+    const featuredEvents = events.filter((e) => e.status === "featured");
+    const oldEvents = events.filter((e) => e.status !== "featured");
+
+    // Get all club IDs from featured events
+    const clubIds = featuredEvents.map((e) => e.belongsTo.id);
+
+    // Fetch clubs with ratings
+    const clubs = await Club.find(
+      { _id: { $in: clubIds } },
+      { rating: 1 }
+    ).lean();
+
+    // Create lookup for club ratings
+    const clubRatings = {};
+    clubs.forEach((club) => {
+      clubRatings[club._id.toString()] = club.rating || 0;
+    });
+
+    // Sort featured events:
+    // 1. Active promoted events first (promotionExpiry > now, isPromoted = true)
+    // 2. Sort promoted by promotionLevel DESC, then clubRating DESC
+    // 3. Then non-promoted events by clubRating DESC
+    const sortedFeaturedEvents = featuredEvents.sort((a, b) => {
+      const ratingA = clubRatings[a.belongsTo.id] || 0;
+      const ratingB = clubRatings[b.belongsTo.id] || 0;
+
+      const aIsActivePromotion =
+        a.isPromoted && a.promotionExpiry && new Date(a.promotionExpiry) > now;
+      const bIsActivePromotion =
+        b.isPromoted && b.promotionExpiry && new Date(b.promotionExpiry) > now;
+
+      if (aIsActivePromotion && !bIsActivePromotion) return -1; // a first
+      if (!aIsActivePromotion && bIsActivePromotion) return 1; // b first
+
+      if (aIsActivePromotion && bIsActivePromotion) {
+        // Compare promotionLevel first
+        if (b.promotionLevel !== a.promotionLevel) {
+          return b.promotionLevel - a.promotionLevel;
+        }
+        // If promotionLevel equal → fallback to rating
+        return ratingB - ratingA;
+      }
+
+      // If neither promoted → fallback to rating
+      return ratingB - ratingA;
+    });
+
+    // Final sequence: featured (sorted) first, then old events (untouched)
+
+    return [...sortedFeaturedEvents, ...oldEvents];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
 module.exports = {
   sendMail,
   getCurrentISTDate,
@@ -1260,5 +1322,6 @@ module.exports = {
   fetchItineraryFromIds,
   fetchInvitationById,
   fetchJoinLinkById,
-  fetchBags
+  fetchBags,
+  fetchRightSequence
 };

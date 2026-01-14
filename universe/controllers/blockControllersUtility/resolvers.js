@@ -9,7 +9,8 @@ const {
   clubProjection,
   communityProjection,
 } = require("./genericProjections");
-const { fetchEventData, fetchPastEvents, fetchEventGallery } = require("../interServiceCalls");
+const { fetchEventData, fetchPastEvents, fetchEventGallery ,fetchFeaturedEvent} = require("../interServiceCalls");
+const { fetchRightSequence } = require("../utils");
 
 module.exports = {
   pagination: async (block) => {
@@ -34,12 +35,17 @@ module.exports = {
       fetchRecords(Community, grouped.communityIds, communityProjection),
     ]);
 
-    return [...eventsData, ...clubsData, ...communitiesData];
+    return [
+      ...eventsData.map((e) => ({ ...e, type: "event" })),
+      ...clubsData.map((c) => ({ ...c, type: "club" })),
+      ...communitiesData.map((cm) => ({ ...cm, type: "community" })),
+    ];
   },
 
   featured_events: async (block) => {
-    const eventIds = block.payload.map((p) => p.eventId);
-    return fetchEventData({ids:eventIds,fields:eventProjection})
+    const events = fetchFeaturedEvent({fields:eventProjection});
+    const inSequence = await fetchRightSequence(events);
+    return inSequence;
   },
 
   top_clubs: async (block, userId) => {
@@ -239,6 +245,8 @@ module.exports = {
   generic_filters: async (block) => {
     return block.payload.map((p) => ({
       key: p.key,
+      lib:p.lib,
+      name:p.name
     }));
   },
 
@@ -250,8 +258,10 @@ module.exports = {
   },
 
   banner: async (block) => {
-    const banner = block.payload?.[0];
-    if (!banner) return null;
+    const banners = block.payload;
+    if(!Array.isArray(banners)) return [];
+
+    const outcome = [];
 
     // Config map for dynamic selection
     const typeConfig = {
@@ -272,31 +282,40 @@ module.exports = {
       },
     };
 
-    // Handle advertisement directly
-    if (banner.type === "advertisement") {
-      return {
-        url: banner.url,
-        deeplink: banner.deeplink,
-      };
+    for(const banner of banners){
+      if(!banner) continue;
+
+      //  Advertisement / External
+      if (banner.type === "other") {
+        outcome.push({
+          type: "other",
+          deeplink: banner.deeplink,
+          name: banner.name,
+          url: banner.url,
+          logo: banner.logo,
+          description: banner.description,
+        });
+        continue;
+      }
+
+      // Handle event / club / community
+      const config = typeConfig[banner.type];
+      if (!config) continue;
+
+      const { Model, idKey, projection } = config;
+
+      const id = banner[idKey];
+      if (!id) continue;
+
+      if(Model==="Event"){
+        const data = await fetchEventData({id,fields:projection});
+        if (data) outcome.push({ type: banner.type, ...data });
+      }
+
+      const data = await Model.findById(id, projection).lean();
+      if (data) outcome.push({ type: banner.type, ...data });
     }
-
-    // Handle event / club / community
-    const config = typeConfig[banner.type];
-    if (!config) return null;
-
-    const { Model, idKey, projection } = config;
-
-    const id = banner[idKey];
-    if (!id) return null;
-
-    if(Model==="Event"){
-      const data = await fetchEventData({id,fields:projection});
-      return data || null;
-    }
-
-    const data = await Model.findById(id, projection).lean();
-
-    return data || null;
+    return outcome;
   },
 
   past_events: async (block) => {
@@ -376,5 +395,51 @@ module.exports = {
       url: p.url,
       deeplink: p.deeplink,
     }));
+  },
+
+  clubLeaderboard: async (block) => {
+    const clubs = await Club.aggregate([
+      {
+        $sort: { rating: -1 },
+      },
+      {
+        $limit: 3,
+      },
+      {
+        $project: {
+          secondaryImg: 1,
+          name: 1,
+          tags: 1,
+          motto: 1,
+          mainAdmin: 1,
+          rating: 1,
+          membersCount: { $size: "$members" },
+        },
+      },
+    ]);
+    return clubs;
+  },
+
+  communityLeaderboard: async (block) => {
+    const communities = await Community.aggregate([
+      {
+        $sort: { rating: -1 },
+      },
+      {
+        $limit: 3,
+      },
+      {
+        $project: {
+          secondaryCover: 1,
+          label: 1,
+          activeMembers: 1,
+          title: 1,
+          tag: 1,
+          rating: 1,
+          membersCount: { $size: "$members" },
+        },
+      },
+    ]);
+    return communities;
   },
 };

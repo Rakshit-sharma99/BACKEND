@@ -7,6 +7,10 @@ module.exports = {
     permissions: 0,
     faq: 0,
     gallery: 0,
+    belongsTo:0,
+    isPromoted:0,
+    promotionExpiry:0,
+    promotionLevel:0
   },
 
   clubProjection: {
