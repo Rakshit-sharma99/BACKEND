@@ -1,5 +1,6 @@
 require("dotenv").config();
-require("./config/kafka_producer"); 
+require("./workers");
+require("./config/kafka_producer");
 require("./config/kafka_listener");
 const cors = require("cors");
 const express = require("express");
@@ -8,7 +9,7 @@ const helmet = require("helmet");
 const socketIo = require("socket.io");
 const http = require("http");
 const app = express();
-const server = http.createServer(app); 
+const server = http.createServer(app);
 const io = socketIo(server, {
   path: "/universe/socket.io",
 });
@@ -18,7 +19,7 @@ const redis = new Redis({
   host: process.env.REDIS_HOST || "redis",
   port: 6379,
 });
- 
+
 redis.on("connect", () => console.log("✅ Connected to Redis!"));
 redis.on("error", (err) => {
   console.error("🚨 Redis Error:", err.message);
@@ -76,6 +77,7 @@ const blockRouter = require("./routes/blockRouter");
 const unsortedRouter = require("./routes/unsortedRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
+const razorpayHookRouter = require("./routes/razorpayHookRouter");
 
 app.set("trust proxy", 1);
 app.use(cors());
@@ -111,10 +113,11 @@ const authLimiter = rateLimit({
 
 app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
   res.send("Macbease - updated!");
-}); 
- 
+});
+
 app.use("/universe/api/v1/auth/user", userAuthRouter);
 app.use("/universe/api/v1/admin", adminAuthRouter);
+app.use("/universe/api/v1/razorpay", razorpayHookRouter);
 app.use("/universe/api/v1/payment", authenticate, paymentRouter);
 app.use("/universe/api/v1/user", authenticate, userRouter);
 app.use("/universe/api/v1/frontend", authenticate, frontendRouter);
@@ -157,8 +160,7 @@ app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
-
-app.use("/universe/api/v1/unsorted",authenticate, unsortedRouter);
+app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
