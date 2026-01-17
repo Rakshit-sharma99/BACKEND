@@ -4,7 +4,7 @@ kind: Config
 deploy:
   kubectl:
     manifests:
-      - ./infra/k8s/map-deployment.yaml
+      - ./infra/k8s/*
 
 build:
   local:
