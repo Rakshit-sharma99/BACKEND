@@ -1,5 +1,5 @@
 const schedule = require("node-schedule");
-const { scheduleNotification2, sendMail } = require("../../controllers/utils");
+const { scheduleNotification2, sendMail } = require("../../controllers/utilControllers");
 
 //ticket generate secondary actions
 const scheduleTicketNotification = (ticket, event, user) => {

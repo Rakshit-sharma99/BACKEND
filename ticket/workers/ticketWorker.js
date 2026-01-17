@@ -6,7 +6,7 @@ const createTicketForEvent = require("../jobs/ticket");
 const {
   scheduleTicketNotification,
 } = require("../jobs/ticket/helper");
-const { sendKafkaMessage } = require("../utils/kafka");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { fetchEventData, fetchUserData } = require("../controllers/utilControllers");
 
 const connection = {
