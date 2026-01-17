@@ -320,6 +320,28 @@ const UPDATE_JOINLINK = {
   }
 }
 
+/**
+ * @typedef {Object} CREATE_MEMORY_PAYLOAD
+ * @property {Object} memoryData
+ */
+
+const CREATE_MEMORY = {
+  EDIT_EVENT: {
+    topicSuffix: '_create_memory',
+
+    validate: (data) => {
+
+      if (!data.memoryData || !typeof data.memoryData==='object') {
+        throw new Error('memoryData must be object');
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -327,5 +349,6 @@ module.exports = {
   ...UPDATE_CONTENT,
   ...UPDATE_MACBEASE_CONTENT,
   ...UPDATE_INVITATION,
-  ...UPDATE_JOINLINK
+  ...UPDATE_JOINLINK,
+  ...CREATE_MEMORY
 }

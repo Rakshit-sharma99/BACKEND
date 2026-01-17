@@ -296,6 +296,67 @@ const getMemoryCount = async(query) => {
   }
 }
 
+const fetchTicketFieldsByQuery = async (query) => {
+   try {
+    const { searchBy, fields, single } = payload;
+
+    if (
+      !searchBy ||
+      typeof searchBy !== "object" ||
+      !Array.isArray(fields) ||
+      fields.length === 0
+    ) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+
+    const response = await axios.post(
+      `http://ticket:6000/ticket/api/v1/getTicketFieldsByQuery`,
+      {
+        searchBy,
+        fields,
+        single,
+      },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("fetchTicketFieldsByQuery error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+const fetchFeaturedEvent = async (query) => {
+  try {
+    const { fields } = query;
+
+   const isArrayProjection =
+      Array.isArray(fields) && fields.length > 0;
+
+    const isObjectProjection =
+      fields &&
+      typeof fields === "object" &&
+      !Array.isArray(fields) &&
+      Object.keys(fields).length > 0;
+
+    if (!isArrayProjection && !isObjectProjection) {
+      return;
+    }
+
+    const config = generateServiceToken();
+    const eventData = await axios.post(
+      "http://event:5060/event/api/v1/getFeaturedEvents",
+      query,
+      config
+    );
+    return eventData.data.data;
+  } catch (error) {
+    console.log("Error fetching featured event data:",error);
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -307,5 +368,7 @@ module.exports = {
   fetchCouponById,
   fetchSearchedEvents,
   fetchSearchedCards,
-  getMemoryCount
+  getMemoryCount,
+  fetchTicketFieldsByQuery,
+  fetchFeaturedEvent
 };

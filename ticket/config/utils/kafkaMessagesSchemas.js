@@ -131,32 +131,149 @@ const ITINERARY_UPDATE_OPERATION = {
     validate: (data) => {
       const { operation, targetType, field } = data;
 
-    if (!["SET", "PUSH", "PULL", "INC"].includes(operation)) {
-      throw new Error("Invalid operation type");
-    }
+      if (!["SET", "PUSH", "PULL", "INC"].includes(operation)) {
+        throw new Error("Invalid operation type");
+      }
 
-    if (!["SINGLE", "MULTIPLE"].includes(targetType)) {
-      throw new Error("Invalid targetType");
-    }
+      if (!["SINGLE", "MULTIPLE"].includes(targetType)) {
+        throw new Error("Invalid targetType");
+      }
 
-    if (!field || typeof field !== "string") {
-      throw new Error("field must be a string");
-    }
+      if (!field || typeof field !== "string") {
+        throw new Error("field must be a string");
+      }
 
-    if (typeof payload.value === "undefined") {
-      throw new Error("value is required");
-    }
+      if (typeof payload.value === "undefined") {
+        throw new Error("value is required");
+      }
 
-    if (targetType === "SINGLE" && !data.itineraryId) {
-      throw new Error("itineraryId required for SINGLE");
-    }
+      if (targetType === "SINGLE" && !data.itineraryId) {
+        throw new Error("itineraryId required for SINGLE");
+      }
 
-    if (
-      targetType === "MULTIPLE" &&
-      (!Array.isArray(data.itineraryIds) || data.itineraryIds.length === 0)
-    ) {
-      throw new Error("itineraryIds must be non-empty array");
-    }
+      if (
+        targetType === "MULTIPLE" &&
+        (!Array.isArray(data.itineraryIds) || data.itineraryIds.length === 0)
+      ) {
+        throw new Error("itineraryIds must be non-empty array");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} UPDATE_EVENT_STATS_PAYLOAD
+ * @property {String} eventId
+ * @property {String} amtPaid
+ * @property {String} userField
+ */
+
+const UPDATE_EVENT_STATS = {
+  UPDATE_EVENT_STATS: {
+    topicSuffix: '_update_event_stats',
+
+    validate: (data) => {
+
+      if (!data.eventId || !typeof data.eventId === 'string') {
+        throw new Error('eventId must be string');
+      }
+
+      if (!data.amtPaid || !typeof data.amtPaid === 'number') {
+        throw new Error('amtPaid must be number');
+      }
+
+      if (!data.userField || !typeof data.userField === 'string') {
+        throw new Error('userField must be string');
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} ADD_TICKET_TO_EVENT_PAYLOAD
+ * @property {String} eventId
+ * @property {String} ticketId
+ */
+
+const ADD_TICKET_TO_EVENT = {
+  ADD_TICKET_TO_EVENT: {
+    topicSuffix: '_add_ticket_to_event',
+
+    validate: (data) => {
+
+      if (!data.eventId || !typeof data.eventId === 'string') {
+        throw new Error('eventId must be string');
+      }
+
+      if (!data.ticketId || !typeof data.ticketId === 'string') {
+        throw new Error('ticketId must be string');
+      }
+
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} ADD_TICKET_TO_USER_PAYLOAD
+ * @property {String} userId
+ * @property {String} ticketId
+ */
+
+const ADD_TICKET_TO_USER = {
+  ADD_TICKET_TO_USER: {
+    topicSuffix: '_add_ticket_to_user',
+
+    validate: (data) => {
+
+      if (!data.userId || !typeof data.userId === 'string') {
+        throw new Error('userId must be string');
+      }
+
+      if (!data.ticketId || !typeof data.ticketId === 'string') {
+        throw new Error('ticketId must be string');
+      }
+
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+
+/**
+ * @typedef {Object} UPDATE_COUPON_PAYLOAD
+ * @property {String} couponId
+ * @property {String} userId
+ */
+
+const UPDATE_COUPON = {
+  UPDATE_COUPON: {
+    topicSuffix: '_update_coupon',
+
+    validate: (data) => {
+
+      if (!data.userId || !typeof data.userId === 'string') {
+        throw new Error('userId must be string');
+      }
+
+      if (!data.couponId || !typeof data.couponId === 'string') {
+        throw new Error('couponId must be string');
+      }
+
     },
 
     build: (payload) => ({
@@ -169,5 +286,9 @@ module.exports = {
   ...ADD_TICKET_TO_USER_SCHEMA,
   ...ADD_TICKET_TO_EVENT_SCHEMA,
   ...CREATE_REFUND,
-  ...ITINERARY_UPDATE_OPERATION
+  ...ITINERARY_UPDATE_OPERATION,
+  ...UPDATE_EVENT_STATS,
+  ...ADD_TICKET_TO_EVENT,
+  ...ADD_TICKET_TO_USER,
+  ...UPDATE_COUPON,
 };

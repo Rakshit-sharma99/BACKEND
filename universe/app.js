@@ -1,5 +1,4 @@
 require("dotenv").config();
-require("./workers");
 require("./config/kafka_producer");
 require("./config/kafka_listener");
 const cors = require("cors");
@@ -77,7 +76,6 @@ const blockRouter = require("./routes/blockRouter");
 const unsortedRouter = require("./routes/unsortedRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
-const razorpayHookRouter = require("./routes/razorpayHookRouter");
 
 app.set("trust proxy", 1);
 app.use(cors());
@@ -117,7 +115,6 @@ app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
 
 app.use("/universe/api/v1/auth/user", userAuthRouter);
 app.use("/universe/api/v1/admin", adminAuthRouter);
-app.use("/universe/api/v1/razorpay", razorpayHookRouter);
 app.use("/universe/api/v1/payment", authenticate, paymentRouter);
 app.use("/universe/api/v1/user", authenticate, userRouter);
 app.use("/universe/api/v1/frontend", authenticate, frontendRouter);

@@ -9,7 +9,9 @@
   "author": "Amartya Ayush",
   "license": "ISC",
   "dependencies": {
+    "aws-sdk": "^2.1693.0",
     "axios": "^1.10.0",
+    "bullmq": "^5.66.5",
     "cors": "^2.8.5",
     "crypto": "^1.0.1",
     "dotenv": "^17.0.1",

@@ -1,8 +1,6 @@
 const mongoose = require("mongoose");
 const Ticket = require("../../models/ticket");
-const User = require("../../models/user");
-const Event = require("../../models/event");
-const Coupon = require("../../models/coupon");
+const { sendKafkaMessage } = require('../../config/utils/sendKafkaMessage');
 
 module.exports = async function createTicketForEvent({ payment, session }) {
   if (!session) throw new Error("Session required");
@@ -33,29 +31,21 @@ module.exports = async function createTicketForEvent({ payment, session }) {
 
     // update user and event
     await Promise.all([
-      User.findByIdAndUpdate(
+      sendKafkaMessage("ADD_TICKET_TO_USER", "universe", {
         userId,
-        {
-          $push: { ticketsBought: { $each: [ticket._id], $position: 0 } },
-        },
-        { session }
-      ),
-      Event.findByIdAndUpdate(
+        ticketId: ticket._id,
+      }),
+      sendKafkaMessage("ADD_TICKET_TO_EVENT", "event", {
         eventId,
-        {
-          $push: { bookedBy: ticket._id },
-        },
-        { session }
-      ),
+        ticketId: ticket._id,
+      }),
     ]);
 
     if (couponId) {
-      const couponUpdate = await Coupon.findOneAndUpdate(
-        { _id: couponId, isActive: true, usedBy: { $ne: userId } },
-        { $addToSet: { usedBy: userId } },
-        { new: true, session }
-      );
-      if (!couponUpdate) throw new Error("Coupon already used or invalid");
+      await sendKafkaMessage("UPDATE_COUPON", "coupon", {
+        couponId,
+        userId,
+      });
     }
 
     return ticket;

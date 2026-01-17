@@ -1,4 +1,7 @@
 require("dotenv").config();
+require("./config/kafka_listener");
+require("./config/kafka_producer");
+require("./workers");
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
@@ -16,8 +19,9 @@ const io = socketIo(server, {
   },
 });
 
-module.exports = {io}
+module.exports = { io }
 const ticketRouter = require("./routes/ticketRouter");
+const razorpayHookRouter = require("./routes/razorpayHookRouter");
 
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");
@@ -39,6 +43,7 @@ app.get("/ticket/api/v1/hello", (req, res) => {
 });
 
 app.use("/ticket/api/v1", authenticate, ticketRouter);
+app.use("/ticket/api/v1/razorpay", razorpayHookRouter);
 
 const port = process.env.PORT || 6000;
 

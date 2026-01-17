@@ -130,10 +130,10 @@ const memorySchema = new mongoose.Schema(
     awardId: {
       type: String,
     },
-    // enum values:["collage","mindspace"]
+    // enum values:["collage","mindspace", "polaroids"]
     carouselType: {
       type: String,
-      enum: ["", "collage", "mindspace"],
+      enum: ["", "collage", "mindspace", "polaroids"],
       default: "",
     },
     uid: {

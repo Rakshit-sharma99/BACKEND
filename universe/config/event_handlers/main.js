@@ -6,7 +6,7 @@ const { clear_feed } = require('./clear_feed');
 const { add_card } = require('./card_event_handlers/add_card');
 const { update_card_feed } = require('./card_event_handlers/update_card_feed');
 const { delete_card } = require('./card_event_handlers/delete_card');
-const { like_card } = require('./card_event_handlers/like_card'); 
+const { like_card } = require('./card_event_handlers/like_card');
 const { unlike_card } = require('./card_event_handlers/unlike_card');
 const {
   delete_resource,
@@ -79,6 +79,7 @@ const { update_club_memory_list } = require('./memory_event_handlers/update_club
 const { update_user_memory_notice } = require('./memory_event_handlers/update_user_memory_notice');
 const { update_user_pinned_memory } = require('./memory_event_handlers/update_user_pinned_memory');
 const { user_overlay_operation } = require('./overlay_event_handlers/user_overlay_operation');
+const { add_ticket_to_user } = require('./ticket_event_handlers/add_ticket_to_user');
 
 const prefix = process.env.KAFKA_CLIENT_ID;
 
@@ -130,6 +131,7 @@ const handlers = {
   [`${prefix}_update_user_memory_notice`]: update_user_memory_notice,
   [`${prefix}_update_user_pinned_memory`]: update_user_pinned_memory,
   [`${prefix}_user_overlay_operation`]: user_overlay_operation,
+  [`${prefix}_add_ticket_to_user`]: add_ticket_to_user
 };
 
 module.exports = { handlers };

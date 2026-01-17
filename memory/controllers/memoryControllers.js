@@ -136,8 +136,6 @@ async function memoryCreationSecondaryActions({
       createdAt: new Date(),
     };
 
-    console.log("notice", notice);
-
     // Push the notice into each tagged user's unreadNotice array
     await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE",creatorMetaData.callSign,{
       notice,
@@ -183,7 +181,9 @@ const createMemory = async (req, res) => {
 
     let carouselType = "";
 
-    if (
+    if (assets.length >= 8 && assets.every((a) => a.type === "image")) {
+      carouselType = "polaroids";
+    } else if (
       assets.length >= 3 &&
       assets.slice(0, 3).every((a) => a.type === "image")
     ) {
@@ -484,8 +484,8 @@ const getOthersMemories = async (req, res) => {
  * @access Private (only creator)
  */
 
-// helper function to clean memory requests and savedBy if visibility is toggled back to private
-async function removeMemoryFromTags({ memoryId }) {
+// helper function to clean tags
+async function cleanTags({ tags = [], memoryId, userId }) {
   try {
     const memory = await Memory.findById(memoryId);
     if (!memory) {
@@ -493,12 +493,16 @@ async function removeMemoryFromTags({ memoryId }) {
       return;
     }
 
-    // Reset savedBy array
-    memory.savedBy = [];
+    // ---------- REMOVE FROM savedBy ----------
+    const tagIdsToRemove = tags.map((t) => t._id.toString());
 
-    // Extract valid tags (people & club)
-    const validTags = (memory.tags || []).filter((t) =>
-      ["people", "club"].includes(t.type)
+    memory.savedBy = (memory.savedBy || []).filter(
+      (id) => !tagIdsToRemove.includes(id.toString())
+    );
+
+    // ---------- VALID TAGS ONLY ----------
+    const validTags = tags.filter((tag) =>
+      ["people", "club"].includes(tag.type)
     );
 
     // Clean up from each tagged entity
@@ -520,7 +524,7 @@ async function removeMemoryFromTags({ memoryId }) {
           }
         } catch (innerErr) {
           console.warn(
-            `Failed to remove memory ${memoryId} from ${tag.type} ${tag._id}:`,
+            `Failed to clean memory ${memoryId} from ${tag.type} ${tag._id}:`,
             innerErr.message
           );
         }
@@ -555,22 +559,58 @@ const editMemory = async (req, res) => {
     }
 
     //  Check for visibility change logic
-    const wasPrivate = memory.visibility === "private";
-    const isChangingToPrivate =
-      updates.visibility && updates.visibility === "private";
-    const isChangingFromPrivateToOther =
-      wasPrivate && updates.visibility && updates.visibility !== "private";
+    // ---------- VISIBILITY STATE ----------
+    const isPrivacyChanging =
+      updates.visibility && updates.visibility !== memory.visibility;
 
-    if (
-      isChangingFromPrivateToOther &&
-      Array.isArray(updates.tags) &&
-      updates.tags.length > 0
-    ) {
-      // Changing from private → public/inMemoryList/inThisMemory
-      await handleTags({ tags: updates.tags, memoryId, userId,callSign:req.user.callSign });
-    } else if (isChangingToPrivate) {
-      // Changing to private → clean up associations
-      await removeMemoryFromTags({ memoryId });
+    const wasPrivate = memory.visibility === "private";
+    const isPrivateNow = updates.visibility === "private";
+
+    // Transitions
+    const isChangingToPrivate = isPrivacyChanging && isPrivateNow;
+
+    const isChangingFromPrivateToOther =
+      isPrivacyChanging && wasPrivate && !isPrivateNow;
+
+    const isTogglingBetweenNonPrivate =
+      isPrivacyChanging && !wasPrivate && !isPrivateNow;
+
+    // ---------- TAG DIFF ----------
+    const updatedTags = updates.tags || [];
+    const oldTags = memory.tags || [];
+
+    const oldTagIds = oldTags.map((t) => t._id.toString());
+    const updatedTagIds = updatedTags.map((t) => t._id.toString());
+
+    const addedTags = updatedTags.filter(
+      (t) => !oldTagIds.includes(t._id.toString())
+    );
+
+    const removedTags = oldTags.filter(
+      (t) => !updatedTagIds.includes(t._id.toString())
+    );
+
+    // ---------- APPLY RULES ----------
+    if (!isPrivacyChanging) {
+      // Visibility NOT changed
+      if (!wasPrivate) {
+        // non-private → non-private
+        await handleTags({ tags: addedTags, memoryId, userId,callSign:req.user.callSign });
+        await cleanTags({ tags: removedTags, memoryId, userId });
+      }
+    } else {
+      // Visibility IS changing
+      if (isChangingToPrivate) {
+        // any → private
+        await cleanTags({ tags: oldTags, memoryId, userId });
+      } else if (isChangingFromPrivateToOther) {
+        // private → non-private
+        await handleTags({ tags: updatedTags, memoryId, userId,callSign:req.user.callSign });
+      } else if (isTogglingBetweenNonPrivate) {
+        // non-private → non-private
+        await handleTags({ tags: addedTags, memoryId, userId,callSign:req.user.callSign });
+        await cleanTags({ tags: removedTags, memoryId, userId });
+      }
     }
 
     //  Define allowed fields to be updated
@@ -632,13 +672,8 @@ const removeMemoryRequest = async (req, res) => {
       operation:"remove"
     })
 
-    if (!updatedUser) {
-      return res.status(StatusCodes.NOT_FOUND).json({ msg: "User not found." });
-    }
-
     return res.status(StatusCodes.OK).json({
-      msg: "Memory request removed successfully.",
-      memoryRequests: updatedUser.memoryRequests,
+      msg: "Memory request removed successfully."
     });
   } catch (error) {
     console.error("❌ Error removing memory request:", error);

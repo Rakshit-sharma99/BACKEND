@@ -2,13 +2,12 @@
 const { Worker } = require("bullmq");
 require("dotenv").config(); // ← Make sure this is present!
 const mongoose = require("mongoose");
-const Event = require("../models/event");
-const User = require("../models/user");
 const createTicketForEvent = require("../jobs/ticket");
 const {
-  updateEventStatsJob,
   scheduleTicketNotification,
 } = require("../jobs/ticket/helper");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
+const { fetchEventData, fetchUserData } = require("../controllers/utilControllers");
 
 const connection = {
   host: process.env.REDIS_HOST || "redis",
@@ -51,25 +50,17 @@ new Worker(
 
     // Fetch event & user
     const [eventData, userData] = await Promise.all([
-      Event.findById(eventId, {
-        name: 1,
-        eventManagerMail: 1,
-        url: 1,
-        authorizedPerson: 1,
-        belongsTo: 1,
-      }),
-      User.findById(userId, {
-        name: 1,
-        field: 1,
-        email: 1,
-        image: 1,
-        pushToken: 1,
-      }),
+      fetchEventData({ id: eventId, fields: ['_id', 'name', 'eventManagerMail', 'url', 'authorizedPerson', 'belongsTo'] }),
+      fetchUserData({ id: userId, fields: ['_id', 'name', 'field', 'email', 'image', 'pushToken'] })
     ]);
 
     // A) Stats update
     try {
-      await updateEventStatsJob({ eventId, amtPaid: notes.amtPaid });
+      await sendKafkaMessage("UPDATE_EVENT_STATS", "event", {
+        eventId,
+        amtPaid: notes.amtPaid,
+        userField: userData.userField,
+      });
     } catch (err) {
       console.error("Stats update failed (non-fatal):", err);
     }
