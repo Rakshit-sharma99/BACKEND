@@ -9,7 +9,7 @@ const {
   clubProjection,
   communityProjection,
 } = require("./genericProjections");
-const { fetchEventData, fetchPastEvents, fetchEventGallery ,fetchFeaturedEvent} = require("../interServiceCalls");
+const { fetchEventData, fetchPastEvents, fetchEventGallery, fetchFeaturedEvent } = require("../interServiceCalls");
 const { fetchRightSequence } = require("../utils");
 
 module.exports = {
@@ -30,7 +30,7 @@ module.exports = {
     };
 
     const [eventsData, clubsData, communitiesData] = await Promise.all([
-      fetchEventData({ids:grouped.eventIds,fields:eventProjection}),
+      fetchEventData({ ids: grouped.eventIds, fields: eventProjection }),
       fetchRecords(Club, grouped.clubIds, clubProjection),
       fetchRecords(Community, grouped.communityIds, communityProjection),
     ]);
@@ -43,7 +43,7 @@ module.exports = {
   },
 
   featured_events: async (block) => {
-    const events = fetchFeaturedEvent({fields:eventProjection});
+    const events = await fetchFeaturedEvent({ fields: eventProjection });
     const inSequence = await fetchRightSequence(events);
     return inSequence;
   },
@@ -59,7 +59,7 @@ module.exports = {
       {
         $project: {
           secondaryImg: 1,
-          featuringImg:1,
+          featuringImg: 1,
           name: 1,
           tags: 1,
           motto: 1,
@@ -103,7 +103,7 @@ module.exports = {
       {
         $project: {
           secondaryImg: 1,
-          featuringImg:1,
+          featuringImg: 1,
           name: 1,
           tags: 1,
           motto: 1,
@@ -159,7 +159,7 @@ module.exports = {
       {
         $project: {
           secondaryCover: 1,
-          cover:1,
+          cover: 1,
           label: 1,
           activeMembers: 1,
           title: 1,
@@ -190,7 +190,7 @@ module.exports = {
       {
         $project: {
           secondaryCover: 1,
-          cover:1,
+          cover: 1,
           label: 1,
           activeMembers: 1,
           title: 1,
@@ -245,8 +245,8 @@ module.exports = {
   generic_filters: async (block) => {
     return block.payload.map((p) => ({
       key: p.key,
-      lib:p.lib,
-      name:p.name
+      lib: p.lib,
+      name: p.name
     }));
   },
 
@@ -259,7 +259,7 @@ module.exports = {
 
   banner: async (block) => {
     const banners = block.payload;
-    if(!Array.isArray(banners)) return [];
+    if (!Array.isArray(banners)) return [];
 
     const outcome = [];
 
@@ -282,8 +282,8 @@ module.exports = {
       },
     };
 
-    for(const banner of banners){
-      if(!banner) continue;
+    for (const banner of banners) {
+      if (!banner) continue;
 
       //  Advertisement / External
       if (banner.type === "other") {
@@ -307,8 +307,8 @@ module.exports = {
       const id = banner[idKey];
       if (!id) continue;
 
-      if(Model==="Event"){
-        const data = await fetchEventData({id,fields:projection});
+      if (Model === "Event") {
+        const data = await fetchEventData({ id, fields: projection });
         if (data) outcome.push({ type: banner.type, ...data });
       }
 
@@ -319,9 +319,9 @@ module.exports = {
   },
 
   past_events: async (block) => {
-     return fetchPastEvents({
-    projection: eventProjection,
-  });
+    return fetchPastEvents({
+      projection: eventProjection,
+    });
   },
 
   event_gallery: async (block) => {
