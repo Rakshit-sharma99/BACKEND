@@ -94,7 +94,7 @@ app.use((req, res, next) => {
     Session.findByIdAndUpdate(
       sessionId,
       { $push: { callStack: logEntry } },
-      { new: false, useFindAndModify: false }
+      { new: false, useFindAndModify: false },
     ).catch((err) => {
       console.error("Session logging error:", err.message);
     });
@@ -130,7 +130,7 @@ app.use("/universe/api/v1/chat", authenticate, chatRouter);
 app.use(
   "/universe/api/v1/macbeaseContent",
   authenticate,
-  macbeaseContentRouter
+  macbeaseContentRouter,
 );
 app.use("/universe/api/v1/shortCuts", authenticate, shortCutRouter);
 app.use("/universe/api/v1/letter", authenticate, letterRouter);
@@ -140,7 +140,7 @@ app.use("/universe/api/v1/badge", authenticate, badgeRouter);
 app.use(
   "/universe/api/v1/contentModeration",
   authenticate,
-  contentModerationRouter
+  contentModerationRouter,
 );
 app.use("/universe/api/v1/resource", authenticate, resourceRouter);
 app.use("/universe/api/v1/project", authenticate, projectRouter);
@@ -174,7 +174,7 @@ async function getSecret() {
         new GetSecretValueCommand({
           SecretId: secret_name,
           VersionStage: "AWSCURRENT",
-        })
+        }),
       );
 
       if (response.SecretString) {
@@ -237,7 +237,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}.`);
+      console.log(`✅ Server is listening to port ${port}!`);
     });
   } catch (error) {
     console.log(error);
