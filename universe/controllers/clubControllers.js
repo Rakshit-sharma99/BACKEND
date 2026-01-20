@@ -933,111 +933,111 @@ const removeEvent = async (req, res) => {
 
 //Controller 11
 const postContent = async (req, res) => {
-    let { clubId, contentId } = req.body;
-    const clubData = await Club.findById(clubId, { permissions: 1 }).lean();
-    const isAuthorized = Array.isArray(clubData?.permissions?.whoCanPost)
-      ? clubData.permissions.whoCanPost.includes(req.user.id)
-      : false;
+  let { clubId, contentId } = req.body;
+  const clubData = await Club.findById(clubId, { permissions: 1 }).lean();
+  const isAuthorized = Array.isArray(clubData?.permissions?.whoCanPost)
+    ? clubData.permissions.whoCanPost.includes(req.user.id)
+    : false;
 
-    if (!isAuthorized) {
-      return res
-        .status(StatusCodes.FORBIDDEN)
-        .send("You are not authorized to post in this club.");
-    }
-      try {
-        //scheduling job for updating feed
-        let threeSec = new Date(Date.now() + 1 * 3 * 1000);
-        let content = await fetchContent({
-          contentId,
-          select: "url,contentType,text",
-        });
-        content = content;
-        schedule.scheduleJob(
-          `feedClub_${req.user.id}_${new Date()}`,
-          threeSec,
-          async () => {
-            try {
-              //reproduce actual content to be pushed in the user's feed
-              const club = await Club.findById(clubId, {
-                members: 1,
-                name: 1,
-                secondaryImg: 1,
-                pinnedBy: 1,
-                _id: 0,
-              });
-              let point = {
-                _id: contentId,
-              };
-              let noticeTemplate = {
-                value: `${club.name} posted a pin.`,
-                img1: club.secondaryImg,
-                img2: content.url,
-                contentType: content.contentType,
-                key: "content",
-                action: "club",
-                params: {
-                  name: club.name,
-                  secondaryImg: club.secondaryImg,
-                  id: clubId,
-                },
-                time: new Date(),
-              };
-              let users = await User.find(
-                { _id: { $in: club.members } },
-                { pushToken: 1, feed: 1, unreadNotice: 1 }
-              );
-              const tokens = users.map((item) => item.pushToken);
-              let userUpdatePromise = users.map((user) => {
-                let notice = {
-                  ...noticeTemplate,
-                  uid: `${new Date()}/${user._id}/${req.user.id}`,
-                };
-                user.feed = [point, ...user.feed];
-                user.unreadNotice = [notice, ...user.unreadNotice];
-                return user.save();
-              });
-              await Promise.all(userUpdatePromise);
-              await updateDynamicIsland(club.pinnedBy, clubId, "posts", true);
-              if (content.contentType === "image") {
-                const img = await generateUri(content.url.split("@")[0]);
-                scheduleNotification2({
-                  pushToken: tokens,
-                  title: `${club.name} posted a pin.`,
-                  body: `${content.text.substring(0, 50)}...`,
-                  image: img,
-                  url: `https://macbease.com/app/club/${clubId}`,
-                });
-              } else {
-                scheduleNotification2({
-                  pushToken: tokens,
-                  title: `${club.name} posted a pin.`,
-                  body: `${content.text.substring(0, 50)}...`,
-                  url: `https://macbease.com/app/club/${clubId}`,
-                });
-              }
-            } catch (error) {
-              console.error("Error in scheduled job:", error);
-            }
+  if (!isAuthorized) {
+    return res
+      .status(StatusCodes.FORBIDDEN)
+      .send("You are not authorized to post in this club.");
+  }
+  try {
+    //scheduling job for updating feed
+    let threeSec = new Date(Date.now() + 1 * 3 * 1000);
+    let content = await fetchContent({
+      contentId,
+      select: "url,contentType,text",
+    });
+    content = content;
+    schedule.scheduleJob(
+      `feedClub_${req.user.id}_${new Date()}`,
+      threeSec,
+      async () => {
+        try {
+          //reproduce actual content to be pushed in the user's feed
+          const club = await Club.findById(clubId, {
+            members: 1,
+            name: 1,
+            secondaryImg: 1,
+            pinnedBy: 1,
+            _id: 0,
+          });
+          let point = {
+            _id: contentId,
+          };
+          let noticeTemplate = {
+            value: `${club.name} posted a pin.`,
+            img1: club.secondaryImg,
+            img2: content.url,
+            contentType: content.contentType,
+            key: "content",
+            action: "club",
+            params: {
+              name: club.name,
+              secondaryImg: club.secondaryImg,
+              id: clubId,
+            },
+            time: new Date(),
+          };
+          let users = await User.find(
+            { _id: { $in: club.members } },
+            { pushToken: 1, feed: 1, unreadNotice: 1 }
+          );
+          const tokens = users.map((item) => item.pushToken);
+          let userUpdatePromise = users.map((user) => {
+            let notice = {
+              ...noticeTemplate,
+              uid: `${new Date()}/${user._id}/${req.user.id}`,
+            };
+            user.feed = [point, ...user.feed];
+            user.unreadNotice = [notice, ...user.unreadNotice];
+            return user.save();
+          });
+          await Promise.all(userUpdatePromise);
+          await updateDynamicIsland(club.pinnedBy, clubId, "posts", true);
+          if (content.contentType === "image") {
+            const img = await generateUri(content.url.split("@")[0]);
+            scheduleNotification2({
+              pushToken: tokens,
+              title: `${club.name} posted a pin.`,
+              body: `${content.text.substring(0, 50)}...`,
+              image: img,
+              url: `https://macbease.com/app/club/${clubId}`,
+            });
+          } else {
+            scheduleNotification2({
+              pushToken: tokens,
+              title: `${club.name} posted a pin.`,
+              body: `${content.text.substring(0, 50)}...`,
+              url: `https://macbease.com/app/club/${clubId}`,
+            });
           }
-        );
-        let data = { contentId, postedBy: req.user.id, timeStamp: new Date() };
-        let concernedClub = await Club.findById(clubId, {
-          content: 1,
-          videos: 1,
-        });
-        concernedClub.content = [...concernedClub.content, data];
-        if (content.contentType === "video") {
-          concernedClub.videos = [...concernedClub.videos, data];
+        } catch (error) {
+          console.error("Error in scheduled job:", error);
         }
-        concernedClub.save();
-        let user = await User.findById(req.user.id, { clubContributions: 1 });
-        user.clubContributions = [contentId, ...user.clubContributions];
-        user.save();
-        return res.status(StatusCodes.OK).send("Successfully posted content!");
-      } catch (error) {
-        console.log(error);
-        return res.status(StatusCodes.OK).send("Something went wrong.");
       }
+    );
+    let data = { contentId, postedBy: req.user.id, timeStamp: new Date() };
+    let concernedClub = await Club.findById(clubId, {
+      content: 1,
+      videos: 1,
+    });
+    concernedClub.content = [...concernedClub.content, data];
+    if (content.contentType === "video") {
+      concernedClub.videos = [...concernedClub.videos, data];
+    }
+    concernedClub.save();
+    let user = await User.findById(req.user.id, { clubContributions: 1 });
+    user.clubContributions = [contentId, ...user.clubContributions];
+    user.save();
+    return res.status(StatusCodes.OK).send("Successfully posted content!");
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
 };
 
 //Controller 12
@@ -1146,7 +1146,7 @@ const addNotifications = async (req, res) => {
   try {
     let { clubId, notification } = req.body;
 
-     const clubData = await Club.findById(clubId, { permissions: 1 }).lean();
+    const clubData = await Club.findById(clubId, { permissions: 1 }).lean();
     const isAuthorized = Array.isArray(
       clubData?.permissions?.whoCanSendNotifications
     )
@@ -1167,11 +1167,11 @@ const addNotifications = async (req, res) => {
       name: user.name,
       image: user.image,
     };
-      const club = await Club.findById(clubId, {
-        notifications: 1,
-        pinnedBy: 1,
-      });
-      club.notifications.unshift(notification);
+    const club = await Club.findById(clubId, {
+      notifications: 1,
+      pinnedBy: 1,
+    });
+    club.notifications.unshift(notification);
 
     // Optional: cap number of stored notifications
     if (club.notifications.length > 100) {
@@ -1179,26 +1179,26 @@ const addNotifications = async (req, res) => {
     }
 
     await club.save();
-      let threeSec = new Date(Date.now() + 1 * 3 * 1000);
-      schedule.scheduleJob(
-        `addClubNotice_${req.user.id}_${new Date()}`,
-        threeSec,
-        async () => {
-          try {
-            await updateDynamicIsland(
-              club.pinnedBy,
-              clubId,
-              "notifications",
-              true
-            );
-          } catch (error) {
-            console.error("Error in scheduled job:", error);
-          }
+    let threeSec = new Date(Date.now() + 1 * 3 * 1000);
+    schedule.scheduleJob(
+      `addClubNotice_${req.user.id}_${new Date()}`,
+      threeSec,
+      async () => {
+        try {
+          await updateDynamicIsland(
+            club.pinnedBy,
+            clubId,
+            "notifications",
+            true
+          );
+        } catch (error) {
+          console.error("Error in scheduled job:", error);
         }
-      );
-      return res
-        .status(StatusCodes.OK)
-        .send("Notification was successfully added.");
+      }
+    );
+    return res
+      .status(StatusCodes.OK)
+      .send("Notification was successfully added.");
   } catch (error) {
     console.log(error);
     return res
@@ -1384,12 +1384,12 @@ const getAllEvents = async (req, res) => {
         });
 
         let itineraries = [];
-        
+
         // Fetch itinerary details for the event
-        if(Array.isArray(event.itineraries) && event.itineraries.length!==0){
+        if (Array.isArray(event.itineraries) && event.itineraries.length !== 0) {
           const body = {
-            itineraryIds : event.itineraries
-          } 
+            itineraryIds: event.itineraries
+          }
           itineraries = await fetchItineraryFromIds(body);
         }
 
@@ -1824,8 +1824,8 @@ const getStatus = async (req, res) => {
       club.mainAdmin === id
         ? "Fully-authorized"
         : club.adminId.includes(id)
-        ? "Authorized"
-        : "Not-authorized";
+          ? "Authorized"
+          : "Not-authorized";
     const isMember = club.members.includes(id) ? "Is a member" : "Not a member";
     const isInTeam = club.team.some((member) => member.id === id)
       ? "Team Member"
@@ -1866,7 +1866,13 @@ const getFastNativeFeed = async (req, res) => {
       return res.status(404).json({ message: "Club not found" });
     }
     // Extract content IDs and reverse only once
-    let contents = club.content.map((c) => c.contentId).reverse();
+    let contents = club.content.map((c) => c.contentId)
+
+    if (!contents || contents.length === 0) {
+      return res.status(StatusCodes.OK).json({ finishedContent: [] });
+    }
+
+    contents = contents.reverse();
 
     // Apply pagination logic
     if (batch && batchSize) {
@@ -1911,10 +1917,10 @@ const getFastNativeFeed = async (req, res) => {
       }
       const videoIds = videos.map((video) => video.contentId);
       const snippets = await fetchMultipleContents({ ids: videoIds });
-      if(snippets){
+      if (snippets) {
         processedSnippets = snippets.map((snippet) => ({
-        ...snippet,
-        commentsNum: snippet.comments.length, // Store total comment count
+          ...snippet,
+          commentsNum: snippet.comments.length, // Store total comment count
           comments: snippet.comments.slice(0, 6), // Get only first 6 comments
         }));
       }
@@ -2076,7 +2082,7 @@ const getAllLikedPins = async (req, res) => {
       .filter((item) => item.type !== "macbease" || key !== "all")
       .map((item) => mongoose.Types.ObjectId(item.contentId));
     const [macbeaseData, contentData] = await Promise.all([
-      fetchMacbeaseContentFromIds({ids:macbeaseIds}),
+      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
       fetchMultipleContents({ ids: contentIds }),
     ]);
     const data = [...macbeaseData, ...contentData].sort(
@@ -2422,7 +2428,7 @@ const changeLeader = async (req, res) => {
       secondaryImg: 1,
       name: 1,
     });
-    let invitation = await fetchInvitationById({id:invitationId});
+    let invitation = await fetchInvitationById({ id: invitationId });
     const cond2 =
       invitation.type === "Leader Change" &&
       invitation.state === "undecided" &&
@@ -2475,10 +2481,10 @@ const changeLeader = async (req, res) => {
       prevLeader.save();
       newLeader.save();
       club.save();
-      await sendKafkaMessage("UPDATE_INVITATION","invitation",{
+      await sendKafkaMessage("UPDATE_INVITATION", "invitation", {
         invitationId,
-        updatedFields:{
-          state:"accepted"
+        updatedFields: {
+          state: "accepted"
         }
       })
       return res
@@ -2531,7 +2537,7 @@ const addProposal = async (req, res) => {
       proposalHistory: 1,
       name: 1,
     });
-    const proposal = await fetchInvitationById({id:proposalId});
+    const proposal = await fetchInvitationById({ id: proposalId });
     const senderMetaData = await User.findById(proposal.sentBy, {
       name: 1,
       image: 1,
@@ -2596,7 +2602,7 @@ const fetchProposals = async (req, res) => {
     const proposals = club[0].proposalHistory;
     if (proposals) {
       const proposalIds = proposals.map((item) => item.id);
-      const proposalsDoc = await fetchInvitationById({id:proposalIds,select:["endoredBy","expiration"]});
+      const proposalsDoc = await fetchInvitationById({ id: proposalIds, select: ["endoredBy", "expiration"] });
       const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
         return acc;
@@ -2617,11 +2623,12 @@ const fetchProposals = async (req, res) => {
       } else {
         return res
           .status(StatusCodes.OK)
-          .json({ finalData,
-                  undecidedProposals: club[0].undecidedProposals,
-                  permissions: club[0].permissions.whoCanAcceptProposals,
-                  mainAdmin: club[0].mainAdmin,
-                  });
+          .json({
+            finalData,
+            undecidedProposals: club[0].undecidedProposals,
+            permissions: club[0].permissions.whoCanAcceptProposals,
+            mainAdmin: club[0].mainAdmin,
+          });
       }
     } else {
       return res.status(StatusCodes.OK).json([]);
@@ -2641,7 +2648,7 @@ const changeProposalStatus = async (req, res) => {
     if (!["accepted", "rejected"].includes(status)) {
       return res.status(StatusCodes.BAD_REQUEST).send("Invalid status.");
     }
-    const proposal = await fetchInvitationById({id:proposalId,select:["sentTo","cc"]})
+    const proposal = await fetchInvitationById({ id: proposalId, select: ["sentTo", "cc"] })
     if (![...proposal.cc, proposal.sentTo.toString()].includes(req.user.id)) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -2811,8 +2818,8 @@ const searchClubMembers = async (req, res) => {
       role: teamIds.includes(member._id.toString())
         ? "Core team"
         : club.adminId.includes(member._id)
-        ? "Admin"
-        : "Member",
+          ? "Admin"
+          : "Member",
     }));
 
     return res.status(200).json(membersWithRole);
@@ -2972,7 +2979,7 @@ const searchClubProposals = async (req, res) => {
       return false;
     });
     const proposalIds = matchedProposals.map((item) => item.id);
-    const proposalsDoc = await fetchInvitationById({id:proposalIds,select:["endorsedBy","expiration"]});
+    const proposalsDoc = await fetchInvitationById({ id: proposalIds, select: ["endorsedBy", "expiration"] });
     const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
       acc[doc._id.toString()] = doc;
       return acc;
@@ -3106,7 +3113,7 @@ const getProposalsFromIds = async (req, res) => {
 
     const proposalIds = filteredProposals.map((fp) => fp.id);
     // Fetch invitations only for relevant proposals
-    const invitations = await fetchInvitationById({id:proposalIds,select:["endorsedBy","expiration"]});
+    const invitations = await fetchInvitationById({ id: proposalIds, select: ["endorsedBy", "expiration"] });
 
     // Convert to map for quick lookup
     const dataMap = new Map(
@@ -3119,10 +3126,10 @@ const getProposalsFromIds = async (req, res) => {
         const fpData = dataMap.get(fp.id);
         return fpData
           ? {
-              ...fp,
-              endorsedBy: fpData.endorsedBy,
-              expiration: fpData.expiration,
-            }
+            ...fp,
+            endorsedBy: fpData.endorsedBy,
+            expiration: fpData.expiration,
+          }
           : null;
       })
       .filter(Boolean); // Remove null values
@@ -3307,9 +3314,9 @@ const getRandomClubs = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-          acc[field.trim()] = 1;
-          return acc;
-        }, {})
+        acc[field.trim()] = 1;
+        return acc;
+      }, {})
       : {};
 
     const clubs = await Club.aggregate([
