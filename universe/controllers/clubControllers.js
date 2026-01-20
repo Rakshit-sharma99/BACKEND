@@ -1869,7 +1869,7 @@ const getFastNativeFeed = async (req, res) => {
     let contents = club.content.map((c) => c.contentId)
 
     if (!contents || contents.length === 0) {
-      return res.status(StatusCodes.OK).json({ finishedContent: [] });
+      return res.status(StatusCodes.OK).json({ finishedContent: [], snippets: [] });
     }
 
     contents = contents.reverse();
