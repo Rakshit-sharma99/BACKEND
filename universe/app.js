@@ -224,8 +224,8 @@ const start = async () => {
         client_id: process.env.CLIENT_ID,
         auth_uri: process.env.AUTH_URI,
         token_uri: process.env.TOKEN_URI,
-        auth_provider_x509_cert_url: process.env.AUTH_PROVIDER,
         client_x509_cert_url: process.env.CLIENT,
+        auth_provider_x509_cert_url: process.env.AUTH_PROVIDER,
         universe_domain: process.env.UNIVERSE_DOMAIN,
       }),
     });
