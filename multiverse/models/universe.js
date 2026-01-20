@@ -118,4 +118,4 @@ const UniverseSchema = new mongoose.Schema(
   },
 );
 
-export default mongoose.model("Universe", UniverseSchema);
+module.exports = mongoose.model("Universe", UniverseSchema);
