@@ -82,7 +82,7 @@ const editUniverse = async (req, res) => {
         .send("You are not authorized to access this route.");
     }
 
-    const { id } = req.params;
+    const { id } = req.query;
 
     const {
       name,
@@ -199,4 +199,76 @@ const getAllUniverses = async (req, res) => {
   }
 };
 
-module.exports = { createUniverse, editUniverse, getAllUniverses };
+const searchUniverse = async (req, res) => {
+  try {
+    const { q, limit = 12 } = req.query;
+
+    if (!q) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query is required",
+      });
+    }
+
+    const universes = await Universe.find({
+      $or: [
+        { name: { $regex: q, $options: "i" } },
+        { callSign: { $regex: q, $options: "i" } },
+        { location: { $regex: q, $options: "i" } },
+      ],
+    })
+      .sort({ rank: 1 })
+      .limit(Number(limit));
+
+    return res.status(200).json({
+      success: true,
+      message: "Search results fetched successfully",
+      count: universes.length,
+      data: universes,
+    });
+  } catch (err) {
+    console.error("Search Universe Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to search universe",
+      error: err.message,
+    });
+  }
+};
+
+const getPopularUniverses = async (req, res) => {
+  try {
+    const universes = await Universe.find()
+      .sort({
+        traffic: -1,
+        members: -1,
+        ip: -1,
+        rank: 1, // lower rank is better
+      })
+      .limit(10);
+
+    return res.status(200).json({
+      success: true,
+      message: "Popular universes fetched successfully",
+      count: universes.length,
+      data: universes,
+    });
+  } catch (err) {
+    console.error("Get Popular Universes Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch popular universes",
+      error: err.message,
+    });
+  }
+};
+
+module.exports = {
+  createUniverse,
+  editUniverse,
+  getAllUniverses,
+  searchUniverse,
+  getPopularUniverses,
+};
