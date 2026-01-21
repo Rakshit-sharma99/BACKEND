@@ -98,7 +98,7 @@ const createOffer = async (req, res) => {
       visibleTo,
       availedBy: [],
       notificationMetaData,
-      uid:req.user.uid,
+      uid: req.user.uid,
       universeMetaData
     });
 
@@ -109,8 +109,8 @@ const createOffer = async (req, res) => {
       const delay = getTimerInMs(chosenTimer);
       if (delay) {
         const jobTime = new Date(Date.now() + delay);
-        await sendKafkaMessage("CREATE_OFFER","universe",{
-          offerId:newOffer._id.toString(),
+        await sendKafkaMessage("CREATE_OFFER", "universe", {
+          offerId: newOffer._id.toString(),
           jobTime,
           visibleTo,
           dispatchCustomNotification,
@@ -137,10 +137,10 @@ const getValidOffersForUser = async (req, res) => {
   try {
     const { psQuests } = req.query;
     const user_query = {
-            id: req.user.id,
-            fields:["name","image","pushToken","ip"],
-            callSign:req.user.callSign
-        }
+      id: req.user.id,
+      fields: ["name", "image", "pushToken", "ip"],
+      callSign: req.user.callSign
+    }
     const user = await fetchNativeUserData(user_query);
     if (!user) {
       return res.status(404).json({
@@ -148,7 +148,7 @@ const getValidOffersForUser = async (req, res) => {
       });
     }
     const currentDate = new Date();
-    const userId =new mongoose.Types.ObjectId(req.user.id);
+    const userId = new mongoose.Types.ObjectId(req.user.id);
 
     // Fetch valid offers where user meets the IP requirement
     let validOffers = [];
@@ -211,10 +211,10 @@ const getValidOffersForUser = async (req, res) => {
 
     let validQuests = [];
     if (psQuests) {
-      const userId =new mongoose.Types.ObjectId(req.user.id);
+      const userId = new mongoose.Types.ObjectId(req.user.id);
       const quest_query = {
-        id:userId,
-        callSign:"quest"
+        id: userId,
+        callSign: "quest"
       }
 
       validQuests = await fetchNativeQuestData(quest_query);
@@ -271,8 +271,8 @@ const availOffer = async (req, res) => {
 
     const user_query = {
       id: userId,
-      fields: ["name","image","pushToken","ip"],
-      callSign:req.user.callSign
+      fields: ["name", "image", "pushToken", "ip"],
+      callSign: req.user.callSign
     }
     const user = await fetchNativeUserData(user_query);
     if (!user) {
@@ -312,12 +312,12 @@ const availOffer = async (req, res) => {
 
     // Add user to availedBy list
     offer.availedBy.push({
-      userId:new mongoose.Types.ObjectId(userId), 
+      userId: new mongoose.Types.ObjectId(userId),
       couponId: couponCode,
       availedAt: new Date(),
     });
 
-    await sendKafkaMessage("UPDATE_USER_IP",req.user.callSign,{
+    await sendKafkaMessage("UPDATE_USER_IP", req.user.callSign, {
       userId,
       ipChange: -offer.ip,
       c_source: "offer",
@@ -371,11 +371,11 @@ const getBatchedOffers = async (req, res) => {
 
     const skip = (batchNumber - 1) * batchSize;
 
-    const offers = await Offer.find({ status: 1 }) 
-      .sort({ createdAt: -1 }) 
+    const offers = await Offer.find({ status: 1 })
+      .sort({ createdAt: -1 })
       .skip(skip)
       .limit(batchSize)
-      .lean(); 
+      .lean();
 
     return res.status(200).json({ success: true, offers });
   } catch (error) {
@@ -436,18 +436,18 @@ const addUserToVisibleTo = async (req, res) => {
 
           const notificationPayload = notificationMetaData?.noticeTitle
             ? {
-                pushToken: [userData.pushToken],
-                title: notificationMetaData.noticeTitle,
-                body: notificationMetaData.noticeBody,
-                image: notificationMetaData.noticeImage,
-                url: `https://macbease.com/app/ip`,
-              }
+              pushToken: [userData.pushToken],
+              title: notificationMetaData.noticeTitle,
+              body: notificationMetaData.noticeBody,
+              image: notificationMetaData.noticeImage,
+              url: `https://macbease.com/app/ip`,
+            }
             : {
-                pushToken: [userData.pushToken],
-                title: "Hey there!",
-                body: "We have got a new offer for you. Tap to view.",
-                url: `https://macbease.com/app/ip`,
-              };
+              pushToken: [userData.pushToken],
+              title: "Hey there!",
+              body: "We have got a new offer for you. Tap to view.",
+              url: `https://macbease.com/app/ip`,
+            };
 
           scheduleNotification2(notificationPayload);
         } catch (err) {
@@ -625,38 +625,41 @@ const getAvailedOffers = async (req, res) => {
   }
 };
 
-const insertNewFields = async (req,res) => {
-    try{
-        const allOffers = await Offer.find({});
+const insertNewFields = async (req, res) => {
+  try {
+    const allOffers = await Offer.find({});
 
-        const bulkOps = allOffers.map((offer) => ({
-            updateOne: {
-                filter: {_id: offer._id},
-                update:{
-                   $set: {
-                    uid: "682f0418482d651a6df66c23",
-                    universeMetaData: {
-                        location: "Phagwara,Punjab,India",
-                        logo: "public/universes/lpu_logo.jpg",
-                        name: "Lovely Professional University",
-                        callSign: "universe",
-                    },
-                },
-            }, 
-        }
+    const bulkOps = allOffers.map((offer) => ({
+      updateOne: {
+        filter: { _id: offer._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      }
     }));
 
     const result = await Offer.bulkWrite(bulkOps);
     console.log(`Updated ${result.modifiedCount} Offers`);
 
     res.status(StatusCodes.OK).json({
-        message: "Offers updated successfully.",
-        modifiedCount: result.modifiedCount
+      message: "Offers updated successfully.",
+      modifiedCount: result.modifiedCount
     });
-    } catch(err){
-        console.log("Error updating offer:",err);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error: "Internal server error"});
-    }
+  } catch (err) {
+    console.log("Error updating offer:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Internal server error" });
+  }
 }
 
 module.exports = {
@@ -670,5 +673,5 @@ module.exports = {
   deleteOffer,
   getAvailedOffers,
   editOffer,
-insertNewFields
+  insertNewFields
 };
