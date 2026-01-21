@@ -27,6 +27,7 @@ const {
   migrateCollectionController,
   uploadToS3,
   uploadMiddleware,
+  insertNewFields,
 } = require("../controllers/contentController");
 
 router.post("/createContent", createContent);
@@ -52,5 +53,6 @@ router.get("/getContentForLanding", getContentForLanding);
 router.post("/getMultipleContents", getMultipleContents);
 router.post("/searchContentFromIds", searchContentFromIds);
 router.post("/migrateCollectionController", migrateCollectionController);
-router.post("/uploadToS3",uploadMiddleware, uploadToS3);
+router.post("/uploadToS3", uploadMiddleware, uploadToS3);
+router.post("/insertNewFields", insertNewFields);
 module.exports = router;

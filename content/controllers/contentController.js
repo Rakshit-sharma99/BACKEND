@@ -28,7 +28,7 @@ const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize:20*1024*1024}
+  limits: { fileSize: 20 * 1024 * 1024 }
 });
 
 const mongoose = require("mongoose");
@@ -100,7 +100,7 @@ const createContent = async (req, res) => {
       url: processedUrl,
       idOfSender,
       params,
-      uid:req.user.uid
+      uid: req.user.uid
     };
     const content = await Content.create(data);
     let taggedLen = peopleTagged.length;
@@ -965,14 +965,14 @@ const getEngagementData = async (req, res) => {
     const [contentData, macbeaseContentData, cardsData] = await Promise.all([
       contentIds.length
         ? Content.find({ _id: { $in: contentIds } })
-            .select("likes comments")
-            .lean()
+          .select("likes comments")
+          .lean()
         : [],
       macbeaseContentIds.length
         ? fetchMacbeaseContentFromIds({
-            ids: macbeaseContentIds,
-            select: "likes comments",
-          })
+          ids: macbeaseContentIds,
+          select: "likes comments",
+        })
         : [],
       cardIds.length
         ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
@@ -1098,7 +1098,7 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
 
 //Controller 20
 const getContentForLanding = async (req, res) => {
-  try{
+  try {
     if (req.user.role === "user") {
       const { key, cachedStartTimeStamp, cachedEndTimeStamp, cachedFlagId } =
         req.query;
@@ -1183,7 +1183,7 @@ const getContentForLanding = async (req, res) => {
           async (community) => {
             const randomContent =
               community.content[
-                Math.floor(Math.random() * community.content.length)
+              Math.floor(Math.random() * community.content.length)
               ];
             if (randomContent) {
               const content = await Content.aggregate([
@@ -1367,8 +1367,8 @@ const getContentForLanding = async (req, res) => {
         });
       }
     }
-  }catch(err){
-    console.log("Error in get content for landing :",err);
+  } catch (err) {
+    console.log("Error in get content for landing :", err);
     return res.status(500).send("Something went wrong")
   }
 };
@@ -1497,7 +1497,7 @@ const searchContentFromIds = async (req, res) => {
     const contents = await Content.aggregate(pipeline);
 
     return res.status(200).json(contents);
-  } catch (error) { 
+  } catch (error) {
     console.error("Error in searchContentFromIds:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -1529,19 +1529,19 @@ const migrateCollectionController = async (req, res) => {
   });
 };
 
-const uploadToS3 = async(req,res) => {
-  try{
-    
-    const file = req.file;
-    let {key} = req.body;
+const uploadToS3 = async (req, res) => {
+  try {
 
-    if(!file){
-      return res.status(StatusCodes.BAD_REQUEST).json({success:false,message:"No file provided!"});
+    const file = req.file;
+    let { key } = req.body;
+
+    if (!file) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "No file provided!" });
     }
 
     const uniqueName = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
 
-    if(!key){
+    if (!key) {
       key = `public/content/${uniqueName}`;
     }
 
@@ -1567,12 +1567,49 @@ const uploadToS3 = async(req,res) => {
       });
     });
 
-  }catch(err){
-    console.log("Error uploading file to s3:",err);
+  } catch (err) {
+    console.log("Error uploading file to s3:", err);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR)
-              .json({success:false,message:"Something went wrong!"})
+      .json({ success: false, message: "Something went wrong!" })
   }
 }
+
+const insertNewFields = async (req, res) => {
+  try {
+    const allcontents = await Content.find({});
+
+    const bulkOps = allcontents.map((content) => ({
+      updateOne: {
+        filter: { _id: content._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await Content.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} contents`);
+
+    res.status(200).json({
+      message: "Contents updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 module.exports = {
   createContent,
@@ -1598,6 +1635,7 @@ module.exports = {
   getMultipleContents,
   searchContentFromIds,
   migrateCollectionController,
-  uploadMiddleware:upload.single("file"),
-  uploadToS3
+  uploadMiddleware: upload.single("file"),
+  uploadToS3,
+  insertNewFields
 };
