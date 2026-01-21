@@ -578,9 +578,9 @@ const getBasicUserBio = async (req, res) => {
     const { id } = req.query;
     const user = await User.findById(id, {
       course: 1,
-      image:1,
-      name:1,
-      fullName:1,
+      image: 1,
+      name: 1,
+      fullName: 1,
       passoutYear: 1,
       clubs: 1,
       role: 1,
@@ -595,7 +595,7 @@ const getBasicUserBio = async (req, res) => {
       incompleteProfile: 1,
       level: 1,
       ip: 1,
-      memoryList:1
+      memoryList: 1
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -612,7 +612,7 @@ const getBasicUserBio = async (req, res) => {
     } else {
       tunerIds = [];
     }
-    const [communities, clubs, tunerGraphics,memoriesCount] = await Promise.all([
+    const [communities, clubs, tunerGraphics, memoriesCount] = await Promise.all([
       Community.find(
         { _id: { $in: communityIds } },
         { title: 1, secondaryCover: 1 }
@@ -1556,12 +1556,15 @@ const insertNewFields = async (req, res) => {
         filter: { _id: user._id },
         update: {
           $set: {
-            uid: "682f0418482d651a6df66c23",
+            uid: "696f491a0bfc89b35dc62326",
             universeMetaData: {
-              location: "Phagwara,Punjab,India",
-              logo: "public/universes/lpu_logo.jpg",
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
               name: "Lovely Professional University",
-              callSign: "universe",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
             },
           },
         },

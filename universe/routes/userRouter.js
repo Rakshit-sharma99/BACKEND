@@ -91,9 +91,9 @@ router.get("/readContentTeam", readContentTeam);
 router.get("/removeFromTeam", removeFromTeam);
 router.get("/getContentTeamAdmins", getContentTeamAdmins);
 router.post("/saveInterest", saveInterest);
-router.get("/insertNewFields", insertNewFields);
+router.post("/insertNewFields", insertNewFields);
 router.get("/getMemoryListUsers", getMemoryListUsers);
-router.get("/getSearchResults",getSearchResults);
+router.get("/getSearchResults", getSearchResults);
 router.get("/getTuners", getTuners);
 router.get("/getMemoryListRecommendation", getMemoryListRecommendation);
 
