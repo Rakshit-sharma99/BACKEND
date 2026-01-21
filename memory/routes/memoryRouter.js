@@ -21,6 +21,7 @@ const {
   getMonthlyMedia,
   getCertificateMemories,
   getMemoryCount,
+  insertNewFields,
 } = require("../controllers/memoryControllers");
 
 router.post("/createMemory", createMemory);
@@ -42,5 +43,6 @@ router.get("/getFriendLinkedMemories", getFriendLinkedMemories);
 router.get("/getMonthlyMedia", getMonthlyMedia);
 router.get("/getCertificateMemories", getCertificateMemories);
 router.get("/getMemoryCount", getMemoryCount);
+router.post("/insertNewFields", insertNewFields);
 
 module.exports = router;

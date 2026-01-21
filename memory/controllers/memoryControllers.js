@@ -18,7 +18,7 @@ const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
  */
 
 // helper function to handle tags
-async function handleTags({ tags, memoryId, userId,callSign }) {
+async function handleTags({ tags, memoryId, userId, callSign }) {
   try {
     const validTags = tags.filter((t) => ["club", "people"].includes(t.type));
     let validPeopleTags = [];
@@ -28,16 +28,16 @@ async function handleTags({ tags, memoryId, userId,callSign }) {
         try {
           if (tag.type === "people") {
             validPeopleTags.push(tag._id);
-            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST",tag.callSign,{
-              id:tag._id,
+            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
+              id: tag._id,
               memoryId,
-              operation:"add"
+              operation: "add"
             })
           } else if (tag.type === "club") {
-             await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST",tag.callSign,{
-              id:tag._id,
+            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
+              id: tag._id,
               memoryId,
-              operation:"add"
+              operation: "add"
             })
           }
         } catch (innerErr) {
@@ -51,8 +51,8 @@ async function handleTags({ tags, memoryId, userId,callSign }) {
 
     //  Add all valid people to the creator's memoryList (no duplicates)
     if (validPeopleTags.length > 0) {
-      await sendKafkaMessage("UPDATE_MEMORY_LIST",callSign,{
-        id:userId,
+      await sendKafkaMessage("UPDATE_MEMORY_LIST", callSign, {
+        id: userId,
         validPeopleTags
       })
     }
@@ -84,9 +84,9 @@ async function memoryCreationSecondaryActions({
 
     // Find users for notifications
     const users = await getUserMetaMap(validPeopleTags, [
-          "unreadNotice",
-          "pushToken",
-        ]);
+      "unreadNotice",
+      "pushToken",
+    ]);
 
     const tokens = users.map((u) => u.pushToken).filter(Boolean);
 
@@ -137,7 +137,7 @@ async function memoryCreationSecondaryActions({
     };
 
     // Push the notice into each tagged user's unreadNotice array
-    await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE",creatorMetaData.callSign,{
+    await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE", creatorMetaData.callSign, {
       notice,
       validPeopleTags
     })
@@ -174,9 +174,9 @@ const createMemory = async (req, res) => {
 
     //  Get user info
     const creatorInfo = await fetchNativeUserData({
-      id:userId,
-      fields:["name","image"],
-      callSign:req.user.callSign
+      id: userId,
+      fields: ["name", "image"],
+      callSign: req.user.callSign
     })
 
     let carouselType = "";
@@ -217,7 +217,7 @@ const createMemory = async (req, res) => {
         image: creatorInfo.image,
       },
       universeMetaData,
-      uid:req.user.uid
+      uid: req.user.uid
     };
 
     //  Create memory
@@ -225,7 +225,7 @@ const createMemory = async (req, res) => {
 
     // Add memory to tagged
     if (visibility !== "private") {
-      await handleTags({ tags, memoryId: memory._id, userId,callSign:req.user.callSign });
+      await handleTags({ tags, memoryId: memory._id, userId, callSign: req.user.callSign });
     }
 
     // Handle secondary actions
@@ -300,10 +300,10 @@ const getMemories = async (req, res) => {
     }
 
     // Excluding pinned memories
-      const user = await fetchNativeUserData({
-      id:userId,
-      fields:["memoryRequests","pinnedMemories"],
-      callSign:req.user.callSign
+    const user = await fetchNativeUserData({
+      id: userId,
+      fields: ["memoryRequests", "pinnedMemories"],
+      callSign: req.user.callSign
     });
     query._id = { $nin: user.pinnedMemories || [] };
 
@@ -390,9 +390,9 @@ const getOthersMemories = async (req, res) => {
 
     // Fetch target user
     const targetUser = await fetchNativeUserData({
-      id:userId,
-      fields:["pinnedMemories","memoryList"],
-      callSign:req.user.callSign
+      id: userId,
+      fields: ["pinnedMemories", "memoryList"],
+      callSign: req.user.callSign
     })
 
 
@@ -510,16 +510,16 @@ async function cleanTags({ tags = [], memoryId, userId }) {
       validTags.map(async (tag) => {
         try {
           if (tag.type === "people") {
-            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST",tag.callSign,{
-              id:tag._id,
+            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
+              id: tag._id,
               memoryId,
-              operation:"remove"
+              operation: "remove"
             })
           } else if (tag.type === "club") {
-            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST",tag.callSign,{
-              id:tag._id,
+            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
+              id: tag._id,
               memoryId,
-              operation:"remove"
+              operation: "remove"
             })
           }
         } catch (innerErr) {
@@ -595,7 +595,7 @@ const editMemory = async (req, res) => {
       // Visibility NOT changed
       if (!wasPrivate) {
         // non-private → non-private
-        await handleTags({ tags: addedTags, memoryId, userId,callSign:req.user.callSign });
+        await handleTags({ tags: addedTags, memoryId, userId, callSign: req.user.callSign });
         await cleanTags({ tags: removedTags, memoryId, userId });
       }
     } else {
@@ -605,10 +605,10 @@ const editMemory = async (req, res) => {
         await cleanTags({ tags: oldTags, memoryId, userId });
       } else if (isChangingFromPrivateToOther) {
         // private → non-private
-        await handleTags({ tags: updatedTags, memoryId, userId,callSign:req.user.callSign });
+        await handleTags({ tags: updatedTags, memoryId, userId, callSign: req.user.callSign });
       } else if (isTogglingBetweenNonPrivate) {
         // non-private → non-private
-        await handleTags({ tags: addedTags, memoryId, userId,callSign:req.user.callSign });
+        await handleTags({ tags: addedTags, memoryId, userId, callSign: req.user.callSign });
         await cleanTags({ tags: removedTags, memoryId, userId });
       }
     }
@@ -666,10 +666,10 @@ const removeMemoryRequest = async (req, res) => {
         .json({ msg: "Memory ID is required." });
     }
 
-    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST",req.user.callSign,{
-      id:userId,
+    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", req.user.callSign, {
+      id: userId,
       memoryId,
-      operation:"remove"
+      operation: "remove"
     })
 
     return res.status(StatusCodes.OK).json({
@@ -706,10 +706,10 @@ const saveMemoryRequest = async (req, res) => {
         .json({ msg: "Memory not found." });
     }
 
-    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST",req.user.callSign,{
-      id:userId,
+    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", req.user.callSign, {
+      id: userId,
       memoryId,
-      operation:"remove"
+      operation: "remove"
     })
 
     const alreadySaved = memory.savedBy.includes(userId);
@@ -839,16 +839,16 @@ const setMemoryPinned = async (req, res) => {
     }
 
     if (isPinned) {
-      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY",req.user.callSign,{
-          id:userId.toString(),
-          memoryId,
-          operation:"add"
+      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", req.user.callSign, {
+        id: userId.toString(),
+        memoryId,
+        operation: "add"
       })
     } else {
-      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY",req.user.callSign,{
-          id:userId.toString(),
-          memoryId,
-          operation:"remove"
+      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", req.user.callSign, {
+        id: userId.toString(),
+        memoryId,
+        operation: "remove"
       })
     }
 
@@ -909,15 +909,15 @@ const fetchMemoryCollections = async (req, res) => {
 
     //fetching memory list
     const user = await fetchNativeUserData({
-      id:userId,
-      fields:["memoryList","role"],
-      callSign:req.user.callSign
+      id: userId,
+      fields: ["memoryList", "role"],
+      callSign: req.user.callSign
     })
     const memoryUsers = await getUserMetaMap(user.memoryList, [
-          "name",
-          "image",
-          "course"
-        ]);
+      "name",
+      "image",
+      "course"
+    ]);
 
     //fetching macbease contributions
     let macbeaseContributions = [];
@@ -929,7 +929,7 @@ const fetchMemoryCollections = async (req, res) => {
             "idOfSender": userId
           },
           "limit": 2,
-      })
+        })
     }
 
     //fetching template folders
@@ -1456,19 +1456,56 @@ const getCertificateMemories = async (req, res) => {
   }
 };
 
-const getMemoryCount = async(req,res) => {
-  try{
-    const {userId} = req.query;
-    
-    const count = await Memory.countDocuments({$or: [{createdBy:userId},{savedBy:userId}]});
+const getMemoryCount = async (req, res) => {
+  try {
+    const { userId } = req.query;
 
-    return res.status(StatusCodes.OK).json({success:true,data:count})
+    const count = await Memory.countDocuments({ $or: [{ createdBy: userId }, { savedBy: userId }] });
 
-  }catch(err){
-    console.log("Error getting memory count:",err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+    return res.status(StatusCodes.OK).json({ success: true, data: count })
+
+  } catch (err) {
+    console.log("Error getting memory count:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
   }
 }
+
+const insertNewFields = async (req, res) => {
+  try {
+    const allmemories = await Memory.find({});
+
+    const bulkOps = allmemories.map((memory) => ({
+      updateOne: {
+        filter: { _id: memory._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await Memory.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} memories`);
+
+    res.status(200).json({
+      message: "Memories updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 module.exports = {
   createMemory,
@@ -1490,5 +1527,6 @@ module.exports = {
   getMonthlyMedia,
   getCertificateMemories,
   handleTags, // this function is not used in router, but in event gallery
-  getMemoryCount
+  getMemoryCount,
+  insertNewFields
 };
