@@ -96,15 +96,15 @@ const fetchRightSequence = async (events) => {
     const clubIds = featuredEvents.map((e) => e.belongsTo.id);
 
     // Fetch clubs with ratings
-    const clubs = await  fetchMultipleClubsData({
-        ids: clubIds,
-        fields: ["_id", "rating"],
-      })
+    const clubs = await fetchMultipleClubsData({
+      ids: clubIds,
+      fields: ["_id", "rating"],
+    })
 
     // Create lookup for club ratings
     const clubRatings = {};
     clubs.forEach((club) => {
-        clubRatings[club._id.toString()] = club.rating || 0;
+      clubRatings[club._id.toString()] = club.rating || 0;
     });
 
     // Sort featured events:
@@ -187,33 +187,33 @@ const getAllEvents = async (req, res) => {
         },
       ]);
     } else {
-      events =await Event.aggregate([
-              { $match: { eventDate: { $gte: new Date() } } },
-              {
-                $addFields: {
-                  isFeatured: { $cond: [{ $eq: ["$status", "featured"] }, 1, 0] },
-                },
-              },
-              {
-                $sort: {
-                  isFeatured: -1, // featured first
-                  eventDate: 1, // then earliest date
-                },
-              },
-              { $project: { bookedBy: 0, isFeatured: 0 } }, // hide helper field
-            ])
+      events = await Event.aggregate([
+        { $match: { eventDate: { $gte: new Date() } } },
+        {
+          $addFields: {
+            isFeatured: { $cond: [{ $eq: ["$status", "featured"] }, 1, 0] },
+          },
+        },
+        {
+          $sort: {
+            isFeatured: -1, // featured first
+            eventDate: 1, // then earliest date
+          },
+        },
+        { $project: { bookedBy: 0, isFeatured: 0 } }, // hide helper field
+      ])
 
-            let finalEvents = events;
-                if (finalEvents.length < batchSize) {
-                  const remaining = batchSize - finalEvents.length;
-                  const pastEvents = await Event.aggregate([
-                    { $match: { eventDate: { $lt: new Date() } } },
-                    { $sort: { eventDate: -1 } },
-                    { $limit: remaining },
-                    { $project: { bookedBy: 0 } },
-                  ]);
-                  finalEvents = [...events, ...pastEvents];
-                }
+      let finalEvents = events;
+      if (finalEvents.length < batchSize) {
+        const remaining = batchSize - finalEvents.length;
+        const pastEvents = await Event.aggregate([
+          { $match: { eventDate: { $lt: new Date() } } },
+          { $sort: { eventDate: -1 } },
+          { $limit: remaining },
+          { $project: { bookedBy: 0 } },
+        ]);
+        finalEvents = [...events, ...pastEvents];
+      }
       events = await fetchRightSequence(finalEvents);
     }
 
@@ -448,11 +448,11 @@ const getEventAnalytics = async (req, res) => {
 
     const canSeeStats = Array.isArray(event.permissions?.whoCanSeeStats) ?
       event.permissions.whoCanSeeStats.includes(req.user.id) :
-        false;
+      false;
 
-    if(!canSeeStats && req.user.role !== "admin"){
+    if (!canSeeStats && req.user.role !== "admin") {
       return res.status(StatusCodes.FORBIDDEN).json({
-        msg:"You do not have access",
+        msg: "You do not have access",
       })
     }
 
@@ -788,8 +788,8 @@ const answerTheQuestion = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
 
-   const authorized = Array.isArray(event.permissions?.whoCanAnswerFAQ) ?
-    event.permissions.whoCanAnswerFAQ.includes(req.user.id) :
+    const authorized = Array.isArray(event.permissions?.whoCanAnswerFAQ) ?
+      event.permissions.whoCanAnswerFAQ.includes(req.user.id) :
       false;
 
     if (!authorized) {
@@ -883,7 +883,7 @@ const getFaq = async (req, res) => {
   const { eventId } = req.query;
 
   try {
-    const event = await Event.findById(eventId, { faq: 1, belongsTo: 1,permissions:1 });
+    const event = await Event.findById(eventId, { faq: 1, belongsTo: 1, permissions: 1 });
     if (!event) {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
@@ -1074,7 +1074,7 @@ const generateTicketListPdf = async (req, res) => {
 
     // Generate and upload PDF
     let pdfUrl;
-    if(format === "PDF file"){
+    if (format === "PDF file") {
       try {
         pdfUrl = await generateTicketPDFAndUpload({
           tickets,
@@ -1208,7 +1208,7 @@ const checkTicketAvailability = async (req, res) => {
       }
     });
 
-    const coupons = await fetchAvailableCoupon({eventId,userId:req.user.id})
+    const coupons = await fetchAvailableCoupon({ eventId, userId: req.user.id })
 
     return res
       .status(StatusCodes.OK)
@@ -1505,7 +1505,7 @@ const checkEventStatus = async (req, res) => {
 
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
-      fields: ["adminId","mainAdmin"],
+      fields: ["adminId", "mainAdmin"],
       callSign: event.universeMetaData.callSign,
     });
 
@@ -1810,9 +1810,8 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${
-            field.type
-          }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -1964,7 +1963,7 @@ const getEventPermissions = async (req, res) => {
 
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
-      fields: ["adminId","members","team"],
+      fields: ["adminId", "members", "team"],
       callSign: event.universeMetaData.callSign,
     });
 
@@ -1980,7 +1979,7 @@ const getEventPermissions = async (req, res) => {
 
     const uniqueUserIds = [...new Set(allUserIds.map((id) => id.toString()))];
 
-    const userMap = await getUserMetaMap(uniqueUserIds,["name","image","pushToken"]);
+    const userMap = await getUserMetaMap(uniqueUserIds, ["name", "image", "pushToken"]);
 
     // Build role lookup sets
     const adminSet = new Set(club.adminId.map((id) => id.toString()));
@@ -2044,10 +2043,10 @@ const assignDefaultPermissions = async (req, res) => {
       if (!clubId) continue;
 
       const club = await fetchNativeClubData({
-      id: clubId,
-      fields: ["adminId","members","team","mainAdmin"],
-      callSign: event.universeMetaData.callSign,
-    });
+        id: clubId,
+        fields: ["adminId", "members", "team", "mainAdmin"],
+        callSign: event.universeMetaData.callSign,
+      });
       if (!club) continue;
 
       const newPermissions = {
@@ -2092,7 +2091,7 @@ const updateEventPermission = async (req, res) => {
 
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
-      fields: ["adminId","members","team","mainAdmin"],
+      fields: ["adminId", "members", "team", "mainAdmin"],
       callSign: event.universeMetaData.callSign,
     });
     if (!club) {
@@ -2145,7 +2144,7 @@ const updateEventPermission = async (req, res) => {
     event.permissions[permissionKey] = uniqueIds;
     await event.save();
 
-    const userMap = await getUserMetaMap(uniqueIds,["name","image","pushToken"])
+    const userMap = await getUserMetaMap(uniqueIds, ["name", "image", "pushToken"])
 
     // Helper to determine role inside the club
     const getRole = (id) => {
@@ -2179,7 +2178,7 @@ const getPastOrFutureEvents = async (req, res) => {
     const { mode, size = 6 } = req.query;
     const limitSize = Math.max(parseInt(size), 1); // ensure it's a number >= 1
 
-    if(mode==="future"){
+    if (mode === "future") {
       const events = Event.aggregate([
         {
           $match: {
@@ -2232,7 +2231,7 @@ const getPastOrFutureEvents = async (req, res) => {
 
 const getEventFieldsById = async (req, res) => {
   try {
-    const { id,ids, fields } = req.body;
+    const { id, ids, fields } = req.body;
 
     if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
       return res
@@ -2258,7 +2257,7 @@ const getEventFieldsById = async (req, res) => {
     // Convert array of fields to space-separated string for Mongoose projection
     const projection = isArrayProjection ? fields.join(" ") : fields;
 
-     if (Array.isArray(ids) && ids.length > 0) {
+    if (Array.isArray(ids) && ids.length > 0) {
       const events = await Event.find({ _id: { $in: ids } }).select(projection);
 
       if (!events || events.length === 0) {
@@ -2398,7 +2397,7 @@ const getEventGallery = async (req, res) => {
           name: 1,
           eventDate: 1,
           place: 1,
-          belongsTo:1,
+          belongsTo: 1,
           gallery: {
             $filter: {
               input: "$gallery",
@@ -2429,9 +2428,9 @@ const addToGallery = async (req, res) => {
 
     // Check if user has bought a ticket for this event
     const hasTicket = await fetchTicketFieldsByQuery({
-      searchBy: { eventId: mongoose.Types.ObjectId(eventId),boughtBy:userId },
+      searchBy: { eventId: mongoose.Types.ObjectId(eventId), boughtBy: userId },
       fields: ["boughtBy"],
-      single:true
+      single: true
     });
 
     // if (!hasTicket) {
@@ -2493,9 +2492,9 @@ const addToGallery = async (req, res) => {
           name: userData.name,
           image: userData.image,
         },
-        callSign:req.user.callSign
+        callSign: req.user.callSign
       };
-      await sendKafkaMessage("CREATE_MEMORY","memory",{memoryData});
+      await sendKafkaMessage("CREATE_MEMORY", "memory", { memoryData });
     }
 
     if (!updatedEvent) {
@@ -2696,10 +2695,10 @@ function formatDateReadable(date) {
     day % 10 === 1 && day !== 11
       ? "st"
       : day % 10 === 2 && day !== 12
-      ? "nd"
-      : day % 10 === 3 && day !== 13
-      ? "rd"
-      : "th";
+        ? "nd"
+        : day % 10 === 3 && day !== 13
+          ? "rd"
+          : "th";
 
   return `${day}${suffix} of ${month}`;
 }
@@ -3109,58 +3108,58 @@ const toggleWaitlist = async (req, res) => {
   }
 };
 
-const getSearchedEvents = async(req,res) => {
-  try{
-    const {query} = req.query;
+const getSearchedEvents = async (req, res) => {
+  try {
+    const { query } = req.query;
     const events = await Event.aggregate([
-        {
-          $search: {
-            index: "default",
-            compound: {
-              should: [
-                {
-                  autocomplete: {
-                    query,
-                    path: "name",
-                    fuzzy: { maxEdits: 1 },
-                  },
+      {
+        $search: {
+          index: "default",
+          compound: {
+            should: [
+              {
+                autocomplete: {
+                  query,
+                  path: "name",
+                  fuzzy: { maxEdits: 1 },
                 },
-                {
-                  text: {
-                    query,
-                    path: ["description", "tags"],
-                    fuzzy: { maxEdits: 1 },
-                  },
+              },
+              {
+                text: {
+                  query,
+                  path: ["description", "tags"],
+                  fuzzy: { maxEdits: 1 },
                 },
-              ],
-            },
+              },
+            ],
           },
         },
-        { $addFields: { membersCount: { $size: "$bookedBy" } } },
-        {
-          $project: {
-            name: 1,
-            url: 1,
-            description: 1,
-            place: 1,
-            eventDate: 1,
-            belongsTo: 1,
-            ticketAvailable: 1,
-            ticketTypes: 1,
-            status: 1,
-            type: { $literal: "event" },
-            score: { $meta: "searchScore" },
-          },
+      },
+      { $addFields: { membersCount: { $size: "$bookedBy" } } },
+      {
+        $project: {
+          name: 1,
+          url: 1,
+          description: 1,
+          place: 1,
+          eventDate: 1,
+          belongsTo: 1,
+          ticketAvailable: 1,
+          ticketTypes: 1,
+          status: 1,
+          type: { $literal: "event" },
+          score: { $meta: "searchScore" },
         },
-        { $sort: { score: -1, membersCount: -1, eventDate: -1 } },
-        { $limit: 12 },
-      ]);
+      },
+      { $sort: { score: -1, membersCount: -1, eventDate: -1 } },
+      { $limit: 12 },
+    ]);
 
-      return res.status(StatusCodes.OK).json({success:true,data:events});
+    return res.status(StatusCodes.OK).json({ success: true, data: events });
 
-  }catch(err){
-    console.log("Error fetching searched events:",err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+  } catch (err) {
+    console.log("Error fetching searched events:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
   }
 }
 
@@ -3173,12 +3172,15 @@ const insertNewFields = async (req, res) => {
         filter: { _id: event._id },
         update: {
           $set: {
-            uid: "682f0418482d651a6df66c23",
+            uid: "696f491a0bfc89b35dc62326",
             universeMetaData: {
-              location: "Phagwara,Punjab,India",
-              logo: "public/universes/lpu_logo.jpg",
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
               name: "Lovely Professional University",
-              callSign: "universe",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
             },
           },
         },
@@ -3220,7 +3222,7 @@ const getFeaturedEvents = async (req, res) => {
     // Convert array of fields to space-separated string for Mongoose projection
     const projection = isArrayProjection ? fields.join(" ") : fields;
 
-    const events = await Event.find({status:"featured"}).select(projection).lean();
+    const events = await Event.find({ status: "featured" }).select(projection).lean();
 
     if (!events) {
       return res.status(404).json({ error: "Event not found." });

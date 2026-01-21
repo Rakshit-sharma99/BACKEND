@@ -3,10 +3,13 @@ const mongoose = require("mongoose");
 // Sub-schema for universeMetaData
 const UniverseMetaDataSchema = new mongoose.Schema(
   {
-    name: String,
-    location: String,
-    logo: String,
-    callSign: String,
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number }
   },
   { _id: false }
 );
@@ -205,125 +208,125 @@ const eventSchema = new mongoose.Schema(
     ],
     extraFieldsRequired: {
       type: Boolean,
-    default: false,
-  },
-  extraFields: [
-    {
-      fieldName: { type: String, required: true },
-      type: {
-        type: String,
-        enum: ["String", "Number", "Boolean", "Date", "Enum","Doc"],
-        required: true,
-      },
-      enumValues: {
-        type: [String], // Ensures it's an array of strings
-        default: undefined, // So it's omitted if not set
-      },
-      placeholder: {
-        type: String,
-      },
-      mandatory: {
-        type: Boolean,
-      },
-      regex: {
-        type: String,
-      },
-      maxSelection: {
-        type: Number,
-      },
+      default: false,
     },
-  ],
-  isPromoted: { type: Boolean, default: false },
-  promotionLevel: { type: Number, default: 0 },
-  promotionExpiry: { type: Date },
-  permissions: {
-    whoCanSeeStats: {
-      type: [String],
-      default: [],
-    },
-    whoCanScanTickets: {
-      type: [String],
-      default: [],
-    },
-    whoCanEditEvent: {
-      type: [String],
-      default: [],
-    },
-    whoCanAnswerFAQ: {
-      type: [String],
-      default: [],
-    },
-  },
-  gallery: [
-    {
-      type: {
-        type: String,
-        enum: ["image", "video"],
-        required: true,
-      },
-      url: {
-        type: String,
-        required: true,
-      },
-      tags: [
-        {
-          x: { type: Number, required: true },
-          y: { type: Number, required: true },
-          user: {
-            _id: {
-              type: mongoose.Schema.Types.ObjectId,
-              ref: "User",
-              required: true,
-            },
-            name: { type: String, required: true },
-            image: { type: String },
-          },
+    extraFields: [
+      {
+        fieldName: { type: String, required: true },
+        type: {
+          type: String,
+          enum: ["String", "Number", "Boolean", "Date", "Enum", "Doc"],
+          required: true,
         },
-      ],
-      postedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
-        required: true,
+        enumValues: {
+          type: [String], // Ensures it's an array of strings
+          default: undefined, // So it's omitted if not set
+        },
+        placeholder: {
+          type: String,
+        },
+        mandatory: {
+          type: Boolean,
+        },
+        regex: {
+          type: String,
+        },
+        maxSelection: {
+          type: Number,
+        },
       },
-      userMetaData: {
-        name: String,
-        image: String,
+    ],
+    isPromoted: { type: Boolean, default: false },
+    promotionLevel: { type: Number, default: 0 },
+    promotionExpiry: { type: Date },
+    permissions: {
+      whoCanSeeStats: {
+        type: [String],
+        default: [],
       },
-      createdAt: {
-        type: Date,
-        default: Date.now,
+      whoCanScanTickets: {
+        type: [String],
+        default: [],
       },
-      downloadedBy: [
-        {
+      whoCanEditEvent: {
+        type: [String],
+        default: [],
+      },
+      whoCanAnswerFAQ: {
+        type: [String],
+        default: [],
+      },
+    },
+    gallery: [
+      {
+        type: {
+          type: String,
+          enum: ["image", "video"],
+          required: true,
+        },
+        url: {
+          type: String,
+          required: true,
+        },
+        tags: [
+          {
+            x: { type: Number, required: true },
+            y: { type: Number, required: true },
+            user: {
+              _id: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: "User",
+                required: true,
+              },
+              name: { type: String, required: true },
+              image: { type: String },
+            },
+          },
+        ],
+        postedBy: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
+          required: true,
         },
-      ],
-      featured: {
-        type: Boolean,
-        default: false,
+        userMetaData: {
+          name: String,
+          image: String,
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now,
+        },
+        downloadedBy: [
+          {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+          },
+        ],
+        featured: {
+          type: Boolean,
+          default: false,
+        },
       },
+    ],
+    memoriesUploaded: {
+      type: Boolean,
+      default: false,
     },
-  ],
-  memoriesUploaded: {
-    type: Boolean,
-    default: false,
-  },
-  tags: {
-    type: Array,
-  },
-  postProduction: {
-    type: postProductionSchema,
-    default: () => ({}),
-  },
-  platformFeeEnabled: {
-    type: Boolean,
-    default: false,
-  },
-  platformFee: {
-    type: Number,
-    default: 2.5,
-  },
+    tags: {
+      type: Array,
+    },
+    postProduction: {
+      type: postProductionSchema,
+      default: () => ({}),
+    },
+    platformFeeEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    platformFee: {
+      type: Number,
+      default: 2.5,
+    },
 
     uid: {
       type: String,
