@@ -17,6 +17,7 @@ const {
   getRandomCardsForFeed,
   indexedReturn,
   getSearchedCards,
+  insertNewFields,
 } = require("../controllers/cardController");
 
 router.post("/createCard", createCard);
@@ -34,5 +35,6 @@ router.post("/getCardsByIds", getCardsByIds);
 router.get("/getRandomCardsForFeed", getRandomCardsForFeed);
 router.post("/indexedReturn", indexedReturn);
 router.get("/getSearchedCards", getSearchedCards);
+router.post("/insertNewFields", insertNewFields);
 
 module.exports = router;

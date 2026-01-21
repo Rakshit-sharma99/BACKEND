@@ -364,8 +364,8 @@ const getCardsFromTag = async (req, res) => {
     // Normalize to array of regex patterns
     const tagsArray = Array.isArray(tag)
       ? tag
-          .filter((t) => typeof t === "string" && t.trim())
-          .map((t) => new RegExp(t.trim(), "i"))
+        .filter((t) => typeof t === "string" && t.trim())
+        .map((t) => new RegExp(t.trim(), "i"))
       : [new RegExp(tag.trim(), "i")];
 
     if (tagsArray.length === 0) {
@@ -475,10 +475,10 @@ const fetchRightSequence = async (events) => {
     const clubIds = featuredEvents.map((e) => e.belongsTo.id);
 
     // Fetch clubs with ratings
-    const clubs = await  fetchMultipleClubsData({
-        ids: clubIds,
-        fields: ["_id", "rating"],
-      })
+    const clubs = await fetchMultipleClubsData({
+      ids: clubIds,
+      fields: ["_id", "rating"],
+    })
 
     // Create lookup for club ratings
     const clubRatings = {};
@@ -827,49 +827,86 @@ const getRandomCardsForFeed = async (req, res) => {
   }
 };
 
-const getSearchedCards = async(req,res) => {
-  try{
-    const {query} = req.query;
+const getSearchedCards = async (req, res) => {
+  try {
+    const { query } = req.query;
     const cards = await Card.aggregate([
-        {
-          $search: {
-            index: "default",
-            compound: {
-              should: [
-                {
-                  autocomplete: {
-                    query,
-                    path: "value",
-                    fuzzy: { maxEdits: 1 },
-                  },
+      {
+        $search: {
+          index: "default",
+          compound: {
+            should: [
+              {
+                autocomplete: {
+                  query,
+                  path: "value",
+                  fuzzy: { maxEdits: 1 },
                 },
-                { text: { query, path: "tags", fuzzy: { maxEdits: 1 } } },
-              ],
+              },
+              { text: { query, path: "tags", fuzzy: { maxEdits: 1 } } },
+            ],
+          },
+        },
+      },
+      {
+        $project: {
+          value: 1,
+          tags: 1,
+          creator: 1,
+          userMetaData: 1,
+          vector: 1,
+          type: { $literal: "card" },
+          score: { $meta: "searchScore" },
+        },
+      },
+      { $sort: { score: -1 } },
+      { $limit: 12 },
+    ]);
+
+    return res.status(StatusCodes.OK).json({ success: true, data: cards });
+
+  } catch (err) {
+    console.log("Error fetching searched cards:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
+  }
+}
+
+const insertNewFields = async (req, res) => {
+  try {
+    const allcards = await Card.find({});
+
+    const bulkOps = allcards.map((card) => ({
+      updateOne: {
+        filter: { _id: card._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
             },
           },
         },
-        {
-          $project: {
-            value: 1,
-            tags: 1,
-            creator: 1,
-            userMetaData: 1,
-            vector: 1,
-            type: { $literal: "card" },
-            score: { $meta: "searchScore" },
-          },
-        },
-        { $sort: { score: -1 } },
-        { $limit: 12 },
-      ]);
+      },
+    }));
 
-      return res.status(StatusCodes.OK).json({success:true,data:cards});
+    const result = await Card.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} cards`);
 
-  }catch(err){
-    console.log("Error fetching searched cards:",err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({success:false,msg:"Something went wrong!"})
+    res.status(200).json({
+      message: "Cards updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-}
+};
 
 module.exports = {
   createCard,
@@ -886,5 +923,6 @@ module.exports = {
   getCardsByIds,
   getRandomCardsForFeed,
   indexedReturn,
-  getSearchedCards
+  getSearchedCards,
+  insertNewFields
 };
