@@ -64,7 +64,7 @@ const createContent = async (req, res) => {
       userPushToken: user.pushToken,
     };
 
-    const data = { ...req.body, idOfSender, timeStamp: timestamp, params,uid:req.user.uid };
+    const data = { ...req.body, idOfSender, timeStamp: timestamp, params, uid: req.user.uid };
     const content = await MacbeaseContent.create(data);
 
     if (project) {
@@ -1312,12 +1312,15 @@ const insertNewFields = async (req, res) => {
         filter: { _id: content._id },
         update: {
           $set: {
-            uid: "682f0418482d651a6df66c23",
+            uid: "696f491a0bfc89b35dc62326",
             universeMetaData: {
-              location: "Phagwara,Punjab,India",
-              logo: "public/universes/lpu_logo.jpg",
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
               name: "Lovely Professional University",
-              callSign: "universe",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
             },
           },
         },
@@ -1339,13 +1342,13 @@ const insertNewFields = async (req, res) => {
   }
 };
 
-const getMacbeaseContentByField = async(req,res) => {
+const getMacbeaseContentByField = async (req, res) => {
   try {
     const {
       limit = 5,
       select,
       sortField = "timeStamp",
-      searchBy 
+      searchBy
     } = req.body;
 
     // Validate search fields

@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const commentSchema = new mongoose.Schema({
-  cid:{
+  cid: {
     type: String,
     unique: true,
   },
@@ -48,7 +48,7 @@ const commentSchema = new mongoose.Schema({
     }
   ],
 },
-{_id: false}
+  { _id: false }
 )
 
 const macbeaseContentSchema = new mongoose.Schema({
@@ -108,7 +108,7 @@ const macbeaseContentSchema = new mongoose.Schema({
         contributorPic: String,
         userPushToken: String,
       },
-      {_id: false}
+      { _id: false }
     )
   },
   metaData: {
@@ -119,7 +119,7 @@ const macbeaseContentSchema = new mongoose.Schema({
         uri: String,
         mimeType: String,
       },
-      { _id: false}
+      { _id: false }
     )
   },
   underReview: {
@@ -137,10 +137,13 @@ const macbeaseContentSchema = new mongoose.Schema({
     type: String,
   },
   universeMetaData: {
-    name: String,
-    location: String,
-    logo: String,
-    callSign: String,
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number }
   }
 });
 
