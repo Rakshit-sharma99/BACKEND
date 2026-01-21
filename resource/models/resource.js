@@ -98,6 +98,9 @@ const resourceSchema = new mongoose.Schema(
       location: { type: String },
       logo: { type: String },
       callSign: { type: String },
+      logoKey: { type: String },
+      lat: { type: Number },
+      lng: { type: Number }
     },
   },
   {

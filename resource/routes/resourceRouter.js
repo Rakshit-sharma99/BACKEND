@@ -14,6 +14,7 @@ const {
   searchFromAllResources,
   getResourceById,
   getSampleResources,
+  insertNewFields,
 } = require("../controllers/resourceControllers");
 
 router.post("/createResource", createResource);
@@ -28,5 +29,6 @@ router.get("/getRecommendedNotes", getRecommendedNotes);
 router.get("/searchFromAllResources", searchFromAllResources);
 router.get("/getResourceById", getResourceById);
 router.get("/getSampleResources", getSampleResources);
+router.post("/insertNewFields", insertNewFields);
 
 module.exports = router;

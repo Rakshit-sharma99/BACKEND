@@ -483,6 +483,43 @@ const getSampleResources = async (req, res) => {
   }
 };
 
+const insertNewFields = async (req, res) => {
+  try {
+    const allresources = await Resource.find({});
+
+    const bulkOps = allresources.map((resource) => ({
+      updateOne: {
+        filter: { _id: resource._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await Resource.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} resources`);
+
+    res.status(200).json({
+      message: "Resources updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   createResource,
   getResources,
@@ -496,4 +533,5 @@ module.exports = {
   searchFromAllResources,
   getResourceById,
   getSampleResources,
+  insertNewFields
 };
