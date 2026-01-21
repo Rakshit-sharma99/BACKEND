@@ -11,7 +11,7 @@ const createOverlay = async (req, res) => {
         .send("You are not authorized to access this route.");
     }
 
-    const { title, aspectRatio, cover, buttons,universeMetaData } = req.body;
+    const { title, aspectRatio, cover, buttons, universeMetaData } = req.body;
 
     // Basic validation
     if (!cover) {
@@ -28,7 +28,7 @@ const createOverlay = async (req, res) => {
       aspectRatio,
       cover,
       buttons: buttons || [],
-      uid:req.user.uid,
+      uid: req.user.uid,
       universeMetaData
     });
 
@@ -80,9 +80,9 @@ const addOverlayToUsers = async (req, res) => {
         .json({ error: "userIds (array) and overlayId are required" });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
-      operation:"add",
-      targetType:"multiple",
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+      operation: "add",
+      targetType: "multiple",
       overlayId,
       userIds
     })
@@ -123,9 +123,9 @@ const handleOverlayButtonPress = async (req, res) => {
       { new: true }
     );
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
-      operation:"remove",
-      targetType:"single",
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+      operation: "remove",
+      targetType: "single",
       overlayId,
       userId
     })
@@ -156,11 +156,11 @@ const addOverlayToTicketBuyers = async (req, res) => {
       return res.status(404).json({ msg: "No buyers found for this event" });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
-      operation:"add",
-      targetType:"multiple",
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+      operation: "add",
+      targetType: "multiple",
       overlayId,
-      userIds:buyerIds
+      userIds: buyerIds
     })
 
     return res.status(200).json({ msg: "Overlay added" });
@@ -181,9 +181,9 @@ const addOverlayToAllUsers = async (req, res) => {
       });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
-      operation:"add",
-      targetType:"all",
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+      operation: "add",
+      targetType: "all",
       overlayId
     })
 
@@ -211,9 +211,9 @@ const removeOverlayFromAllUsers = async (req, res) => {
       });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION",req.user.callSign,{
-      operation:"remove",
-      targetType:"all",
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+      operation: "remove",
+      targetType: "all",
       overlayId
     })
 
@@ -230,6 +230,43 @@ const removeOverlayFromAllUsers = async (req, res) => {
   }
 };
 
+const insertNewFields = async (req, res) => {
+  try {
+    const alloverlays = await Overlay.find({});
+
+    const bulkOps = alloverlays.map((overlay) => ({
+      updateOne: {
+        filter: { _id: overlay._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      },
+    }));
+
+    const result = await Overlay.bulkWrite(bulkOps);
+    console.log(`Updated ${result.modifiedCount} overlays`);
+
+    res.status(200).json({
+      message: "Overlays updated successfully.",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
 module.exports = {
   createOverlay,
   getOverlayById,
@@ -238,4 +275,5 @@ module.exports = {
   addOverlayToTicketBuyers,
   addOverlayToAllUsers,
   removeOverlayFromAllUsers,
+  insertNewFields
 };

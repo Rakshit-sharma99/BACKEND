@@ -9,6 +9,7 @@ const {
   addOverlayToTicketBuyers,
   addOverlayToAllUsers,
   removeOverlayFromAllUsers,
+  insertNewFields,
 } = require("../controllers/overlayControllers");
 
 router.post("/createOverlay", createOverlay);
@@ -18,5 +19,6 @@ router.post("/handleOverlayButtonPress", handleOverlayButtonPress);
 router.post("/addOverlayToTicketBuyers", addOverlayToTicketBuyers);
 router.post("/addOverlayToAllUsers", addOverlayToAllUsers);
 router.post("/removeOverlayFromAllUsers", removeOverlayFromAllUsers);
+router.post("/insertNewFields", insertNewFields);
 
 module.exports = router;

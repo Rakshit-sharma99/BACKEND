@@ -54,15 +54,18 @@ const OverlaySchema = new mongoose.Schema(
         actionType: { type: String },
       },
     ],
-  uid: {
-    type: String,
-  },
-  universeMetaData: {
-    name: String,
-    location: String,
-    logo: String,
-    callSign: String,
-  },
+    uid: {
+      type: String,
+    },
+    universeMetaData: {
+      name: { type: String },
+      location: { type: String },
+      logo: { type: String },
+      callSign: { type: String },
+      logoKey: { type: String },
+      lat: { type: Number },
+      lng: { type: Number }
+    },
   },
   { timestamps: true }
 );
