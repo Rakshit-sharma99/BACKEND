@@ -64,10 +64,13 @@ const invitationSchema = new mongoose.Schema({
     type: String,
   },
   universeMetaData: {
-    name: String,
-    location: String,
-    logo: String,
-    callSign: String,
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number }
   }
 });
 

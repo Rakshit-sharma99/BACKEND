@@ -1,12 +1,12 @@
 const { StatusCodes } = require("http-status-codes");
 const Invitation = require("../models/invitation");
-const {sendKafkaMessage} = require("../config/utils/sendKafkaMessage");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { default: mongoose } = require("mongoose");
 const { fetchUserData, fetchNativeUserData, fetchNativeClubData } = require("./utilController");
 
 //Controller 1
 const createInvitation = async (req, res) => {
-  const { sentTo, action, text, img1, img2, type, subject,universeMetaData } = req.body;
+  const { sentTo, action, text, img1, img2, type, subject, universeMetaData } = req.body;
   if (!sentTo || !action || !text || !type || !universeMetaData) {
     return res.status(StatusCodes.BAD_REQUEST).send("Incomplete data.");
   }
@@ -19,11 +19,11 @@ const createInvitation = async (req, res) => {
       ...req.body,
       sentBy: req.user.id,
       expiration: futureDate,
-      uid:req.user.uid
+      uid: req.user.uid
     });
-    await sendKafkaMessage("CREATE_INVITATION",req.user.callSign,{
-      invitationId:invitation._id.toString(),
-      sendBy:req.user.id,
+    await sendKafkaMessage("CREATE_INVITATION", req.user.callSign, {
+      invitationId: invitation._id.toString(),
+      sendBy: req.user.id,
       sentTo,
       img1,
       img2,
@@ -48,8 +48,8 @@ const getInvitationInfo = async (req, res) => {
     const invitation = await Invitation.findById(invitationId);
     const userId = invitation.sentBy;
     const user_query = {
-      id:userId,
-      fields: ["name","image","pushToken"]
+      id: userId,
+      fields: ["name", "image", "pushToken"]
     }
     const userInfo = await fetchUserData(user_query);
     const finalData = { invitation, userInfo };
@@ -91,7 +91,7 @@ const declineInvitation = async (req, res) => {
     }
     invitation.state = "rejected";
     await invitation.save();
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION",req.user.callSign,{
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
       sentBy: invitation.sentBy.toString(),
       sentTo: invitation.sentTo.toString(),
       pingLevel: 2,
@@ -155,7 +155,7 @@ const endorseInvitation = async (req, res) => {
     if (!result) {
       return res.status(StatusCodes.NOT_FOUND).send("Invitation not found.");
     }
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION",req.user.callSign,{
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
       sentBy: result.sentBy.toString(),
       sentTo: result.sentTo.toString(),
       pingLevel: 0,
@@ -214,7 +214,7 @@ const acceptInvitation = async (req, res) => {
 
     invitation.state = "accepted";
     await invitation.save();
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION",req.user.callSign,{
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
       sentBy: invitation.sentBy.toString(),
       sentTo: invitation.sentTo.toString(),
       pingLevel: 2,
@@ -271,8 +271,8 @@ const getPendingCreatorApplications = async (req, res) => {
     // Fetch metadata for each `sentBy` user (in parallel)
     const userMetadataList = await Promise.all(
       applications.map((app) => fetchUserData({
-        id:app.sentBy.toString(),
-        fields:["name","image","pushToken","_id"]
+        id: app.sentBy.toString(),
+        fields: ["name", "image", "pushToken", "_id"]
       }))
     );
 
@@ -298,9 +298,9 @@ const fetchAllClubProposals = async (req, res) => {
     const { clubId } = req.query;
 
     const club_query = {
-      id:clubId,
-      fields: ["proposalHistory","undecidedProposals"],
-      callSign:"universe"
+      id: clubId,
+      fields: ["proposalHistory", "undecidedProposals"],
+      callSign: "universe"
     }
     const club = await fetchNativeClubData(club_query);
 
@@ -328,9 +328,9 @@ const fetchAllClubProposals = async (req, res) => {
     await Promise.all(
       userIds.map(async (userId) => {
         const userData = await fetchNativeUserData({
-          id:userId,
-          fields:["name","course","reg","field","passoutYear","level","email"],
-          callSign:"universe"
+          id: userId,
+          fields: ["name", "course", "reg", "field", "passoutYear", "level", "email"],
+          callSign: "universe"
         });
         userMap.set(userId, userData);
       })
@@ -396,38 +396,41 @@ const getInvitationById = async (req, res) => {
   }
 };
 
-const insertNewFields = async (req,res) => {
-    try{
-        const allInvitations = await Invitation.find({});
+const insertNewFields = async (req, res) => {
+  try {
+    const allInvitations = await Invitation.find({});
 
-        const bulkOps = allInvitations.map((invitation) => ({
-            updateOne: {
-                filter: {_id: invitation._id},
-                update:{
-                   $set: {
-                    uid: "682f0418482d651a6df66c23",
-                    universeMetaData: {
-                        location: "Phagwara,Punjab,India",
-                        logo: "public/universes/lpu_logo.jpg",
-                        name: "Lovely Professional University",
-                        callSign: "universe",
-                    },
-                },
-            }, 
-        }
+    const bulkOps = allInvitations.map((invitation) => ({
+      updateOne: {
+        filter: { _id: invitation._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      }
     }));
 
     const result = await Invitation.bulkWrite(bulkOps);
     console.log(`Updated ${result.modifiedCount} Invitations`);
 
     res.status(StatusCodes.OK).json({
-        message: "Invitations updated successfully.",
-        modifiedCount: result.modifiedCount
+      message: "Invitations updated successfully.",
+      modifiedCount: result.modifiedCount
     });
-    } catch(err){
-        console.log("Error updating invitations:",err);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error: "Internal server error"});
-    }
+  } catch (err) {
+    console.log("Error updating invitations:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Internal server error" });
+  }
 }
 
 module.exports = {
