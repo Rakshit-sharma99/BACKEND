@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 // const User = require('../models/user');
 // const schedule = require('node-schedule');
 const Project = require('../models/project');
-const {sendKafkaMessage} = require("../config/utils/sendKafkaMessage");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { fetchNativeUserData, fetchUserData, fetchMacbeaseContent } = require('./utilControllers');
 // const MacbeaseContent = require('../models/macbeaseContent');
 // const { pingUsers, allotProjectChatroom, scheduleNotification2 } = require('./utils');
@@ -30,7 +30,7 @@ const createProject = async (req, res) => {
       title,
       description,
       responseClosedAt,
-      uid:req.user.uid,
+      uid: req.user.uid,
       universeMetaData
     });
 
@@ -358,8 +358,8 @@ const getInterestedCreators = async (req, res) => {
       userIds.map(async (userId) => {
         try {
           return await fetchUserData({
-            id:userId,
-            fields:["name","image","pushToken","_id"]
+            id: userId,
+            fields: ["name", "image", "pushToken", "_id"]
           });
         } catch (err) {
           console.warn(`Failed to fetch user ${userId}:`, err.message);
@@ -406,8 +406,8 @@ const getAllotedCreators = async (req, res) => {
       userIds.map(async (userId) => {
         try {
           return await fetchUserData({
-            id:userId,
-            fields:["name","image","pushToken","_id"]
+            id: userId,
+            fields: ["name", "image", "pushToken", "_id"]
           });
         } catch (err) {
           console.warn(`Failed to fetch user ${userId}:`, err.message);
@@ -585,29 +585,29 @@ const getProjectContents = async (req, res) => {
 };
 
 // Controller 15
-const fetchProjectById = async(req,res) => {
+const fetchProjectById = async (req, res) => {
   const { id } = req.query;
 
-  try{
+  try {
     const project = await Project.findById(id);
 
-    if(!project){
+    if (!project) {
       return res.status(StatusCodes.BAD_REQUEST).send("Project not found.");
     }
 
     return res.status(StatusCodes.OK).send(project);
-  }catch(err){
-    console.log("Error fetching project:",err);
+  } catch (err) {
+    console.log("Error fetching project:", err);
     return res.status(StatusCodes.BAD_REQUEST).send("Something went wrong.");
   }
 }
 
 // Controller 16
-const newProjectChatMessage = async(req,res) => {
-  try{
+const newProjectChatMessage = async (req, res) => {
+  try {
     const { projectId, message, sender } = req.body;
 
-    const project = await Project.findById(projectId,{allotedTo:1,title:1});
+    const project = await Project.findById(projectId, { allotedTo: 1, title: 1 });
 
     if (!project) {
       console.log("Project not found");
@@ -621,82 +621,85 @@ const newProjectChatMessage = async(req,res) => {
       return res.status(StatusCodes.OK).send("No recipients to notify.");
     }
 
-    await sendKafkaMessage("PROJECT_CHAT_MESSAGE",req.user.callSign,{
+    await sendKafkaMessage("PROJECT_CHAT_MESSAGE", req.user.callSign, {
       projectId,
       userIds,
-      title:project.title,
+      title: project.title,
       message,
       sender
     })
 
     return res.status(StatusCodes.OK).send("Success");
-  }catch(err){
+  } catch (err) {
     console.log(err);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Something went wrong.");
   }
 }
 
 // Controller 17
-const allotChatroom = async(req,res) => {
-  const {id} = req.query;
-  
-  try{
-    
-      const project =await Project.findById(id,{allotedTo:1});
-    
-      const userIds = project.allotedTo;
-      
-      const chatDoc = {
-        doc_id:`project${id}`,
-        state:"unread",
-      }
-  
-      await sendKafkaMessage("ALLOT_CHATROOM",req.user.callSign,{
-        chatDoc,
-        userIds
-      })
-  
-      console.log("Successfully added chatRoom."); 
-      return res.status(StatusCodes.OK).send("Successful");
-    }catch(error){ 
-      console.log("Error while alloting chatroom to users:",error);
-      return res.status(StatusCodes.BAD_REQUEST).send("Something went wrong.");
+const allotChatroom = async (req, res) => {
+  const { id } = req.query;
+
+  try {
+
+    const project = await Project.findById(id, { allotedTo: 1 });
+
+    const userIds = project.allotedTo;
+
+    const chatDoc = {
+      doc_id: `project${id}`,
+      state: "unread",
     }
+
+    await sendKafkaMessage("ALLOT_CHATROOM", req.user.callSign, {
+      chatDoc,
+      userIds
+    })
+
+    console.log("Successfully added chatRoom.");
+    return res.status(StatusCodes.OK).send("Successful");
+  } catch (error) {
+    console.log("Error while alloting chatroom to users:", error);
+    return res.status(StatusCodes.BAD_REQUEST).send("Something went wrong.");
+  }
 }
 
 // Controller 18
-const insertNewFields = async (req,res) => {
-    try{
-        const allProjects = await Project.find({});
+const insertNewFields = async (req, res) => {
+  try {
+    const allProjects = await Project.find({});
 
-        const bulkOps = allProjects.map((project) => ({
-            updateOne: {
-                filter: {_id: project._id},
-                update:{
-                   $set: {
-                    uid: "682f0418482d651a6df66c23",
-                    universeMetaData: {
-                        location: "Phagwara,Punjab,India",
-                        logo: "public/universes/lpu_logo.jpg",
-                        name: "Lovely Professional University",
-                        callSign: "universe",
-                    },
-                },
-            }, 
-        }
+    const bulkOps = allProjects.map((project) => ({
+      updateOne: {
+        filter: { _id: project._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      }
     }));
 
     const result = await Project.bulkWrite(bulkOps);
     console.log(`Updated ${result.modifiedCount} Projects`);
 
     res.status(StatusCodes.OK).json({
-        message: "Projects updated successfully.",
-        modifiedCount: result.modifiedCount
+      message: "Projects updated successfully.",
+      modifiedCount: result.modifiedCount
     });
-    } catch(err){
-        console.log("Error updating Projects:",err);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error: "Internal server error"});
-    }
+  } catch (err) {
+    console.log("Error updating Projects:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Internal server error" });
+  }
 }
 
 module.exports = {
