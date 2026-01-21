@@ -1,10 +1,10 @@
 const mongoose = require("mongoose");
-const {StatusCodes} = require("http-status-codes");
+const { StatusCodes } = require("http-status-codes");
 const JoinLink = require("../models/joinLink");
 
 const createJoinLink = async (req, res) => {
   try {
-    const { type, belongsTo, expiry, maxUses, accessibleTo,universeMetaData } = req.body;
+    const { type, belongsTo, expiry, maxUses, accessibleTo, universeMetaData } = req.body;
 
     // Validate `type`
     if (!["Club", "Community"].includes(type)) {
@@ -20,7 +20,7 @@ const createJoinLink = async (req, res) => {
       expiry: expiry ? new Date(expiry) : null,
       maxUses: maxUses ?? -1,
       accessibleTo: accessibleTo || [],
-      uid:req.user.uid,
+      uid: req.user.uid,
       universeMetaData
     });
 
@@ -80,38 +80,41 @@ const getJoinLinkData = async (req, res) => {
   }
 };
 
-const insertNewFields = async (req,res) => {
-    try{
-        const allLinks = await JoinLink.find({});
+const insertNewFields = async (req, res) => {
+  try {
+    const allLinks = await JoinLink.find({});
 
-        const bulkOps = allLinks.map((link) => ({
-            updateOne: {
-                filter: {_id: link._id},
-                update:{
-                   $set: {
-                    uid: "682f0418482d651a6df66c23",
-                    universeMetaData: {
-                        location: "Phagwara,Punjab,India",
-                        logo: "public/universes/lpu_logo.jpg",
-                        name: "Lovely Professional University",
-                        callSign: "universe",
-                    },
-                },
-            }, 
-        }
+    const bulkOps = allLinks.map((link) => ({
+      updateOne: {
+        filter: { _id: link._id },
+        update: {
+          $set: {
+            uid: "696f491a0bfc89b35dc62326",
+            universeMetaData: {
+              location: "Punjab, India",
+              logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+              logoKey: "public/universes/lpu_logo-removebg-preview.png",
+              name: "Lovely Professional University",
+              callSign: "LPU",
+              lat: 31.25361,
+              lng: 75.70361
+            },
+          },
+        },
+      }
     }));
 
     const result = await JoinLink.bulkWrite(bulkOps);
     console.log(`Updated ${result.modifiedCount} joinLinks`);
 
     res.status(StatusCodes.OK).json({
-        message: "joinLinks updated successfully.",
-        modifiedCount: result.modifiedCount
+      message: "joinLinks updated successfully.",
+      modifiedCount: result.modifiedCount
     });
-    } catch(err){
-        console.log("Error updating joinLinks:",err);
-        res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({error: "Internal server error"});
-    }
+  } catch (err) {
+    console.log("Error updating joinLinks:", err);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Internal server error" });
+  }
 }
 
 const getJoinLinkById = async (req, res) => {
