@@ -1,6 +1,62 @@
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 
+const shortcutSchema = new mongoose.Schema(
+  {
+    id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: false,
+    },
+
+    type: {
+      type: String,
+      enum: ["club", "community", "people", "add_button"],
+      required: true,
+    },
+
+    name: {
+      type: String,
+    },
+
+    img: {
+      type: String, // for people profile image
+    },
+
+    native: {
+      type: Boolean,
+      default: false,
+    },
+
+    secondary: {
+      type: String,
+    },
+
+    secondaryImg: {
+      type: String,
+    },
+
+    userPushToken: {
+      type: String, // only for people
+    },
+
+    metaData: {
+      messages: { type: Number, default: 0 },
+      notifications: { type: Number, default: 0 },
+      posts: { type: Number, default: 0 },
+    },
+
+    universeMetaData: {
+      uid: String,
+      name: String,
+      callSign: String,
+      location: String,
+      logo: String,
+      logoKey: String,
+    },
+  },
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
   {
     profession: {
@@ -145,9 +201,7 @@ const userSchema = new mongoose.Schema(
     macbeaseContentContribution: {
       type: Array,
     },
-    shortCuts: {
-      type: Array,
-    },
+    shortCuts: [shortcutSchema],
     ticketsBought: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -252,7 +306,7 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 userSchema.methods.createAccessToken = function () {
@@ -266,7 +320,7 @@ userSchema.methods.createAccessToken = function () {
     process.env.ACCESS_TOKEN_SECRET,
     {
       expiresIn: 60 * 25,
-    }
+    },
   );
 };
 
@@ -281,7 +335,7 @@ userSchema.methods.createRefreshToken = function () {
     process.env.REFRESH_TOKEN_SECRET,
     {
       expiresIn: process.env.REFRESH_TOKEN_LIFETIME,
-    }
+    },
   );
 };
 

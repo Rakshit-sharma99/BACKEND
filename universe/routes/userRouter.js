@@ -47,6 +47,7 @@ const {
   getSearchResults,
   getTuners,
   getMemoryListRecommendation,
+  addUniverseMetaDataToShortcuts,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -80,8 +81,8 @@ router.post("/sendBatchedNotifications", sendBatchedNotifications);
 router.post("/sendMailVerification", sendMailVerification);
 router.post("/verifyEmail", verifyEmail);
 router.post("/completeProfile", completeProfile);
-router.get("/getInactiveUsers", getInactiveUsers),
-  router.post("/updateIncompleteFields", updateIncompleteFields);
+(router.get("/getInactiveUsers", getInactiveUsers),
+  router.post("/updateIncompleteFields", updateIncompleteFields));
 router.get("/getUserById", getUserById);
 router.post("/changeIp", changeIp);
 router.get("/getUsersBySignupDate", getUsersBySignupDate);
@@ -96,5 +97,6 @@ router.get("/getMemoryListUsers", getMemoryListUsers);
 router.get("/getSearchResults", getSearchResults);
 router.get("/getTuners", getTuners);
 router.get("/getMemoryListRecommendation", getMemoryListRecommendation);
+router.post("/addUniverseMetaDataToShortcuts", addUniverseMetaDataToShortcuts);
 
 module.exports = router;

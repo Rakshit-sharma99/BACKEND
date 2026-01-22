@@ -13,7 +13,11 @@ const {
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
 const { lemmatize } = require("./commonControllers");
-const { fetchSearchedEvents, fetchSearchedCards, getMemoryCount } = require("./interServiceCalls");
+const {
+  fetchSearchedEvents,
+  fetchSearchedCards,
+  getMemoryCount,
+} = require("./interServiceCalls");
 require("dotenv").config();
 
 const securePassword = async (password) => {
@@ -33,11 +37,11 @@ const searchUserByName = async (req, res) => {
   }
   const users = await User.find(
     { name: new RegExp(name, "i", "g") },
-    { name: 1, image: 1, _id: 1 }
+    { name: 1, image: 1, _id: 1 },
   );
   const adminUsers = await Admin.find(
     { name: new RegExp(name, "i", "g") },
-    { name: 1, image: 1, _id: 1 }
+    { name: 1, image: 1, _id: 1 },
   );
   let finalData = [...users, ...adminUsers];
   return res.status(StatusCodes.OK).json(finalData);
@@ -135,7 +139,7 @@ const updateUser = async (req, res) => {
       {
         new: true,
         runValidators: true,
-      }
+      },
     );
     res.status(StatusCodes.OK).send("Updated successfully!");
   } else {
@@ -218,7 +222,7 @@ const advanceSearch = async (req, res) => {
         interests: 1,
         deactivated: 1,
         email: 1,
-      }
+      },
     ).limit(100);
     //lucky can see all the users
     if (req.user.id === "67418053759b2a80fd8f7171") {
@@ -233,7 +237,7 @@ const advanceSearch = async (req, res) => {
           interests: 1,
           deactivated: 1,
           email: 1,
-        }
+        },
       );
     }
   } else if (filter === "reg") {
@@ -252,7 +256,7 @@ const advanceSearch = async (req, res) => {
         interests: 1,
         deactivated: 1,
         email: 1,
-      }
+      },
     ).limit(100);
   } else if (filter === "course") {
     user = await User.find(
@@ -266,13 +270,13 @@ const advanceSearch = async (req, res) => {
         interests: 1,
         deactivated: 1,
         email: 1,
-      }
+      },
     ).limit(100);
   } else if (filter === "multipleClubs") {
     const decodedClubIds = JSON.parse(Buffer.from(query, "base64").toString());
     const clubs = await Club.find(
       { _id: { $in: decodedClubIds } },
-      { members: 1 }
+      { members: 1 },
     );
     for (let i = 0; i < clubs.length; i++) {
       const clubMembersIds = clubs[i].members;
@@ -287,7 +291,7 @@ const advanceSearch = async (req, res) => {
           interests: 1,
           deactivated: 1,
           email: 1,
-        }
+        },
       );
       user = [...clubMembers, ...user];
     }
@@ -306,7 +310,7 @@ const advanceSearch = async (req, res) => {
           interests: 1,
           deactivated: 1,
           email: 1,
-        }
+        },
       );
     } else if (organisationType === "Community") {
       const community = await Community.findById(organisationId, {
@@ -323,7 +327,7 @@ const advanceSearch = async (req, res) => {
           interests: 1,
           deactivated: 1,
           email: 1,
-        }
+        },
       );
     }
   } else if (filter === "all") {
@@ -487,7 +491,7 @@ const getPermanentNoticeInBatch = async (req, res) => {
     if (batch && batchSize) {
       notices = user.notifications.slice(
         (batch - 1) * batchSize,
-        batch * batchSize
+        batch * batchSize,
       );
     } else {
       notices = user.notifications;
@@ -555,7 +559,7 @@ const sendMailToUsers = async (req, res) => {
       intro,
       outro,
       subject,
-      destination
+      destination,
     );
     ses.sendEmail(params, function (err, data) {
       if (err) {
@@ -595,16 +599,16 @@ const getBasicUserBio = async (req, res) => {
       incompleteProfile: 1,
       level: 1,
       ip: 1,
-      memoryList: 1
+      memoryList: 1,
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
     }
     const communityIds = user.communitiesPartOf.map((item) =>
-      mongoose.Types.ObjectId(item.communityId)
+      mongoose.Types.ObjectId(item.communityId),
     );
     const clubIds = user.clubs.map((item) =>
-      mongoose.Types.ObjectId(item.clubId)
+      mongoose.Types.ObjectId(item.clubId),
     );
     let tunerIds = [];
     if (user.tunedIn_By) {
@@ -612,18 +616,22 @@ const getBasicUserBio = async (req, res) => {
     } else {
       tunerIds = [];
     }
-    const [communities, clubs, tunerGraphics, memoriesCount] = await Promise.all([
-      Community.find(
-        { _id: { $in: communityIds } },
-        { title: 1, secondaryCover: 1 }
-      ).lean(),
-      Club.find({ _id: { $in: clubIds } }, { name: 1, secondaryImg: 1 }).lean(),
-      User.find(
-        { _id: { $in: tunerIds } },
-        { name: 1, image: 1, pushToken: 1 }
-      ).lean(),
-      getMemoryCount(id)
-    ]);
+    const [communities, clubs, tunerGraphics, memoriesCount] =
+      await Promise.all([
+        Community.find(
+          { _id: { $in: communityIds } },
+          { title: 1, secondaryCover: 1 },
+        ).lean(),
+        Club.find(
+          { _id: { $in: clubIds } },
+          { name: 1, secondaryImg: 1 },
+        ).lean(),
+        User.find(
+          { _id: { $in: tunerIds } },
+          { name: 1, image: 1, pushToken: 1 },
+        ).lean(),
+        getMemoryCount(id),
+      ]);
     const outcome = {
       course: user.course,
       tuned: user.tunedIn_By
@@ -674,7 +682,7 @@ const getPushTokens = async (query, exempt) => {
 
     const users = await User.find(
       { _id: { $in: ids } },
-      { pushToken: 1 }
+      { pushToken: 1 },
     ).lean();
     return users.map((user) => user.pushToken).filter(Boolean);
   }
@@ -685,19 +693,19 @@ const getPushTokens = async (query, exempt) => {
   } else if (query === "all-students") {
     const users = await User.find(
       { profession: "Student" },
-      { pushToken: 1 }
+      { pushToken: 1 },
     ).lean();
     return users.map((user) => user.pushToken).filter(Boolean);
   } else if (query === "all-professors") {
     const users = await User.find(
       { profession: "Professor" },
-      { pushToken: 1 }
+      { pushToken: 1 },
     ).lean();
     return users.map((user) => user.pushToken).filter(Boolean);
   } else if (query === "all-alumni") {
     const users = await User.find(
       { profession: "Alumni" },
-      { pushToken: 1 }
+      { pushToken: 1 },
     ).lean();
     return users.map((user) => user.pushToken).filter(Boolean);
   } else if (query.startsWith("Inactive-users")) {
@@ -745,7 +753,7 @@ const getPushTokens = async (query, exempt) => {
 
     const users = await User.find(
       { _id: { $in: members } },
-      { pushToken: 1 }
+      { pushToken: 1 },
     ).lean();
 
     const pushTokens = users.map((user) => user.pushToken).filter(Boolean);
@@ -811,7 +819,7 @@ const search = async (req, res) => {
           secondaryCover: 1,
           title: 1,
           _id: 1,
-        }
+        },
       ).lean();
       communitiesWithType = communities.map((community) => ({
         ...community,
@@ -823,7 +831,7 @@ const search = async (req, res) => {
           secondaryImg: 1,
           name: 1,
           _id: 1,
-        }
+        },
       ).lean();
       clubsWithType = clubs.map((club) => ({
         ...club,
@@ -832,7 +840,7 @@ const search = async (req, res) => {
     }
     const users = await User.find(
       { name: new RegExp(query, "i", "g") },
-      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 }
+      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 },
     )
       .limit(100)
       .lean();
@@ -1005,7 +1013,7 @@ const searchFromAllProfessors = async (req, res) => {
         course: 1,
         field: 1,
         interests: 1,
-      }
+      },
     );
     return res.status(200).json(professors);
   } catch (error) {
@@ -1043,7 +1051,7 @@ const sendMailVerification = async (req, res) => {
       "Thank you for signing up. Let us know if you have questions!",
       "Verify Your Email",
       email,
-      action
+      action,
     );
 
     await ses.sendEmail(params).promise();
@@ -1066,7 +1074,7 @@ const verifyEmail = async (req, res) => {
         $set: {
           professionalEmail: email,
         },
-      }
+      },
     );
 
     return res.status(StatusCodes.OK).send("Email verified");
@@ -1093,7 +1101,7 @@ const completeProfile = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       req.user.id,
       { $set: fieldsToUpdate },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!updatedUser) {
@@ -1114,7 +1122,7 @@ const sendBatchedNotifications = async (req, res) => {
     const { users, title, body, deepLink } = req.body;
     const usersData = await User.find(
       { _id: { $in: users } },
-      { pushToken: 1 }
+      { pushToken: 1 },
     );
     const tokens = usersData.map((u) => u.pushToken);
     const notificationData = {
@@ -1297,7 +1305,7 @@ const getUsersBySignupDate = async (req, res) => {
           $lt: endOfDay,
         },
       },
-      { name: 1, pushToken: 1 }
+      { name: 1, pushToken: 1 },
     );
 
     res.status(200).json({ total: users.length, users });
@@ -1312,12 +1320,16 @@ const getUserFieldsById = async (req, res) => {
 
   // Validate ID
   if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ error: "Invalid user ID." });
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ error: "Invalid user ID." });
   }
 
   // Validate fields
   if (!fields || !Array.isArray(fields) || fields.length === 0) {
-    return res.status(StatusCodes.BAD_REQUEST).json({ error: "Fields array is required." });
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .json({ error: "Fields array is required." });
   }
 
   // Check for batching
@@ -1340,7 +1352,9 @@ const getUserFieldsById = async (req, res) => {
     const user = await User.findById(id, projection).lean();
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
     return res.status(StatusCodes.OK).json({ data: user });
@@ -1373,7 +1387,7 @@ const addToContentTeam = async (req, res) => {
         intro,
         outro,
         subject,
-        destination
+        destination,
       );
       ses.sendEmail(params, function (err, data) {
         if (err) {
@@ -1413,7 +1427,7 @@ const readContentTeam = async (req, res) => {
         reg: 1,
         pushToken: 1,
         interests: 1,
-      }
+      },
     ).lean();
 
     return res.status(StatusCodes.OK).json(users);
@@ -1463,10 +1477,19 @@ const removeFromTeam = async (req, res) => {
     const destination = [user.email];
 
     try {
-      const { ses, params } = await sendMail(name, intro, outro, subject, destination);
+      const { ses, params } = await sendMail(
+        name,
+        intro,
+        outro,
+        subject,
+        destination,
+      );
       ses.sendEmail(params, (err) => {
         if (err) {
-          console.error("❌ Failed to send removal email:", err.stack || err.message);
+          console.error(
+            "❌ Failed to send removal email:",
+            err.stack || err.message,
+          );
         }
       });
     } catch (emailErr) {
@@ -1536,9 +1559,7 @@ const saveInterest = async (req, res) => {
     user.interests = lemmatized;
     await user.save();
 
-    return res
-      .status(StatusCodes.OK)
-      .send("Successfully updated interests.");
+    return res.status(StatusCodes.OK).send("Successfully updated interests.");
   } catch (error) {
     console.error("Error saving interests:", error);
     return res
@@ -1564,7 +1585,7 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
@@ -1608,7 +1629,7 @@ const getMemoryListUsers = async (req, res) => {
     // Fetch all users in the memoryList
     const memoryUsers = await User.find(
       { _id: { $in: user.memoryList } },
-      { name: 1, image: 1, course: 1 }
+      { name: 1, image: 1, course: 1 },
     );
 
     return res.status(StatusCodes.OK).json({ users: memoryUsers });
@@ -1749,7 +1770,7 @@ const getSearchResults = async (req, res) => {
     }
 
     async function fetchCards() {
-      return fetchSearchedCards(query)
+      return fetchSearchedCards(query);
     }
 
     // fetch based on key mode
@@ -1773,7 +1794,9 @@ const getSearchResults = async (req, res) => {
     categoryBlocks.sort((a, b) => b.top - a.top);
 
     const results = categoryBlocks.flatMap((c) =>
-      c.data.filter((s) => s.score >= MIN_SCORE).slice(key === "All" ? -4 : -12)
+      c.data
+        .filter((s) => s.score >= MIN_SCORE)
+        .slice(key === "All" ? -4 : -12),
     );
     return res.json({ success: true, results });
   } catch (err) {
@@ -1806,7 +1829,7 @@ const getTuners = async (req, res) => {
 
     const tuners = await User.find(
       { _id: { $in: userIds } },
-      { name: 1, image: 1, course: 1, passoutYear: 1 }
+      { name: 1, image: 1, course: 1, passoutYear: 1 },
     ).lean();
 
     return res.status(StatusCodes.OK).json({
@@ -1843,7 +1866,7 @@ const getMemoryListRecommendation = async (req, res) => {
     // Fetch the corresponding user data
     const recommendation = await User.find(
       { _id: { $in: recentMemoryList } },
-      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 }
+      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 },
     ).lean();
 
     return res.status(StatusCodes.OK).json({ recommendation });
@@ -1851,6 +1874,66 @@ const getMemoryListRecommendation = async (req, res) => {
     console.error("Error fetching recent memories:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       msg: "Failed to fetch recent memories.",
+      error: error.message,
+    });
+  }
+};
+
+// controller to insert universe meta data in every shortcut
+const DEFAULT_UNIVERSE = {
+  uid: "696f491a0bfc89b35dc62326",
+  name: "Lovely Professional University",
+  callSign: "LPU",
+  location: "Punjab, India",
+  logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+  logoKey: "public/universes/lpu_logo-removebg-preview.png",
+};
+
+const addUniverseMetaDataToShortcuts = async (req, res) => {
+  try {
+    const users = await User.find(
+      { shortCuts: { $exists: true, $ne: [] } },
+      { shortCuts: 1 },
+    );
+
+    let updatedUsers = 0;
+    let updatedShortcuts = 0;
+
+    for (const user of users) {
+      let changed = false;
+
+      const updatedShortCuts = user.shortCuts.map((sc) => {
+        if (!sc.universeMetaData) {
+          changed = true;
+          updatedShortcuts++;
+
+          return {
+            ...sc.toObject(),
+            universeMetaData: DEFAULT_UNIVERSE,
+          };
+        }
+        return sc;
+      });
+
+      if (changed) {
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { shortCuts: updatedShortCuts } },
+        );
+        updatedUsers++;
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Universe metadata added to shortcuts",
+      updatedUsers,
+      updatedShortcuts,
+    });
+  } catch (error) {
+    console.error("Shortcut migration failed:", error);
+    return res.status(500).json({
+      success: false,
       error: error.message,
     });
   }
@@ -1903,5 +1986,6 @@ module.exports = {
   getMemoryListUsers,
   getSearchResults,
   getTuners,
-  getMemoryListRecommendation
+  getMemoryListRecommendation,
+  addUniverseMetaDataToShortcuts,
 };
