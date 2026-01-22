@@ -21,7 +21,7 @@ const createInvitation = async (req, res) => {
       expiration: futureDate,
       uid: req.user.uid
     });
-    await sendKafkaMessage("CREATE_INVITATION", req.user.callSign, {
+    await sendKafkaMessage("CREATE_INVITATION", "universe", {
       invitationId: invitation._id.toString(),
       sendBy: req.user.id,
       sentTo,
@@ -91,7 +91,7 @@ const declineInvitation = async (req, res) => {
     }
     invitation.state = "rejected";
     await invitation.save();
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", "universe", {
       sentBy: invitation.sentBy.toString(),
       sentTo: invitation.sentTo.toString(),
       pingLevel: 2,
@@ -155,7 +155,7 @@ const endorseInvitation = async (req, res) => {
     if (!result) {
       return res.status(StatusCodes.NOT_FOUND).send("Invitation not found.");
     }
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", "universe", {
       sentBy: result.sentBy.toString(),
       sentTo: result.sentTo.toString(),
       pingLevel: 0,
@@ -214,7 +214,7 @@ const acceptInvitation = async (req, res) => {
 
     invitation.state = "accepted";
     await invitation.save();
-    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", req.user.callSign, {
+    await sendKafkaMessage("SECONDARY_INVITATION_ACTION", "universe", {
       sentBy: invitation.sentBy.toString(),
       sentTo: invitation.sentTo.toString(),
       pingLevel: 2,

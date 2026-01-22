@@ -1,13 +1,13 @@
 const { StatusCodes } = require('http-status-codes');
 const Badge = require('../models/badge');
 const { mongoose } = require('mongoose');
-const { getBody, getClubFieldsById,getCommunityFieldsById,checkAuthorization,sendMail,getUserById } = require('./utilControllers');
+const { getBody, getClubFieldsById, getCommunityFieldsById, checkAuthorization, sendMail, getUserById } = require('./utilControllers');
 const { sendKafkaMessage } = require('../config/utils/sendKafkaMessage');
 
 // Controller 1
 
 const generateBadges = async (req, res) => {
-  const { organisationId, organisationType, organisationInfo,universeMetaData } = req.body;
+  const { organisationId, organisationType, organisationInfo, universeMetaData } = req.body;
   try {
     // Calculate the start and end dates of the current month
     const currentDate = new Date();
@@ -58,9 +58,9 @@ const generateBadges = async (req, res) => {
       const newBadgeIds = badges.map(badge => badge._id);
 
       if (organisationType === 'Club') {
-          await sendKafkaMessage('UPDATE_CLUB',req.user.callSign,{newBadgeIds,organisationId})
+        await sendKafkaMessage('UPDATE_CLUB', "universe", { newBadgeIds, organisationId })
       } else if (organisationType === 'Community') {
-        await sendKafkaMessage('UPDATE_COMMUNITY',req.user.callSign,{newBadgeIds,organisationId})
+        await sendKafkaMessage('UPDATE_COMMUNITY', "universe", { newBadgeIds, organisationId })
       }
       return res.status(StatusCodes.OK).json(badges);
     }
@@ -88,9 +88,9 @@ const giveAdditionalBadges = async (req, res) => {
       const ids = badges.map((doc) => doc._id);
 
       if (organisationType === 'Club') {
-        await sendKafkaMessage('UPDATE_CLUB',req.user.callSign,{newBadgeIds:ids,organisationId})
+        await sendKafkaMessage('UPDATE_CLUB', "universe", { newBadgeIds: ids, organisationId })
       } else if (organisationType === 'Community') {
-        await sendKafkaMessage('UPDATE_COMMUNITY',req.user.callSign,{newBadgeIds:ids,organisationId})
+        await sendKafkaMessage('UPDATE_COMMUNITY', "universe", { newBadgeIds: ids, organisationId })
       }
       return res.status(StatusCodes.OK).json(badges);
     } else {
@@ -113,9 +113,9 @@ const getUnusedBadges = async (req, res) => {
     let unusedBadges = [];
     let fields = ["unusedBadges"]
     if (organisationType === 'Club') {
-      unusedBadges = await getClubFieldsById(organisationId,fields);
+      unusedBadges = await getClubFieldsById(organisationId, fields);
     } else if (organisationType === 'Community') {
-      unusedBadges = await getCommunityFieldsById(organisationId,fields);
+      unusedBadges = await getCommunityFieldsById(organisationId, fields);
     } else {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -139,7 +139,7 @@ const giveBadge = async (req, res) => {
   try {
     let badge = await Badge.findById(badgeId);
     if (badge) {
-      const isAuthorized = await checkAuthorization(badge.organisationId,badge.organisationType,req.user.id);
+      const isAuthorized = await checkAuthorization(badge.organisationId, badge.organisationType, req.user.id);
       if (isAuthorized) {
         badge.description = description;
         badge.ownedBy = userId;
@@ -175,11 +175,11 @@ const giveBadge = async (req, res) => {
         user.unreadNotice = [notice, ...user.unreadNotice];
         await user.save();
 
-        const fields = ["usedBadges","unusedBadges"];
+        const fields = ["usedBadges", "unusedBadges"];
 
         if (badge.organisationType === 'Club') {
-          
-          let club = await getClubFieldsById(badge.organisationId,fields);
+
+          let club = await getClubFieldsById(badge.organisationId, fields);
 
           club.unusedBadges = club.unusedBadges.filter(
             (item) => item.toString() !== badge._id.toString()
@@ -190,7 +190,7 @@ const giveBadge = async (req, res) => {
           await club.save();
         } else if (badge.organisationType === 'Community') {
 
-          let community = await getCommunityFieldsById(badge.organisationId,fields);
+          let community = await getCommunityFieldsById(badge.organisationId, fields);
 
           community.unusedBadges = community.unusedBadges.filter(
             (item) => item.toString() !== badge._id.toString()
@@ -199,7 +199,7 @@ const giveBadge = async (req, res) => {
           community.usedBadges = [badge._id, ...community.usedBadges];
           await community.save();
         }
-        
+
         //sending email to the user
 
         const name = user.name;
@@ -246,7 +246,7 @@ const redundant = async (req, res) => {
   try {
     const ids = arrs.map((item) => mongoose.Types.ObjectId(item));
 
-    await sendKafkaMessage('UPDATE_USER',req.user.callSign,{ids});
+    await sendKafkaMessage('UPDATE_USER', "universe", { ids });
 
     return res.status(StatusCodes.OK).send('done');
   } catch (error) {

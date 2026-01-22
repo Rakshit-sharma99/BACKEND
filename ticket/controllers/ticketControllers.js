@@ -240,7 +240,7 @@ const generateTicket = async (req, res) => {
     }
 
     // Send Kafka messages
-    await sendKafkaMessage("ADD_TICKET_TO_USER_SCHEMA", req.user.callSign, {
+    await sendKafkaMessage("ADD_TICKET_TO_USER_SCHEMA", "universe", {
       userId: req.user.id,
       ticketId: ticket._id.toString(),
       eventData: {
@@ -294,13 +294,13 @@ const markAllItineraries = async ({ ticketId, eventId, userId }) => {
     });
 
     const event_query = {
-    id: eventId,
-    fields: ["itineraries"],
-  };
+      id: eventId,
+      fields: ["itineraries"],
+    };
 
-  const { itineraries } = await fetchEventData(event_query);
+    const { itineraries } = await fetchEventData(event_query);
 
-    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+    const itinerariesData = await fetchItineraries({ itineraryIds: itineraries });
 
     // filter itineraries where this ticket type is allowed
     const allowedItineraries = itinerariesData.filter((i) =>
@@ -314,12 +314,12 @@ const markAllItineraries = async ({ ticketId, eventId, userId }) => {
     await ticketData.save();
 
     // update attendance lists for all itineraries in parallel
-    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",{
-      operation:"PUSH",
-      targetType:"MULTIPLE",
-      field:"attendanceList",
-      value:userId,
-      itineraryIds:allowedItinerariesIds
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION", "itinerary", {
+      operation: "PUSH",
+      targetType: "MULTIPLE",
+      field: "attendanceList",
+      value: userId,
+      itineraryIds: allowedItinerariesIds
     })
 
     return { success: true };
@@ -417,9 +417,9 @@ const scanTicket = async (req, res) => {
   const { ticketId, eventId } = req.body;
   try {
     const event_query = {
-    id: eventId,
-    fields: ["name","permissions"],
-  };
+      id: eventId,
+      fields: ["name", "permissions"],
+    };
     const eventData = await fetchEventData(event_query);
     const isAuthorized =
       req.user.role === "admin" ||
@@ -486,14 +486,14 @@ const findAllAllowedItineraries = async ({ ticketId, eventId }) => {
       checkPoints: 1,
     });
 
-  const event_query = {
-    id: eventId,
-    fields: ["itineraries"],
-  };
+    const event_query = {
+      id: eventId,
+      fields: ["itineraries"],
+    };
 
-  const { itineraries } = await fetchEventData(event_query);
+    const { itineraries } = await fetchEventData(event_query);
 
-    const itinerariesData = await fetchItineraries({itineraryIds:itineraries});
+    const itinerariesData = await fetchItineraries({ itineraryIds: itineraries });
 
     // filter itineraries where this ticket type is allowed
     const allowedItineraries = itinerariesData.filter((i) =>
@@ -521,7 +521,7 @@ const checkPointScan = async (req, res) => {
       return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
     }
 
-     const [
+    const [
       eventData,
       itineraryData,
       ticketData,
@@ -601,14 +601,14 @@ const checkPointScan = async (req, res) => {
         .send("Ticket already scanned for this purpose.");
     }
 
-    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION","itinerary",
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION", "itinerary",
       {
-      operation:"PUSH",
-      targetType:"SINGLE",
-      field:"attendanceList",
-      value:ticketData.boughtBy,
-      itineraryId
-    })
+        operation: "PUSH",
+        targetType: "SINGLE",
+        field: "attendanceList",
+        value: ticketData.boughtBy,
+        itineraryId
+      })
 
     io.emit(`ticketScan_${ticketId}`, {
       itinerary: itineraryData.title,
@@ -1173,7 +1173,7 @@ const fetchPaymentDetails = async (req, res) => {
     const ticket = await Ticket.findOne({ paymentId });
 
     // Fetch event data
-    const eventData = await fetchEventData({id:ticket.eventId,fields:["platformFeeEnabled"]});
+    const eventData = await fetchEventData({ id: ticket.eventId, fields: ["platformFeeEnabled"] });
 
     if (!payments || payments.length === 0) {
       return res.status(404).json({ error: "Payment not found" });

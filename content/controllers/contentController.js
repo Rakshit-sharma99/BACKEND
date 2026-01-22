@@ -148,7 +148,7 @@ const likeContent = async (req, res) => {
         contentInfo.likes.push(userId);
       }
       await contentInfo.save({ session });
-      await sendKafkaMessage("LIKE_CONTENT", req.user.callSign, {
+      await sendKafkaMessage("LIKE_CONTENT", "universe", {
         contentId,
         userId,
         type,
@@ -234,7 +234,7 @@ const comment = async (req, res) => {
     content.comments.unshift(newComment);
     await content.save();
 
-    await sendKafkaMessage("COMMENT_CONTENT", req.user.callSign, {
+    await sendKafkaMessage("COMMENT_CONTENT", "universe", {
       cid: newComment.cid,
       userId: req.user.id,
       contentId,
@@ -301,7 +301,7 @@ const unlikeContent = async (req, res) => {
 
       await contentInfo.save({ session });
 
-      await sendKafkaMessage("UNLIKE_CONTENT", req.user.callSign, {
+      await sendKafkaMessage("UNLIKE_CONTENT", "universe", {
         userId,
         contentId,
       });
@@ -700,7 +700,7 @@ const loadMoreContent = async (req, res) => {
     const userInfo = await fetchNativeUserData({
       id: req.user.id,
       fields: ["communitiesPartOf", "clubs"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     });
 
     const belongsToArray = [
@@ -1130,7 +1130,7 @@ const getContentForLanding = async (req, res) => {
           "shortCuts",
           "incompleteFields",
         ],
-        callSign: req.user.callSign,
+        callSign: "universe",
       });
 
       if (!user) {
@@ -1171,12 +1171,12 @@ const getContentForLanding = async (req, res) => {
           fetchNativeRandomCommunities({
             size: 3,
             projection: "content",
-            callSign: req.user.callSign,
+            callSign: "universe",
           }),
           fetchNativeRandomClubs({
             size: 3,
             projection: "content",
-            callSign: req.user.callSign,
+            callSign: "universe",
           }),
         ]);
         const communityContentPromises = randomCommunities.map(
@@ -1269,7 +1269,7 @@ const getContentForLanding = async (req, res) => {
           })
           .filter(Boolean);
 
-        await sendKafkaMessage("CLEAR_FEED", req.user.callSign, {
+        await sendKafkaMessage("CLEAR_FEED", "universe", {
           userId: req.user.id,
         });
 

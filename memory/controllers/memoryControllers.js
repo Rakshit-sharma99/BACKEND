@@ -176,7 +176,7 @@ const createMemory = async (req, res) => {
     const creatorInfo = await fetchNativeUserData({
       id: userId,
       fields: ["name", "image"],
-      callSign: req.user.callSign
+      callSign: "universe"
     })
 
     let carouselType = "";
@@ -225,7 +225,7 @@ const createMemory = async (req, res) => {
 
     // Add memory to tagged
     if (visibility !== "private") {
-      await handleTags({ tags, memoryId: memory._id, userId, callSign: req.user.callSign });
+      await handleTags({ tags, memoryId: memory._id, userId, callSign: "universe" });
     }
 
     // Handle secondary actions
@@ -303,7 +303,7 @@ const getMemories = async (req, res) => {
     const user = await fetchNativeUserData({
       id: userId,
       fields: ["memoryRequests", "pinnedMemories"],
-      callSign: req.user.callSign
+      callSign: "universe"
     });
     query._id = { $nin: user.pinnedMemories || [] };
 
@@ -392,7 +392,7 @@ const getOthersMemories = async (req, res) => {
     const targetUser = await fetchNativeUserData({
       id: userId,
       fields: ["pinnedMemories", "memoryList"],
-      callSign: req.user.callSign
+      callSign: "universe"
     })
 
 
@@ -595,7 +595,7 @@ const editMemory = async (req, res) => {
       // Visibility NOT changed
       if (!wasPrivate) {
         // non-private → non-private
-        await handleTags({ tags: addedTags, memoryId, userId, callSign: req.user.callSign });
+        await handleTags({ tags: addedTags, memoryId, userId, callSign: "universe" });
         await cleanTags({ tags: removedTags, memoryId, userId });
       }
     } else {
@@ -605,10 +605,10 @@ const editMemory = async (req, res) => {
         await cleanTags({ tags: oldTags, memoryId, userId });
       } else if (isChangingFromPrivateToOther) {
         // private → non-private
-        await handleTags({ tags: updatedTags, memoryId, userId, callSign: req.user.callSign });
+        await handleTags({ tags: updatedTags, memoryId, userId, callSign: "universe" });
       } else if (isTogglingBetweenNonPrivate) {
         // non-private → non-private
-        await handleTags({ tags: addedTags, memoryId, userId, callSign: req.user.callSign });
+        await handleTags({ tags: addedTags, memoryId, userId, callSign: "universe" });
         await cleanTags({ tags: removedTags, memoryId, userId });
       }
     }
@@ -666,7 +666,7 @@ const removeMemoryRequest = async (req, res) => {
         .json({ msg: "Memory ID is required." });
     }
 
-    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", req.user.callSign, {
+    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", "universe", {
       id: userId,
       memoryId,
       operation: "remove"
@@ -706,7 +706,7 @@ const saveMemoryRequest = async (req, res) => {
         .json({ msg: "Memory not found." });
     }
 
-    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", req.user.callSign, {
+    await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", "universe", {
       id: userId,
       memoryId,
       operation: "remove"
@@ -839,13 +839,13 @@ const setMemoryPinned = async (req, res) => {
     }
 
     if (isPinned) {
-      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", req.user.callSign, {
+      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", "universe", {
         id: userId.toString(),
         memoryId,
         operation: "add"
       })
     } else {
-      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", req.user.callSign, {
+      await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", "universe", {
         id: userId.toString(),
         memoryId,
         operation: "remove"
@@ -911,7 +911,7 @@ const fetchMemoryCollections = async (req, res) => {
     const user = await fetchNativeUserData({
       id: userId,
       fields: ["memoryList", "role"],
-      callSign: req.user.callSign
+      callSign: "universe"
     })
     const memoryUsers = await getUserMetaMap(user.memoryList, [
       "name",

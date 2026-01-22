@@ -67,12 +67,12 @@ const createCard = async (req, res) => {
       universeMetaData,
     });
 
-    await sendKafkaMessage("ADD_CARD", req.user.callSign, {
+    await sendKafkaMessage("ADD_CARD", "universe", {
       userId: req.user.id,
       cardId: card._id.toString(),
     });
 
-    await sendKafkaMessage("UPDATE_CARD_FEED", req.user.callSign, {
+    await sendKafkaMessage("UPDATE_CARD_FEED", "universe", {
       card,
     });
 
@@ -109,7 +109,7 @@ const deleteCard = async (req, res) => {
     }
 
     // Notify via Kafka
-    await sendKafkaMessage("DELETE_CARD", req.user.callSign, {
+    await sendKafkaMessage("DELETE_CARD", "universe", {
       userId: req.user.id,
       cardId,
     });
@@ -144,7 +144,7 @@ const likeACard = async (req, res) => {
       card.likedBy.push(userId);
       await card.save();
 
-      await sendKafkaMessage("LIKE_CARD", req.user.callSign, {
+      await sendKafkaMessage("LIKE_CARD", "universe", {
         userId,
         cardId: card._id.toString(),
       });
@@ -205,7 +205,7 @@ const unlikeACard = async (req, res) => {
 
     await card.save();
 
-    await sendKafkaMessage("UNLIKE_CARD", req.user.callSign, {
+    await sendKafkaMessage("UNLIKE_CARD", "universe", {
       userId,
       cardId,
     });
@@ -229,7 +229,7 @@ const getLikedCards = async (req, res) => {
     const user = await fetchNativeUserData({
       id: req.user.id,
       fields: ["likedCards"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     });
 
     if (key === "detail") {
@@ -408,7 +408,7 @@ const getYourInterests = async (req, res) => {
     const user = await fetchNativeUserData({
       id: req.user.id,
       fields: ["name", "image", "interests", "cards"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     });
 
     if (!user) {
@@ -557,7 +557,7 @@ const indexedReturn = async (req, res) => {
     const user = await fetchNativeUserData({
       id: req.user.id,
       fields: ["clubs", "communitiesPartOf"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     });
     const clubIdsPartOf = user.clubs.map((club) => club.clubId);
     const commIdspartOf = user.communitiesPartOf.map(

@@ -80,7 +80,7 @@ const addOverlayToUsers = async (req, res) => {
         .json({ error: "userIds (array) and overlayId are required" });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", "universe", {
       operation: "add",
       targetType: "multiple",
       overlayId,
@@ -123,7 +123,7 @@ const handleOverlayButtonPress = async (req, res) => {
       { new: true }
     );
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", "universe", {
       operation: "remove",
       targetType: "single",
       overlayId,
@@ -156,7 +156,7 @@ const addOverlayToTicketBuyers = async (req, res) => {
       return res.status(404).json({ msg: "No buyers found for this event" });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", "universe", {
       operation: "add",
       targetType: "multiple",
       overlayId,
@@ -181,7 +181,7 @@ const addOverlayToAllUsers = async (req, res) => {
       });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", "universe", {
       operation: "add",
       targetType: "all",
       overlayId
@@ -211,7 +211,7 @@ const removeOverlayFromAllUsers = async (req, res) => {
       });
     }
 
-    await sendKafkaMessage("USER_OVERLAY_OPERATION", req.user.callSign, {
+    await sendKafkaMessage("USER_OVERLAY_OPERATION", "universe", {
       operation: "remove",
       targetType: "all",
       overlayId

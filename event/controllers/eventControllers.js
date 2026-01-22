@@ -370,7 +370,7 @@ const getTicketsBought = async (req, res) => {
     const user_query = {
       id: req.user.id,
       fields: ["ticketsBought"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     };
     const user = await fetchNativeUserData(user_query);
 
@@ -590,7 +590,7 @@ const addPredefinedQues = async (req, res) => {
       req.user.id,
       req.user.role,
       event.belongsTo,
-      req.user.callSign
+      "universe"
     );
 
     if (!ques || !ans || !authorized) {
@@ -645,7 +645,7 @@ const removePredefinedQues = async (req, res) => {
       req.user.id,
       req.user.role,
       event?.belongsTo,
-      req.user.callSign
+      "universe"
     );
 
     if (!authorized) {
@@ -1033,7 +1033,7 @@ const generateTicketListPdf = async (req, res) => {
       req.user.id,
       "user",
       event.belongsTo._id || event.belongsTo,
-      req.user.callSign
+      "universe"
     );
 
     if (!hasAccess) {
@@ -1516,7 +1516,7 @@ const checkEventStatus = async (req, res) => {
     const user = await fetchNativeUserData({
       id: req.user.id,
       fields: ["ticketsBought"],
-      callSign: req.user.callSign,
+      callSign: "universe",
     });
 
     const hasAdminAccess =
@@ -2492,7 +2492,7 @@ const addToGallery = async (req, res) => {
           name: userData.name,
           image: userData.image,
         },
-        callSign: req.user.callSign
+        callSign: "universe"
       };
       await sendKafkaMessage("CREATE_MEMORY", "memory", { memoryData });
     }

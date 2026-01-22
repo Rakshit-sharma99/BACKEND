@@ -139,7 +139,7 @@ const getValidOffersForUser = async (req, res) => {
     const user_query = {
       id: req.user.id,
       fields: ["name", "image", "pushToken", "ip"],
-      callSign: req.user.callSign
+      callSign: "universe"
     }
     const user = await fetchNativeUserData(user_query);
     if (!user) {
@@ -272,7 +272,7 @@ const availOffer = async (req, res) => {
     const user_query = {
       id: userId,
       fields: ["name", "image", "pushToken", "ip"],
-      callSign: req.user.callSign
+      callSign: "universe"
     }
     const user = await fetchNativeUserData(user_query);
     if (!user) {
@@ -317,7 +317,7 @@ const availOffer = async (req, res) => {
       availedAt: new Date(),
     });
 
-    await sendKafkaMessage("UPDATE_USER_IP", req.user.callSign, {
+    await sendKafkaMessage("UPDATE_USER_IP", "universe", {
       userId,
       ipChange: -offer.ip,
       c_source: "offer",

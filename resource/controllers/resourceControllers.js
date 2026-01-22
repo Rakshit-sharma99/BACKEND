@@ -55,7 +55,7 @@ const createResource = async (req, res) => {
     });
 
     // Emit Kafka event
-    await sendKafkaMessage("CREATE_RESOURCE", req.user.callSign, {
+    await sendKafkaMessage("CREATE_RESOURCE", "universe", {
       userId: req.user.id,
       resourceId: resource._id.toString(),
     });
@@ -377,7 +377,7 @@ const deleteResource = async (req, res) => {
     await Resource.findByIdAndDelete(resourceId);
 
     // Emit Kafka event
-    await sendKafkaMessage("DELETE_RESOURCE", req.user.callSign, {
+    await sendKafkaMessage("DELETE_RESOURCE", "universe", {
       userId: req.user.id,
       resourceId: resource._id.toString(),
     });

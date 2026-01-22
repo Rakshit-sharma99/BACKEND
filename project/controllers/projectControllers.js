@@ -621,7 +621,7 @@ const newProjectChatMessage = async (req, res) => {
       return res.status(StatusCodes.OK).send("No recipients to notify.");
     }
 
-    await sendKafkaMessage("PROJECT_CHAT_MESSAGE", req.user.callSign, {
+    await sendKafkaMessage("PROJECT_CHAT_MESSAGE", "universe", {
       projectId,
       userIds,
       title: project.title,
@@ -651,7 +651,7 @@ const allotChatroom = async (req, res) => {
       state: "unread",
     }
 
-    await sendKafkaMessage("ALLOT_CHATROOM", req.user.callSign, {
+    await sendKafkaMessage("ALLOT_CHATROOM", "universe", {
       chatDoc,
       userIds
     })

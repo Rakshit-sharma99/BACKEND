@@ -52,7 +52,7 @@ const createContent = async (req, res) => {
         "macbeaseContentContribution",
         "tunedIn_By",
       ],
-      callSign: req.user.callSign,
+      callSign: "universe",
     };
     const user = await fetchNativeUserData(user_query);
 
@@ -102,7 +102,7 @@ const createContent = async (req, res) => {
     }
     await sendKafkaMessage(
       "UPDATE_MACBEASECONTENT_CONTRIIBUTION",
-      req.user.callSign,
+      "universe",
       {
         userId: idOfSender,
         contentId: content._id.toString(),
@@ -158,7 +158,7 @@ const likeContent = async (req, res) => {
       }
       await contentInfo.save({ session });
 
-      await sendKafkaMessage("LIKE_CONTENT_MACBEASE", req.user.callSign, {
+      await sendKafkaMessage("LIKE_CONTENT_MACBEASE", "universe", {
         contentId,
         userId,
         type,
@@ -243,7 +243,7 @@ const comment = async (req, res) => {
     content.comments.unshift(newComment);
     await content.save();
 
-    await sendKafkaMessage("COMMENT_CONTENT_MACBEASE", req.user.callSign, {
+    await sendKafkaMessage("COMMENT_CONTENT_MACBEASE", "universe", {
       cid: newComment.cid,
       userId: req.user.id,
       contentId,
@@ -328,7 +328,7 @@ const unlikeContent = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
-      await sendKafkaMessage("UNLIKE_CONTENT_MACBEASE", req.user.callSign, {
+      await sendKafkaMessage("UNLIKE_CONTENT_MACBEASE", "universe", {
         userId,
         contentId,
       });
@@ -382,7 +382,7 @@ const deleteContent = async (req, res) => {
         error: "Content not found or already deleted.",
       });
     }
-    await sendKafkaMessage("DELETE_CONTENT_MACBEASE", req.user.callSign, {
+    await sendKafkaMessage("DELETE_CONTENT_MACBEASE", "universe", {
       adminId,
       contentUrl: deletedContent.url,
     });
@@ -636,7 +636,7 @@ const getMacbeaseContribution = async (req, res) => {
     const user_query = {
       id,
       fields: ["macbeaseContentContribution"],
-      callSign: req.user.callSign,
+      callSign: "universe",
       batch,
       batchSize,
       arrayFieldForBatching: "macbeaseContentContribution",
@@ -700,7 +700,7 @@ const addToContentTeam = async (req, res) => {
       });
     }
 
-    await sendKafkaMessage("ADDTO_CONTENT_TEAM", req.user.callSign, {
+    await sendKafkaMessage("ADDTO_CONTENT_TEAM", "universe", {
       userId: id,
     });
 
