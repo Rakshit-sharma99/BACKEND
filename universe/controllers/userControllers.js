@@ -819,6 +819,7 @@ const search = async (req, res) => {
           secondaryCover: 1,
           title: 1,
           _id: 1,
+          un,
         },
       ).lean();
       communitiesWithType = communities.map((community) => ({
@@ -1891,50 +1892,29 @@ const DEFAULT_UNIVERSE = {
 
 const addUniverseMetaDataToShortcuts = async (req, res) => {
   try {
-    const users = await User.find(
-      { shortCuts: { $exists: true, $ne: [] } },
-      { shortCuts: 1 },
+    const result = await User.updateMany(
+      { "shortCuts.universeMetaData": { $exists: false } },
+      {
+        $set: {
+          "shortCuts.$[elem].universeMetaData": DEFAULT_UNIVERSE,
+        },
+      },
+      {
+        arrayFilters: [{ "elem.universeMetaData": { $exists: false } }],
+        strict: false, // 🔥 THIS LINE FIXES YOUR ERROR
+      },
     );
 
-    let updatedUsers = 0;
-    let updatedShortcuts = 0;
-
-    for (const user of users) {
-      let changed = false;
-
-      const updatedShortCuts = user.shortCuts.map((sc) => {
-        if (!sc.universeMetaData) {
-          changed = true;
-          updatedShortcuts++;
-
-          return {
-            ...sc.toObject(),
-            universeMetaData: DEFAULT_UNIVERSE,
-          };
-        }
-        return sc;
-      });
-
-      if (changed) {
-        await User.updateOne(
-          { _id: user._id },
-          { $set: { shortCuts: updatedShortCuts } },
-        );
-        updatedUsers++;
-      }
-    }
-
-    return res.status(200).json({
+    return res.json({
       success: true,
-      message: "Universe metadata added to shortcuts",
-      updatedUsers,
-      updatedShortcuts,
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
     });
-  } catch (error) {
-    console.error("Shortcut migration failed:", error);
+  } catch (err) {
+    console.error(err);
     return res.status(500).json({
       success: false,
-      error: error.message,
+      error: err.message,
     });
   }
 };

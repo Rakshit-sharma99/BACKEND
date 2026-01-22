@@ -213,7 +213,7 @@ const secondaryActionsForClubCreation = async (req, club, founder) => {
         intro,
         outro,
         subject,
-        destination
+        destination,
       );
       ses.sendEmail(params, function (err, data) {
         if (err) {
@@ -358,7 +358,7 @@ const leaveAsMember = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "You are the founder. Leaving means the club will be disbanded. Please contact Macbease for further assistance."
+          "You are the founder. Leaving means the club will be disbanded. Please contact Macbease for further assistance.",
         );
     }
 
@@ -445,7 +445,7 @@ const addAsMember = async (req, res) => {
 
     // Check if the user is already a member
     const isAlreadyMember = club.members.some(
-      (memberId) => memberId.toString() === userId
+      (memberId) => memberId.toString() === userId,
     );
 
     if (isAlreadyMember) {
@@ -509,7 +509,7 @@ const scheduleMemberNotification = (user, club) => {
       });
       await user.save();
       await sendMemberEmail(user, club);
-    }
+    },
   );
 };
 
@@ -530,7 +530,7 @@ const sendMemberEmail = async (user, club) => {
     intro,
     outro,
     subject,
-    destination
+    destination,
   );
   ses.sendEmail(params, (err) => {
     if (err) {
@@ -671,7 +671,7 @@ const removeAdmin = async (req, res) => {
 
       // Remove the admin
       club.adminId = club.adminId.filter(
-        (adminId) => adminId.toString() !== userId.toString()
+        (adminId) => adminId.toString() !== userId.toString(),
       );
 
       await club.save();
@@ -757,7 +757,7 @@ const scheduleEventNotifications = async (event, clubId, userId) => {
         // Fetch user data in a single batch request
         const users = await User.find(
           { _id: { $in: members } },
-          { unreadNotice: 1, eventFeed: 1, email: 1, pushToken: 1 }
+          { unreadNotice: 1, eventFeed: 1, email: 1, pushToken: 1 },
         );
 
         const notice = {
@@ -790,7 +790,7 @@ const scheduleEventNotifications = async (event, clubId, userId) => {
         scheduleNotification(
           pushTokens.filter(Boolean),
           "Upcoming Event!",
-          `${clubName} is organizing ${eventName} on ${eventDate}`
+          `${clubName} is organizing ${eventName} on ${eventDate}`,
         );
         scheduleNotification2({
           pushToken: pushTokens.filter(Boolean),
@@ -817,14 +817,14 @@ const scheduleEventNotifications = async (event, clubId, userId) => {
                 text: "View Event",
                 url: `https://macbease.com/app/eventExpand/${event.eventId}`,
                 color: "#1ea1ed",
-              }
+              },
             );
             await ses.sendEmail(params).promise();
           } catch (error) {
             console.error("Error sending email:", error);
           }
         });
-      }
+      },
     );
   } catch (error) {
     console.error("Error scheduling event notifications:", error);
@@ -910,7 +910,7 @@ const removeEvent = async (req, res) => {
           return null; // Remove event
         }
         return eventPoint;
-      })
+      }),
     );
 
     if (cantDelete) {
@@ -984,7 +984,7 @@ const postContent = async (req, res) => {
           };
           let users = await User.find(
             { _id: { $in: club.members } },
-            { pushToken: 1, feed: 1, unreadNotice: 1 }
+            { pushToken: 1, feed: 1, unreadNotice: 1 },
           );
           const tokens = users.map((item) => item.pushToken);
           let userUpdatePromise = users.map((user) => {
@@ -1018,7 +1018,7 @@ const postContent = async (req, res) => {
         } catch (error) {
           console.error("Error in scheduled job:", error);
         }
-      }
+      },
     );
     let data = { contentId, postedBy: req.user.id, timeStamp: new Date() };
     let concernedClub = await Club.findById(clubId, {
@@ -1072,7 +1072,7 @@ const removeContent = async (req, res) => {
     return res
       .status(StatusCodes.OK)
       .send(
-        "You are not authorized to access this route of removing a content."
+        "You are not authorized to access this route of removing a content.",
       );
   }
 };
@@ -1103,7 +1103,7 @@ const postGallery = async (req, res) => {
     return res
       .status(StatusCodes.OK)
       .send(
-        "You are not authorized to access this route of posting in gallery."
+        "You are not authorized to access this route of posting in gallery.",
       );
   }
 };
@@ -1136,7 +1136,7 @@ const removeGallery = async (req, res) => {
     return res
       .status(StatusCodes.OK)
       .send(
-        "You are not authorized to access this route of removing from gallery."
+        "You are not authorized to access this route of removing from gallery.",
       );
   }
 };
@@ -1148,7 +1148,7 @@ const addNotifications = async (req, res) => {
 
     const clubData = await Club.findById(clubId, { permissions: 1 }).lean();
     const isAuthorized = Array.isArray(
-      clubData?.permissions?.whoCanSendNotifications
+      clubData?.permissions?.whoCanSendNotifications,
     )
       ? clubData.permissions.whoCanSendNotifications.includes(req.user.id)
       : false;
@@ -1189,12 +1189,12 @@ const addNotifications = async (req, res) => {
             club.pinnedBy,
             clubId,
             "notifications",
-            true
+            true,
           );
         } catch (error) {
           console.error("Error in scheduled job:", error);
         }
-      }
+      },
     );
     return res
       .status(StatusCodes.OK)
@@ -1255,7 +1255,7 @@ const editProfile = async (req, res) => {
     return res
       .status(StatusCodes.OK)
       .send(
-        "You are not authorized to access this route of editing club's profile."
+        "You are not authorized to access this route of editing club's profile.",
       );
   }
 };
@@ -1310,7 +1310,7 @@ const removeTeamMember = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "You are not authorized to access the route of updating the club's team profile."
+          "You are not authorized to access the route of updating the club's team profile.",
         );
     }
 
@@ -1386,10 +1386,13 @@ const getAllEvents = async (req, res) => {
         let itineraries = [];
 
         // Fetch itinerary details for the event
-        if (Array.isArray(event.itineraries) && event.itineraries.length !== 0) {
+        if (
+          Array.isArray(event.itineraries) &&
+          event.itineraries.length !== 0
+        ) {
           const body = {
-            itineraryIds: event.itineraries
-          }
+            itineraryIds: event.itineraries,
+          };
           itineraries = await fetchItineraryFromIds(body);
         }
 
@@ -1398,7 +1401,7 @@ const getAllEvents = async (req, res) => {
           userDetail: userDetail || {}, // Handle case where user might not exist
           itineraries,
         };
-      })
+      }),
     );
 
     return res.status(200).json(finalData);
@@ -1413,7 +1416,7 @@ const getClubsByTag = async (req, res) => {
   const { tag } = req.query;
   const clubs = await Club.find(
     { tags: new RegExp(tag, "i", "g") },
-    { secondaryImg: 1, name: 1, tags: 1, motto: 1 }
+    { secondaryImg: 1, name: 1, tags: 1, motto: 1 },
   );
   if (req.user.role === "user") {
     User.findById(req.user.id, (err, user) => {
@@ -1656,7 +1659,7 @@ const getClubBio = async (req, res) => {
           name: user?.name || "Unknown",
           image: user?.image || null,
         };
-      })
+      }),
     );
     data.team = teamDetails;
     return res.status(StatusCodes.OK).json(data);
@@ -1767,7 +1770,7 @@ const getClubNotifications = async (req, res) => {
     const club = await Club.findById(clubId, { _id: 0, notifications: 1 });
     let notifications = club.notifications.slice(
       (batch - 1) * batchSize,
-      batch * batchSize
+      batch * batchSize,
     );
     if (batch === "1") {
       const isAuthorized = await checkAuthorization(clubId, req.user.id);
@@ -1836,11 +1839,11 @@ const getStatus = async (req, res) => {
       isInTeam,
       canPost: club.permissions.whoCanPost.includes(req.user.id),
       canAcceptProposals: club.permissions.whoCanAcceptProposals.includes(
-        req.user.id
+        req.user.id,
       ),
       isChatModerator: club.permissions.chatModerators.includes(req.user.id),
       canSendNotifications: club.permissions.whoCanSendNotifications.includes(
-        req.user.id
+        req.user.id,
       ),
       undecidedProposals: club.undecidedProposals.length,
     });
@@ -1866,10 +1869,12 @@ const getFastNativeFeed = async (req, res) => {
       return res.status(404).json({ message: "Club not found" });
     }
     // Extract content IDs and reverse only once
-    let contents = club.content.map((c) => c.contentId)
+    let contents = club.content.map((c) => c.contentId);
 
     if (!contents || contents.length === 0) {
-      return res.status(StatusCodes.OK).json({ finishedContent: [], snippets: [] });
+      return res
+        .status(StatusCodes.OK)
+        .json({ finishedContent: [], snippets: [] });
     }
 
     contents = contents.reverse();
@@ -2086,7 +2091,7 @@ const getAllLikedPins = async (req, res) => {
       fetchMultipleContents({ ids: contentIds }),
     ]);
     const data = [...macbeaseData, ...contentData].sort(
-      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp)
+      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
     );
     return res.status(StatusCodes.OK).json({ likedSocialPins: data });
   } catch (error) {
@@ -2117,10 +2122,10 @@ const getSimilarGroups = async (req, res) => {
 
     // Convert user’s joined group IDs to ObjectId
     const communityIds = user.communitiesPartOf.map(
-      (c) => new mongoose.Types.ObjectId(c.communityId)
+      (c) => new mongoose.Types.ObjectId(c.communityId),
     );
     const clubIds = user.clubs.map(
-      (c) => new mongoose.Types.ObjectId(c.clubId)
+      (c) => new mongoose.Types.ObjectId(c.clubId),
     );
 
     // Run all queries in parallel
@@ -2290,7 +2295,7 @@ const getSimilarGroups = async (req, res) => {
           activeMembers: 1,
           label: 1,
           membersCount: { $size: "$members" },
-        }
+        },
       ).lean(),
 
       // Fetch user's joined clubs
@@ -2302,7 +2307,7 @@ const getSimilarGroups = async (req, res) => {
           tags: 1,
           motto: 1,
           membersCount: { $size: "$members" },
-        }
+        },
       ).lean(),
     ]);
 
@@ -2337,7 +2342,7 @@ const getEveryoneOfClub = async (req, res) => {
       const allUserIds = [...members, ...team.map((t) => t.id)];
       const users = await User.find(
         { _id: { $in: allUserIds } },
-        { name: 1, image: 1, pushToken: 1, course: 1 }
+        { name: 1, image: 1, pushToken: 1, course: 1 },
       ).lean();
       const userMap = users.reduce((acc, user) => {
         acc[user._id] = user;
@@ -2484,9 +2489,9 @@ const changeLeader = async (req, res) => {
       await sendKafkaMessage("UPDATE_INVITATION", "invitation", {
         invitationId,
         updatedFields: {
-          state: "accepted"
-        }
-      })
+          state: "accepted",
+        },
+      });
       return res
         .status(StatusCodes.OK)
         .send("Leader has been chnaged successfully.");
@@ -2494,7 +2499,7 @@ const changeLeader = async (req, res) => {
       return res
         .status(StatusCodes.OK)
         .send(
-          "You are not authorized to become the leader of the concerned club."
+          "You are not authorized to become the leader of the concerned club.",
         );
     }
   } catch (error) {
@@ -2516,7 +2521,7 @@ const getClubContributions = async (req, res) => {
       return res.status(StatusCodes.OK).json([]);
     }
     const relevantIds = user.clubContributions.map((item) =>
-      mongoose.Types.ObjectId(item)
+      mongoose.Types.ObjectId(item),
     );
     const contributions = await fetchMultipleContents({ ids: relevantIds });
     return res.status(StatusCodes.OK).json(contributions);
@@ -2565,9 +2570,9 @@ const addProposal = async (req, res) => {
         scheduleNotification(
           tokens,
           club.name,
-          `A proposal has been raised in ${club.name} for you to address.`
+          `A proposal has been raised in ${club.name} for you to address.`,
         );
-      }
+      },
     );
     return res.status(StatusCodes.OK).send("Successfully submitted proposal.");
   } catch (error) {
@@ -2602,7 +2607,10 @@ const fetchProposals = async (req, res) => {
     const proposals = club[0].proposalHistory;
     if (proposals) {
       const proposalIds = proposals.map((item) => item.id);
-      const proposalsDoc = await fetchInvitationById({ id: proposalIds, select: ["endoredBy", "expiration"] });
+      const proposalsDoc = await fetchInvitationById({
+        id: proposalIds,
+        select: ["endoredBy", "expiration"],
+      });
       const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
         return acc;
@@ -2621,14 +2629,12 @@ const fetchProposals = async (req, res) => {
       if (parseInt(batch) !== 1) {
         return res.status(StatusCodes.OK).json(finalData);
       } else {
-        return res
-          .status(StatusCodes.OK)
-          .json({
-            finalData,
-            undecidedProposals: club[0].undecidedProposals,
-            permissions: club[0].permissions.whoCanAcceptProposals,
-            mainAdmin: club[0].mainAdmin,
-          });
+        return res.status(StatusCodes.OK).json({
+          finalData,
+          undecidedProposals: club[0].undecidedProposals,
+          permissions: club[0].permissions.whoCanAcceptProposals,
+          mainAdmin: club[0].mainAdmin,
+        });
       }
     } else {
       return res.status(StatusCodes.OK).json([]);
@@ -2648,7 +2654,10 @@ const changeProposalStatus = async (req, res) => {
     if (!["accepted", "rejected"].includes(status)) {
       return res.status(StatusCodes.BAD_REQUEST).send("Invalid status.");
     }
-    const proposal = await fetchInvitationById({ id: proposalId, select: ["sentTo", "cc"] })
+    const proposal = await fetchInvitationById({
+      id: proposalId,
+      select: ["sentTo", "cc"],
+    });
     if (![...proposal.cc, proposal.sentTo.toString()].includes(req.user.id)) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -2663,7 +2672,7 @@ const changeProposalStatus = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
     club.undecidedProposals = club.undecidedProposals.filter(
-      (id) => id !== proposalId
+      (id) => id !== proposalId,
     );
     let matchedProposal;
     for (let i = 0; i < club.proposalHistory.length; i++) {
@@ -2711,7 +2720,7 @@ const nullifyClubDynamicIsland = async (req, res) => {
     await updateDynamicIsland(
       [mongoose.Types.ObjectId(req.user.id)],
       clubId,
-      type
+      type,
     );
     return res.status(StatusCodes.OK).send(`${type} nullified.`);
   } catch (error) {
@@ -2764,7 +2773,7 @@ const clubsWithPostingRights = async (req, res) => {
     const clubIds = user.clubs.map((item) => item.clubId);
     const clubs = await Club.find(
       { _id: { $in: clubIds } },
-      { adminId: 1, mainAdmin: 1, secondaryImg: 1, name: 1 }
+      { adminId: 1, mainAdmin: 1, secondaryImg: 1, name: 1 },
     );
     const authorizedClubs = clubs.filter((club) => {
       if (club.mainAdmin === req.user.id) return true;
@@ -2808,7 +2817,7 @@ const searchClubMembers = async (req, res) => {
         _id: { $in: club.members },
         name: regex,
       },
-      { name: 1, image: 1, pushToken: 1 }
+      { name: 1, image: 1, pushToken: 1 },
     );
 
     const teamIds = club.team.map((e) => e.id);
@@ -2921,7 +2930,7 @@ const searchClubEvent = async (req, res) => {
       (event) =>
         regex.test(event.name) ||
         regex.test(event.description) ||
-        regex.test(event.venue)
+        regex.test(event.venue),
     );
 
     return res.status(200).json(matchedEvents);
@@ -2979,7 +2988,10 @@ const searchClubProposals = async (req, res) => {
       return false;
     });
     const proposalIds = matchedProposals.map((item) => item.id);
-    const proposalsDoc = await fetchInvitationById({ id: proposalIds, select: ["endorsedBy", "expiration"] });
+    const proposalsDoc = await fetchInvitationById({
+      id: proposalIds,
+      select: ["endorsedBy", "expiration"],
+    });
     const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
       acc[doc._id.toString()] = doc;
       return acc;
@@ -3108,16 +3120,19 @@ const getProposalsFromIds = async (req, res) => {
 
     // Filter proposals directly
     const filteredProposals = club.proposalHistory.filter((proposal) =>
-      ids.includes(proposal.id)
+      ids.includes(proposal.id),
     );
 
     const proposalIds = filteredProposals.map((fp) => fp.id);
     // Fetch invitations only for relevant proposals
-    const invitations = await fetchInvitationById({ id: proposalIds, select: ["endorsedBy", "expiration"] });
+    const invitations = await fetchInvitationById({
+      id: proposalIds,
+      select: ["endorsedBy", "expiration"],
+    });
 
     // Convert to map for quick lookup
     const dataMap = new Map(
-      invitations.map((doc) => [doc._id.toString(), doc])
+      invitations.map((doc) => [doc._id.toString(), doc]),
     );
 
     // Merge data while filtering out undefined results
@@ -3126,10 +3141,10 @@ const getProposalsFromIds = async (req, res) => {
         const fpData = dataMap.get(fp.id);
         return fpData
           ? {
-            ...fp,
-            endorsedBy: fpData.endorsedBy,
-            expiration: fpData.expiration,
-          }
+              ...fp,
+              endorsedBy: fpData.endorsedBy,
+              expiration: fpData.expiration,
+            }
           : null;
       })
       .filter(Boolean); // Remove null values
@@ -3314,9 +3329,9 @@ const getRandomClubs = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-        acc[field.trim()] = 1;
-        return acc;
-      }, {})
+          acc[field.trim()] = 1;
+          return acc;
+        }, {})
       : {};
 
     const clubs = await Club.aggregate([
@@ -3451,7 +3466,7 @@ const getClubPermissions = async (req, res) => {
 
     // Fetch permissions + members/admins/team info
     const club = await Club.findById(clubId).select(
-      "permissions members adminId team"
+      "permissions members adminId team",
     );
     if (!club) {
       return res.status(404).json({ message: "Club not found" });
@@ -3472,7 +3487,7 @@ const getClubPermissions = async (req, res) => {
     // Fetch user details
     const users = await User.find(
       { _id: { $in: uniqueUserIds } },
-      { name: 1, image: 1, pushToken: 1 }
+      { name: 1, image: 1, pushToken: 1 },
     ).lean();
 
     // Map users by ID
@@ -3618,7 +3633,7 @@ const updateClubPermission = async (req, res) => {
     // 🔑 Fetch user details
     const users = await User.find(
       { _id: { $in: uniqueIds } },
-      { name: 1, image: 1, pushToken: 1 }
+      { name: 1, image: 1, pushToken: 1 },
     ).lean();
 
     const userMap = users.reduce((acc, user) => {
@@ -3672,7 +3687,7 @@ const getTopProfilesOfClub = async (req, res) => {
     // Fetch admins (small number)
     const admins = await User.find(
       { _id: { $in: adminIds } },
-      { name: 1, image: 1, pushToken: 1 }
+      { name: 1, image: 1, pushToken: 1 },
     ).lean();
 
     let arr = admins.map((u) => ({
@@ -3691,7 +3706,7 @@ const getTopProfilesOfClub = async (req, res) => {
             $nin: adminIds, // exclude admins
           },
         },
-        { name: 1, image: 1, pushToken: 1 }
+        { name: 1, image: 1, pushToken: 1 },
       )
         .limit(remaining) // only as many as needed
         .lean();
@@ -3754,14 +3769,14 @@ const addAwardToClub = async (req, res) => {
 
     // Step 3: Verify payment details via Razorpay API
     const authHeader = `Basic ${Buffer.from(
-      `${razorpayKeyId}:${razorpayKeySecret}`
+      `${razorpayKeyId}:${razorpayKeySecret}`,
     ).toString("base64")}`;
 
     const { data: payment } = await axios.get(
       `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
       {
         headers: { Authorization: authHeader },
-      }
+      },
     );
 
     // Step 4: Validate payment
@@ -3793,7 +3808,7 @@ const addAwardToClub = async (req, res) => {
     }
 
     const existingAward = club.awards.find(
-      (a) => a.awardId.toString() === awardId
+      (a) => a.awardId.toString() === awardId,
     );
 
     if (existingAward) {
@@ -3829,8 +3844,7 @@ const getAllClubs = async (req, res) => {
 
     // ✅ If fields is provided, validate it
     if (fields !== undefined) {
-      const isArrayProjection =
-        Array.isArray(fields) && fields.length > 0;
+      const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
       const isObjectProjection =
         fields &&
@@ -3882,8 +3896,7 @@ const getClubById = async (req, res) => {
 
     // ✅ Optional projection validation
     if (fields !== undefined) {
-      const isArrayProjection =
-        Array.isArray(fields) && fields.length > 0;
+      const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
       const isObjectProjection =
         fields &&
@@ -3941,6 +3954,46 @@ const getClubById = async (req, res) => {
   }
 };
 
+// Controller to populate all the clubs with universeMetaData
+const DEFAULT_UNIVERSE = {
+  uid: "696f491a0bfc89b35dc62326",
+  name: "Lovely Professional University",
+  callSign: "LPU",
+  location: "Punjab, India",
+  logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+  logoKey: "public/universes/lpu_logo-removebg-preview.png",
+  lat: 31.255,
+  lng: 75.705,
+};
+
+const populateUniverseMetaDataInClubs = async (req, res) => {
+  try {
+    const result = await Club.updateMany(
+      {
+        universeMetaData: { $exists: false },
+      },
+      {
+        $set: {
+          universeMetaData: DEFAULT_UNIVERSE,
+          uid: DEFAULT_UNIVERSE.uid,
+        },
+      },
+      { strict: false },
+    );
+
+    return res.json({
+      success: true,
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+    });
+  } catch (err) {
+    console.error("Club migration failed:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+    });
+  }
+};
 
 module.exports = {
   createClub,
@@ -4012,5 +4065,6 @@ module.exports = {
   getTopProfilesOfClub,
   addAwardToClub,
   getAllClubs,
-  getClubById
+  getClubById,
+  populateUniverseMetaDataInClubs,
 };

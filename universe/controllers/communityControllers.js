@@ -36,7 +36,7 @@ const createCommunity = async (req, res) => {
       label,
       tag,
       hiddenTags = [],
-      universeMetaData
+      universeMetaData,
     } = req.body;
     const creatorId = req.user.id;
     const createdOn = new Date();
@@ -53,12 +53,12 @@ const createCommunity = async (req, res) => {
       createdOn,
       members: [creatorId],
       admins: [creatorId],
-      uid:req.user.uid,
-      universeMetaData
+      uid: req.user.uid,
+      universeMetaData,
     });
 
-    await sendKafkaMessage("CREATE_COMMUNITY","multiverse",{
-      _id:community._id.toString(),
+    await sendKafkaMessage("CREATE_COMMUNITY", "multiverse", {
+      _id: community._id.toString(),
       title,
       cover,
       secondaryCover,
@@ -66,9 +66,9 @@ const createCommunity = async (req, res) => {
       createdOn,
       tag,
       hiddenTags,
-      uid:req.user.uid,
-      universeMetaData
-    })
+      uid: req.user.uid,
+      universeMetaData,
+    });
 
     const shortCut = {
       type: "community",
@@ -107,7 +107,7 @@ const createCommunity = async (req, res) => {
           unreadNotice: notification,
         },
       },
-      { new: true }
+      { new: true },
     );
 
     return res.status(StatusCodes.OK).json(community);
@@ -179,7 +179,7 @@ const joinAsMember = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "Your qualification level does not meet the community's entry requirements."
+          "Your qualification level does not meet the community's entry requirements.",
         );
     }
 
@@ -188,7 +188,7 @@ const joinAsMember = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "Your field of study does not match the community's entry requirements."
+          "Your field of study does not match the community's entry requirements.",
         );
     }
 
@@ -200,7 +200,7 @@ const joinAsMember = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          `Your passout year does not meet the community's entry requirements.`
+          `Your passout year does not meet the community's entry requirements.`,
         );
     }
 
@@ -211,16 +211,16 @@ const joinAsMember = async (req, res) => {
           .status(StatusCodes.BAD_REQUEST)
           .send("You must provide a valid link to join this community.");
       }
-      const link = await fetchJoinLinkById({id:linkId});
+      const link = await fetchJoinLinkById({ id: linkId });
       if (!link) {
         return res.status(StatusCodes.NOT_FOUND).send("Invite link not found.");
       }
       const canBeUsed = link.canBeUsed(req.user.id);
       if (canBeUsed && link.belongsTo.toString() === communityId.toString()) {
-        await sendKafkaMessage("UPDATE_JOINLINK","joinLink",{
-          joinLinkId:linkId,
-          userId:req.user.id
-        })
+        await sendKafkaMessage("UPDATE_JOINLINK", "joinLink", {
+          joinLinkId: linkId,
+          userId: req.user.id,
+        });
       } else {
         return res
           .status(StatusCodes.BAD_REQUEST)
@@ -304,7 +304,7 @@ const leaveAsMember = async (req, res) => {
     await Community.findByIdAndUpdate(communityId, {
       $pull: { members: userId, admins: userId },
       $inc: { activeMembers: -1 },
-       $inc: { rating: -3 },
+      $inc: { rating: -3 },
     });
 
     if (req.user.role === "user") {
@@ -362,7 +362,7 @@ const deleteContent = async (req, res) => {
             if (err) return console.error(err);
             let contribution = admin.communityContribution;
             contribution = contribution.filter(
-              (item) => item.contentId !== contentId
+              (item) => item.contentId !== contentId,
             );
             admin.communityContribution = [];
             admin.communityContribution.push(...contribution);
@@ -378,7 +378,7 @@ const deleteContent = async (req, res) => {
       return res
         .status(StatusCodes.OK)
         .send(
-          "You are not authorized to delete this content as you are neither creator nor the admin."
+          "You are not authorized to delete this content as you are neither creator nor the admin.",
         );
     }
   }
@@ -403,7 +403,7 @@ const flag = async (req, res) => {
 
     // Check if the user is a member of the community
     const isMember = community.members.some((member) =>
-      member.equals(req.user.id)
+      member.equals(req.user.id),
     );
 
     if (!isMember && req.user.role !== "admin") {
@@ -423,7 +423,7 @@ const flag = async (req, res) => {
         $inc: { "content.$.irrelevanceVote": 1 },
         $addToSet: { "content.$.flaggedBy": req.user.id },
       },
-      { new: true } // Return the updated document
+      { new: true }, // Return the updated document
     );
 
     if (!updateResult) {
@@ -434,7 +434,7 @@ const flag = async (req, res) => {
 
     // Fetch the updated content
     const updatedContent = updateResult.content.find(
-      (item) => item.contentId === contentId
+      (item) => item.contentId === contentId,
     );
 
     if (!updatedContent) {
@@ -448,7 +448,7 @@ const flag = async (req, res) => {
       // Mark the content as saturated
       await Community.updateOne(
         { _id: communityId, "content.contentId": contentId },
-        { $set: { "content.$.flagSaturated": true } }
+        { $set: { "content.$.flagSaturated": true } },
       );
 
       // Notify the community creator
@@ -530,7 +530,7 @@ const takeDown = async (req, res) => {
             user.save();
           });
         }
-      }
+      },
     );
 
     Community.findById(communityId, (err, community) => {
@@ -545,7 +545,7 @@ const takeDown = async (req, res) => {
             if (err) return console.error(err);
             let contribution = user.communityContribution;
             contribution = contribution.filter(
-              (item) => item.contentId !== contentId
+              (item) => item.contentId !== contentId,
             );
             user.communityContribution = [];
             user.communityContribution.push(...contribution);
@@ -561,7 +561,7 @@ const takeDown = async (req, res) => {
             if (err) return console.error(err);
             let contribution = admin.communityContribution;
             contribution = contribution.filter(
-              (item) => item.contentId !== contentId
+              (item) => item.contentId !== contentId,
             );
             admin.communityContribution = [];
             admin.communityContribution.push(...contribution);
@@ -596,10 +596,10 @@ const updateStreak = async (req, res) => {
         if (err) return console.error(err);
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         let lastPosted = dataToBeChanged.lastPosted;
@@ -608,12 +608,12 @@ const updateStreak = async (req, res) => {
         const utc1 = Date.UTC(
           lastPosted.getFullYear(),
           lastPosted.getMonth(),
-          lastPosted.getDate()
+          lastPosted.getDate(),
         );
         const utc2 = Date.UTC(
           today.getFullYear(),
           today.getMonth(),
-          today.getDate()
+          today.getDate(),
         );
         const diff = Math.floor((utc2 - utc1) / _MS_PER_DAY);
         if (diff === 1) {
@@ -642,10 +642,10 @@ const updateStreak = async (req, res) => {
         if (err) return console.error(err);
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         let lastPosted = dataToBeChanged.lastPosted;
@@ -654,12 +654,12 @@ const updateStreak = async (req, res) => {
         const utc1 = Date.UTC(
           lastPosted.getFullYear(),
           lastPosted.getMonth(),
-          lastPosted.getDate()
+          lastPosted.getDate(),
         );
         const utc2 = Date.UTC(
           today.getFullYear(),
           today.getMonth(),
-          today.getDate()
+          today.getDate(),
         );
         const diff = Math.floor((utc2 - utc1) / _MS_PER_DAY);
         if (diff === 1) {
@@ -708,10 +708,10 @@ const likesAndPosts = async (req, res) => {
         });
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         dataToBeChanged.totalLikes = likes;
@@ -738,10 +738,10 @@ const likesAndPosts = async (req, res) => {
         });
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         dataToBeChanged.totalLikes = likes;
@@ -772,17 +772,17 @@ const rating = async (req, res) => {
         if (err) return console.error(err);
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         let bestStreak = dataToBeChanged.bestStreak;
         let currentStreak = dataToBeChanged.currentStreak;
         let totalPosts = dataToBeChanged.totalPosts;
         let rating = Math.floor(
-          totalPosts * 13.6 + bestStreak * 1.4 + currentStreak * 1.7
+          totalPosts * 13.6 + bestStreak * 1.4 + currentStreak * 1.7,
         );
         dataToBeChanged.rating = rating;
         restOfData.push(dataToBeChanged);
@@ -799,17 +799,17 @@ const rating = async (req, res) => {
         if (err) return console.error(err);
         let communitiesPartOf = user.communitiesPartOf;
         let dataToBeChanged = communitiesPartOf.filter(
-          (item) => item.communityId === communityId
+          (item) => item.communityId === communityId,
         );
         let restOfData = communitiesPartOf.filter(
-          (item) => item.communityId !== communityId
+          (item) => item.communityId !== communityId,
         );
         dataToBeChanged = dataToBeChanged[0];
         let bestStreak = dataToBeChanged.bestStreak;
         let currentStreak = dataToBeChanged.currentStreak;
         let totalPosts = dataToBeChanged.totalPosts;
         let rating = Math.floor(
-          totalPosts * 13.6 + bestStreak * 1.4 + currentStreak * 1.7
+          totalPosts * 13.6 + bestStreak * 1.4 + currentStreak * 1.7,
         );
         dataToBeChanged.rating = rating;
         restOfData.push(dataToBeChanged);
@@ -956,7 +956,7 @@ const getCommunityByTag = async (req, res) => {
   const { tag } = req.query;
   const communities = await Community.find(
     { tag: new RegExp(tag, "i", "g") },
-    { secondaryCover: 1, title: 1, tag: 1, activeMembers: 1, label: 1 }
+    { secondaryCover: 1, title: 1, tag: 1, activeMembers: 1, label: 1 },
   );
   if (req.user.role === "user") {
     User.findById(req.user.id, (err, user) => {
@@ -982,7 +982,7 @@ const isMember = async (req, res) => {
       if (err) return console.error(err);
       let communitiesPartOf = user.communitiesPartOf;
       communitiesPartOf = communitiesPartOf.filter(
-        (item) => item.communityId === communityId
+        (item) => item.communityId === communityId,
       );
       if (communitiesPartOf.length !== 0) {
         return res.status(StatusCodes.OK).send("You are member.");
@@ -995,7 +995,7 @@ const isMember = async (req, res) => {
       if (err) return console.error(err);
       let communitiesPartOf = admin.communitiesPartOf;
       communitiesPartOf = communitiesPartOf.filter(
-        (item) => item.communityId === communityId
+        (item) => item.communityId === communityId,
       );
       if (communitiesPartOf.length !== 0) {
         return res.status(StatusCodes.OK).send("You are member.");
@@ -1030,18 +1030,18 @@ const getCommunitiesPartOf = async (req, res) => {
       const [communities, clubs] = await Promise.all([
         Community.find(
           { _id: { $in: communityIds } },
-          { secondaryCover: 1, title: 1, tag: 1, activeMembers: 1 }
+          { secondaryCover: 1, title: 1, tag: 1, activeMembers: 1 },
         ).lean(),
         Club.find(
           { _id: { $in: clubIds } },
-          { name: 1, secondaryImg: 1, motto: 1, tags: 1 }
+          { name: 1, secondaryImg: 1, motto: 1, tags: 1 },
         ).lean(),
       ]);
 
       const finalDataCommunity = user.communitiesPartOf
         .map((c) => {
           const community = communities.find(
-            (comm) => comm._id.toString() === c.communityId
+            (comm) => comm._id.toString() === c.communityId,
           );
           return community ? { ...c, ...community } : null;
         })
@@ -1144,7 +1144,7 @@ const getLikeAndFlagStatus = async (req, res) => {
       _id: 0,
     });
     let concernedData = communityData.content.find(
-      (item) => item.contentId === contentId
+      (item) => item.contentId === contentId,
     );
     let flaggedBy = concernedData.flaggedBy;
     let flagged = flaggedBy.includes(req.user.id);
@@ -1179,7 +1179,7 @@ const getUserContributionCover = async (req, res) => {
       image: 1,
     });
     let user = partOf.communitiesPartOf.find(
-      (item) => item.communityId === communityId
+      (item) => item.communityId === communityId,
     );
     return res
       .status(StatusCodes.OK)
@@ -1192,7 +1192,7 @@ const getUserContributionCover = async (req, res) => {
       image: 1,
     });
     let user = partOf.communitiesPartOf.find(
-      (item) => item.communityId === communityId
+      (item) => item.communityId === communityId,
     );
     return res
       .status(StatusCodes.OK)
@@ -1206,13 +1206,13 @@ const getContribution = async (req, res) => {
     const { communityId, batch } = req.query;
     const user = await User.findOne(
       { _id: req.user.id },
-      { communityContribution: 1, _id: 0 }
+      { communityContribution: 1, _id: 0 },
     ).lean();
     let communityContribution = user.communityContribution;
     if (batch) {
       communityContribution = communityContribution.slice(
         (batch - 1) * 50,
-        batch * 50
+        batch * 50,
       );
     }
     const relevantIds = communityContribution
@@ -1383,7 +1383,7 @@ const getFastNativeFeed = async (req, res) => {
       actualContentDocs = actualContentDocs?.reverse() || [];
       let actualContent = actualContentDocs.map((contentDoc) => {
         const matchedContent = contents.find(
-          (c) => c.contentId === contentDoc._id.toString()
+          (c) => c.contentId === contentDoc._id.toString(),
         );
         const doc = contentDoc;
 
@@ -1400,7 +1400,7 @@ const getFastNativeFeed = async (req, res) => {
       const pollIds = await redis.zrangebyscore(
         `community:${communityId}:polls`,
         now,
-        "+inf"
+        "+inf",
       );
 
       if (pollIds.length) {
@@ -1408,7 +1408,7 @@ const getFastNativeFeed = async (req, res) => {
           pollIds.map(async (pollId) => {
             const pollData = await redis.get(pollId);
             return pollData ? JSON.parse(pollData) : null;
-          })
+          }),
         );
         polls = polls.filter((poll) => poll !== null);
         actualContent = [...actualContent, ...polls];
@@ -1453,7 +1453,7 @@ const getBatchedContent = async (req, res) => {
     if (batch && batchSize) {
       content = community.content.slice(
         (batch - 1) * batchSize,
-        batch * batchSize
+        batch * batchSize,
       );
       if (remedy) {
         content = content.slice(remedy);
@@ -1500,7 +1500,7 @@ const secondaryActionsForPost = async (
   communityId,
   contentType,
   contentId,
-  userId
+  userId,
 ) => {
   const threeSec = new Date(Date.now() + 5 * 1000);
   schedule.scheduleJob(
@@ -1522,16 +1522,16 @@ const secondaryActionsForPost = async (
       let { members } = community;
       let memebersForPushToken = members;
       memebersForPushToken = memebersForPushToken.filter(
-        (item, index) => !community.muted.includes(item.toString())
+        (item, index) => !community.muted.includes(item.toString()),
       );
       const users = await User.find(
         { _id: { $in: memebersForPushToken } },
-        { pushToken: 1 }
+        { pushToken: 1 },
       );
       const tokens = users.map((item) => item.pushToken);
       if (contentType === "text") {
         members = members.filter(
-          (item, index) => !community.seeLessFeed.includes(item.toString())
+          (item, index) => !community.seeLessFeed.includes(item.toString()),
         );
       }
       const point = { _id: mongoose.Types.ObjectId(contentId) };
@@ -1540,7 +1540,7 @@ const secondaryActionsForPost = async (
           { _id: { $in: members } },
           {
             $push: { feed: { $each: [point], $position: 0 } },
-          }
+          },
         );
       }
       const contentMetaData = await fetchContent({
@@ -1577,7 +1577,7 @@ const secondaryActionsForPost = async (
 
       // Find the community object to update
       let dataToBeChanged = communitiesPartOf.find(
-        (item) => item.communityId === communityId
+        (item) => item.communityId === communityId,
       );
 
       if (!dataToBeChanged) return; // Ensure the community exists
@@ -1593,9 +1593,9 @@ const secondaryActionsForPost = async (
           Date.UTC(
             lastPosted.getFullYear(),
             lastPosted.getMonth(),
-            lastPosted.getDate()
+            lastPosted.getDate(),
           )) /
-          _MS_PER_DAY
+          _MS_PER_DAY,
       );
 
       if (diff < 0) {
@@ -1655,7 +1655,7 @@ const secondaryActionsForPost = async (
         communitiesPartOf: user.communitiesPartOf,
         communityContribution: user.communityContribution,
       });
-    }
+    },
   );
 };
 
@@ -1738,10 +1738,10 @@ const getAllContributionOfUser = async (req, res) => {
     const reversedContributions = user.communityContribution.reverse();
     const contributionsBatch = reversedContributions.slice(
       skip,
-      skip + parseInt(batchSize)
+      skip + parseInt(batchSize),
     );
     const relevantIds = contributionsBatch.map((item) =>
-      mongoose.Types.ObjectId(item.contentId)
+      mongoose.Types.ObjectId(item.contentId),
     );
     const contributions = await fetchMultipleContents({ ids: relevantIds });
     return res.status(StatusCodes.OK).json(contributions);
@@ -1843,7 +1843,7 @@ const getAllAdmins = async (req, res) => {
 const getAllRelatedSocialGroups = async (req, res) => {
   try {
     const { query } = req.query;
-    const bags = await fetchBags({query});
+    const bags = await fetchBags({ query });
     const finalData = bags.reduce((acc, bag) => acc.concat(bag.keyWords), []);
     if (finalData.length === 0) {
       finalData.push(query);
@@ -2137,7 +2137,7 @@ const gotOffline = async (req, res) => {
     const { communityId } = req.query;
     await Community.updateOne(
       { _id: communityId },
-      { $pull: { onlineMembers: mongoose.Types.ObjectId(req.user.id) } }
+      { $pull: { onlineMembers: mongoose.Types.ObjectId(req.user.id) } },
     );
     const userDetail = await User.findById(req.user.id, {
       name: 1,
@@ -2147,7 +2147,7 @@ const gotOffline = async (req, res) => {
     });
     const shortcuts = userDetail.shortCuts;
     const foundIndex = shortcuts.findIndex(
-      (item) => item.id.toString() === communityId
+      (item) => item.id.toString() === communityId,
     );
     if (foundIndex !== -1) {
       shortcuts[foundIndex].metaData = shortcuts[foundIndex].metaData || {};
@@ -2197,12 +2197,12 @@ const removeFromConstraintList = async (req, res) => {
     if (field === "muted") {
       await Community.updateOne(
         { _id: communityId },
-        { $pull: { muted: req.user.id } }
+        { $pull: { muted: req.user.id } },
       );
     } else if (field === "seeLessFeed") {
       await Community.updateOne(
         { _id: communityId },
-        { $pull: { seeLessFeed: req.user.id } }
+        { $pull: { seeLessFeed: req.user.id } },
       );
     }
     return res
@@ -2342,7 +2342,7 @@ const removeAdmin = async (req, res) => {
         .json({ error: "You are creator. Cannot remove you." });
     }
     community.admins = community.admins.filter(
-      (adminId) => !adminId.equals(userObjectId)
+      (adminId) => !adminId.equals(userObjectId),
     );
     await community.save();
     res.status(200).json({
@@ -2379,7 +2379,7 @@ const searchCommunityMembers = async (req, res) => {
         _id: { $in: community.members },
         name: regex,
       },
-      { name: 1, image: 1, pushToken: 1 }
+      { name: 1, image: 1, pushToken: 1 },
     );
 
     const membersWithRole = members.map((member) => ({
@@ -2446,7 +2446,7 @@ const searchCommunityFiles = async (req, res) => {
 
     const slicedContents = community.content.slice(-100);
     const contentIds = slicedContents.map(
-      (p) => new mongoose.Types.ObjectId(p.contentId)
+      (p) => new mongoose.Types.ObjectId(p.contentId),
     );
 
     // Find content where `text` or `tags` match the query
@@ -2489,7 +2489,7 @@ const leaveAsAdmin = async (req, res) => {
     }
 
     community.admins = community.admins.filter(
-      (adminId) => adminId.toString() !== userId
+      (adminId) => adminId.toString() !== userId,
     );
 
     await community.save();
@@ -2561,7 +2561,7 @@ const setEntryRules = async (req, res) => {
     const updatedCommunity = await Community.findByIdAndUpdate(
       id,
       { entryRules },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedCommunity) {
@@ -3032,8 +3032,7 @@ const getCommunityFieldsById = async (req, res) => {
     }
 
     // ✅ Validate fields (array OR object)
-    const isArrayProjection =
-      Array.isArray(fields) && fields.length > 0;
+    const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
       fields &&
@@ -3221,8 +3220,7 @@ const getAllCommunity = async (req, res) => {
 
     // ✅ If fields is provided, validate it
     if (fields !== undefined) {
-      const isArrayProjection =
-        Array.isArray(fields) && fields.length > 0;
+      const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
       const isObjectProjection =
         fields &&
@@ -3252,6 +3250,47 @@ const getAllCommunity = async (req, res) => {
     console.error("Error fetching communities:", error);
     return res.status(500).json({
       error: "Server error while fetching communities",
+    });
+  }
+};
+
+// Controller to populate all the communities with universeMetaData
+const DEFAULT_UNIVERSE = {
+  uid: "696f491a0bfc89b35dc62326",
+  name: "Lovely Professional University",
+  callSign: "LPU",
+  location: "Punjab, India",
+  logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+  logoKey: "public/universes/lpu_logo-removebg-preview.png",
+  lat: 31.255,
+  lng: 75.705,
+};
+
+const populateUniverseMetaDataInCommunities = async (req, res) => {
+  try {
+    const result = await Community.updateMany(
+      {
+        universeMetaData: { $exists: false },
+      },
+      {
+        $set: {
+          universeMetaData: DEFAULT_UNIVERSE,
+          uid: DEFAULT_UNIVERSE.uid,
+        },
+      },
+      { strict: false },
+    );
+
+    return res.json({
+      success: true,
+      matched: result.matchedCount,
+      modified: result.modifiedCount,
+    });
+  } catch (err) {
+    console.error("Community migration failed:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
     });
   }
 };
@@ -3318,5 +3357,6 @@ module.exports = {
   getCommunityFieldsById,
   getRandomCommunities,
   fetchCommunityLeaderBoard,
-  getAllCommunity
+  getAllCommunity,
+  populateUniverseMetaDataInCommunities,
 };

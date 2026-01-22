@@ -136,6 +136,18 @@ const communitySchema = new mongoose.Schema({
   hiddenTags: {
     type: Array,
   },
+  uid: {
+    type: String,
+  },
+  universeMetaData: {
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
+  },
 });
 
 module.exports = mongoose.model("Community", communitySchema);

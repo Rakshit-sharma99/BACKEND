@@ -13,7 +13,7 @@ const awardRefSchema = new mongoose.Schema(
       min: 0,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const clubSchema = new mongoose.Schema({
@@ -141,6 +141,18 @@ const clubSchema = new mongoose.Schema({
   },
   processedPayments: {
     type: Array,
+  },
+  uid: {
+    type: String,
+  },
+  universeMetaData: {
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
   },
 });
 

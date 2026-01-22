@@ -72,6 +72,7 @@ const {
   addAwardToClub,
   getAllClubs,
   getClubById,
+  populateUniverseMetaDataInClubs,
 } = require("../controllers/clubControllers");
 
 router.post("/createClub", createClub);
@@ -144,5 +145,9 @@ router.get("/getTopProfilesOfClub", getTopProfilesOfClub);
 router.post("/addAwardToClub", addAwardToClub);
 router.post("/getAllClubs", getAllClubs);
 router.post("/getClubById", getClubById);
+router.post(
+  "/populateUniverseMetaDataInClubs",
+  populateUniverseMetaDataInClubs,
+);
 
 module.exports = router;
