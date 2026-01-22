@@ -19,7 +19,7 @@ const shortcutSchema = new mongoose.Schema(
     },
 
     img: {
-      type: String, // for people profile image
+      type: String,
     },
 
     native: {
@@ -36,7 +36,7 @@ const shortcutSchema = new mongoose.Schema(
     },
 
     userPushToken: {
-      type: String, // only for people
+      type: String,
     },
 
     metaData: {
@@ -301,7 +301,7 @@ const userSchema = new mongoose.Schema(
       callSign: { type: String },
       logoKey: { type: String },
       lat: { type: Number },
-      lng: { type: Number }
+      lng: { type: Number },
     },
   },
   {
