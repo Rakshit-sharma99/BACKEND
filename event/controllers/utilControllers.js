@@ -230,14 +230,14 @@ const sendMail = async (
       intro: intro,
       action: action
         ? {
-            instructions:
-              action.instructions || "Click the button below to proceed:",
-            button: {
-              color: action.color || "#1ea1ed",
-              text: action.text || "View Details",
-              link: action.url,
-            },
-          }
+          instructions:
+            action.instructions || "Click the button below to proceed:",
+          button: {
+            color: action.color || "#1ea1ed",
+            text: action.text || "View Details",
+            link: action.url,
+          },
+        }
         : undefined,
       outro: outro,
     },
@@ -1307,7 +1307,7 @@ const fetchAvailableCoupon = async (query) => {
 };
 
 const fetchTicketFieldsByQuery = async (query) => {
-   try {
+  try {
     const { searchBy, fields, single } = payload;
 
     if (

@@ -4,7 +4,7 @@ require("dotenv").config(); // ← Make sure this is present!
 
 const connection = {
   host: process.env.REDIS_HOST || "redis",
-  port: Number(process.env.REDIS_PORT || 6379),
+  port: 6379,
   password: process.env.REDIS_PASSWORD || undefined,
 };
 
