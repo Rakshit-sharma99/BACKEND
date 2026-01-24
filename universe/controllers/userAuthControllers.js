@@ -6,7 +6,11 @@ const Org = require("../models/org");
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { sendMail, fetchOrgData, createNewOrg } = require("../controllers/utils");
+const {
+  sendMail,
+  fetchOrgData,
+  createNewOrg,
+} = require("../controllers/utils");
 const { OpenAI } = require("openai");
 const { default: mongoose } = require("mongoose");
 const { OAuth2Client } = require("google-auth-library");
@@ -16,13 +20,6 @@ const semver = require("semver");
 const schedule = require("node-schedule");
 const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
-// const Redis = require('ioredis');
-// const redis = new Redis();
-
-//using this function a new user can join Macbease
-//req configuration:
-//we need to send four parameters in form of an object in the req.body
-//eg- {"name":"Amartya","reg":12113246,"email":"amartyasingh1010@gmail.com","password":"Carpediem@408"}
 
 const p1 = [
   {
@@ -122,17 +119,17 @@ const createOrg = async (orgMetaData, userId) => {
     const threeSec = new Date(Date.now() + 1 * 3 * 1000);
     schedule.scheduleJob(`updateOrg_${userId}`, threeSec, async () => {
       try {
-         const org_query = {
-          orgName: orgMetaData.name
-        }
+        const org_query = {
+          orgName: orgMetaData.name,
+        };
         const org = await fetchOrgData(org_query);
         // const org = await Org.findOne({ orgName: orgMetaData.name });
         const user = await User.findById(userId, { orgId: 1 });
         if (org) {
-          sendKafkaMessage("ADD_USERTO_ORG","org",{
-            orgId:org._id.toString(),
-            userId
-          })
+          sendKafkaMessage("ADD_USERTO_ORG", "org", {
+            orgId: org._id.toString(),
+            userId,
+          });
           // org.working.push(userId);
           user.orgId = org._id;
           // await org.save();
@@ -141,7 +138,7 @@ const createOrg = async (orgMetaData, userId) => {
             orgName: orgMetaData.name,
             orgLogo: orgMetaData.logo,
             working: [userId],
-          }
+          };
           const newOrg = await createNewOrg(create_org);
           user.orgId = newOrg._id;
         }
@@ -205,15 +202,15 @@ const registerUser = async (req, res) => {
     company,
     workingPosition,
     orgMetaData,
-    universe
+    universe,
   } = req.body;
-  
+
   const universeMetaData = {
-    name:universe.name,
-    callSign:universe.callSign,
-    location:universe.location,
-    logo:universe.logo
-  }
+    name: universe.name,
+    callSign: universe.callSign,
+    location: universe.location,
+    logo: universe.logo,
+  };
 
   const existingUser = await User.findOne({ name, reg, email });
   if (existingUser) {
@@ -267,14 +264,14 @@ const registerUser = async (req, res) => {
     workingPosition,
     incompleteFields,
     universeMetaData,
-    uid:universe._id
+    uid: universe._id,
   };
   let user = await User.create({
     ...newData,
   });
 
-  await sendKafkaMessage("CREATE_USER","multiverse",{
-    _id:user._id.toString(),
+  await sendKafkaMessage("CREATE_USER", "multiverse", {
+    _id: user._id.toString(),
     profession,
     name,
     reg,
@@ -285,8 +282,8 @@ const registerUser = async (req, res) => {
     email,
     image,
     interests,
-    uid:universe._id,
-    universeMetaData
+    uid: universe._id,
+    universeMetaData,
   });
 
   const refreshToken = user.createRefreshToken();
@@ -343,14 +340,14 @@ const registerUser = async (req, res) => {
         intro,
         outro,
         subject,
-        destination
+        destination,
       );
       ses.sendEmail(params, function (err, data) {
         if (err) {
           console.log(err, err.stack);
         }
       });
-    }
+    },
   );
 
   //creating org if alumni joins in
@@ -402,7 +399,7 @@ const loginUtil = async (user) => {
       profession: user.profession,
       uid: user.uid,
       universeMetaData: user.universeMetaData,
-      email:user.email
+      email: user.email,
     },
     token: AccessToken,
     refreshToken,
@@ -469,8 +466,8 @@ const googleLogin = async (req, res) => {
         profession: 1,
         uid: 1,
         universeMetaData: 1,
-        email:1
-      }
+        email: 1,
+      },
     );
 
     if (!user) {
@@ -512,8 +509,8 @@ const loginUser = async (req, res) => {
       profession: 1,
       uid: 1,
       universeMetaData: 1,
-      email
-    }
+      email,
+    },
   );
   if (!user) {
     return res.status(StatusCodes.OK).send("User does not exist.");
@@ -588,7 +585,7 @@ const recoveryEmail = async (req, res) => {
     intro,
     outro,
     subject,
-    destination
+    destination,
   );
   ses.sendEmail(params, function (err, data) {
     if (err) {
@@ -648,10 +645,10 @@ const pushToken = async (req, res) => {
 
 //function to check for availability of username
 const userNameAvailable = async (req, res) => {
-  const { userName, email, reg, profession,college } = req.query;
+  const { userName, email, reg, profession, college } = req.query;
   const nameExists = await User.findOne({ name: userName }, { _id: 1 });
   const emailExists = await User.findOne({ email: email }, { _id: 1 });
-  if(college==='Lovely Professional University'){
+  if (college === "Lovely Professional University") {
     if (profession !== "Alumni") {
       const regExists = await User.findOne({ reg: parseInt(reg) }, { _id: 1 });
       if (regExists) {
@@ -706,7 +703,7 @@ const emailVerification = async (req, res) => {
       intro,
       outro,
       subject,
-      userEmail
+      userEmail,
     );
 
     await ses.sendEmail(params).promise(); // Use promise instead of callback
@@ -956,7 +953,7 @@ const suggestUsername = async (req, res) => {
     // Find already taken usernames from DB
     const takenUsers = await User.find(
       { name: { $in: candidates } },
-      { name: 1, _id: 0 }
+      { name: 1, _id: 0 },
     ).lean();
 
     const takenNames = new Set(takenUsers.map((u) => u.name));
@@ -1001,5 +998,5 @@ module.exports = {
   reactivateAccount,
   emailVerification2,
   getAppConfig,
-  suggestUsername
+  suggestUsername,
 };

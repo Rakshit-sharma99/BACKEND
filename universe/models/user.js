@@ -57,6 +57,193 @@ const shortcutSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const universeSchema = new mongoose.Schema(
+  {
+    name: String,
+    location: String,
+    logo: String,
+    callSign: String,
+    logoKey: String,
+    lat: Number,
+    lng: Number,
+  },
+  { _id: false },
+);
+
+const chatRoomSchema = new mongoose.Schema(
+  {
+    doc_id: {
+      type: String,
+      required: true,
+    },
+
+    state: {
+      type: String,
+      enum: ["read", "unread"],
+      default: "unread",
+    },
+
+    metaData: {
+      name: { type: String },
+      image: { type: String },
+      pushToken: { type: String },
+      deactivated: { type: Boolean, default: false },
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "accepted", "declined"],
+      default: "pending",
+    },
+
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  },
+  { _id: false },
+);
+
+const notificationSchema = new mongoose.Schema(
+  {
+    uid: {
+      type: String,
+      required: true,
+    },
+    value: {
+      type: String,
+      required: true,
+    },
+
+    img1: {
+      type: String,
+    },
+
+    img2: {
+      type: String,
+    },
+
+    key: {
+      type: String,
+      enum: [
+        "like",
+        "content",
+        "msg",
+        "event",
+        "tag",
+        "letter",
+        "read",
+        "badge",
+        "invitation",
+        "memory",
+        "certificate",
+        "read",
+      ],
+      required: false,
+    },
+
+    action: {
+      type: String,
+    },
+
+    contentType: {
+      type: String,
+    },
+
+    params: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    contentMetaData: {
+      type: mongoose.Schema.Types.Mixed,
+    },
+
+    time: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
+const communitiesCreatedSchema = new mongoose.Schema(
+  {
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Community",
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
+const communitiesPartOfSchema = new mongoose.Schema(
+  {
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Community",
+      required: true,
+    },
+
+    bestStreak: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    currentStreak: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    lastPosted: {
+      type: Date,
+    },
+
+    totalLikes: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    totalPosts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    rating: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    joined: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false },
+);
+
+const communityContributionSchema = new mongoose.Schema(
+  {
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Community",
+      required: true,
+    },
+    contentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Content",
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
 const userSchema = new mongoose.Schema(
   {
     profession: {
@@ -70,6 +257,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
+      enum: ["Creator", "Normal"],
       default: "Normal",
     },
     name: {
@@ -98,6 +286,7 @@ const userSchema = new mongoose.Schema(
         /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
         "Please provide a valid email",
       ],
+      unique: true,
     },
     password: {
       type: String,
@@ -107,61 +296,43 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "xyz.com",
     },
-    cart: {
-      type: Array,
-    },
-    reviewHistory: {
-      type: Array,
-    },
-    cards: {
-      type: Array,
-    },
-    chatRooms: {
-      type: Array,
-    },
-    credibilityScore: {
-      type: Number,
-      default: 5,
-    },
-    //propOrder {id:"P-1",otp:8183,name:"Projector",time:"Night Shift",status:"Received"(enum["Yet to be dispatched","Dispatched"]),remark:"",logId:"",date:"",reviewed:false}
-    propOrder: {
-      type: Array,
-    },
-    giftsSend: {
-      type: Array,
-    },
-    giftsReceived: {
-      type: Array,
-    },
-    notifications: {
-      type: Array,
-    },
-    unreadNotice: {
-      type: Array,
-    },
-    //clubs you are part of...[{clubId}]
-    clubs: {
-      type: Array,
-    },
+    cards: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Card",
+      },
+    ],
+
+    chatRooms: [chatRoomSchema],
+
+    notifications: [notificationSchema],
+
+    unreadNotice: [notificationSchema],
+
+    clubs: [
+      {
+        clubId: { type: mongoose.Schema.Types.ObjectId, ref: "Club" },
+        joinDate: Date,
+        badges: [String],
+      },
+    ],
     //blocked user from sending gifts ["user_id","user_id"]
     blockList: {
       type: Array,
     },
-    likedCards: {
-      type: Array,
-    },
-    //[{communityId}]
-    communitiesCreated: {
-      type: Array,
-    },
-    //[{communityId,bestStreak,currentStreak,lastPosted,totalLikes,totalPosts,rating}]
-    communitiesPartOf: {
-      type: Array,
-    },
-    //[{communityId,contentId}]
-    communityContribution: {
-      type: Array,
-    },
+    likedCards: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Card",
+      },
+    ],
+
+    communitiesCreated: [communitiesCreatedSchema],
+
+    communitiesPartOf: [communitiesPartOfSchema],
+
+    communityContribution: [communityContributionSchema],
+
     //[contentId]
     clubContributions: {
       type: Array,
@@ -182,7 +353,7 @@ const userSchema = new mongoose.Schema(
       type: Array,
     },
     lastActive: {
-      type: String,
+      type: Date,
     },
     recoveryOtp: {
       type: Number,
@@ -268,6 +439,7 @@ const userSchema = new mongoose.Schema(
     ip: {
       type: Number,
       default: 0,
+      min: 0,
     },
     a_recommended: [
       {
@@ -294,20 +466,20 @@ const userSchema = new mongoose.Schema(
     uid: {
       type: String,
     },
-    universeMetaData: {
-      name: { type: String },
-      location: { type: String },
-      logo: { type: String },
-      callSign: { type: String },
-      logoKey: { type: String },
-      lat: { type: Number },
-      lng: { type: Number },
-    },
+    universeMetaData: universeSchema,
   },
   {
     timestamps: true,
   },
 );
+
+userSchema.set("toJSON", {
+  transform: function (doc, ret) {
+    delete ret.password;
+    delete ret.refreshToken;
+    return ret;
+  },
+});
 
 userSchema.methods.createAccessToken = function () {
   return jwt.sign(
@@ -315,7 +487,7 @@ userSchema.methods.createAccessToken = function () {
       role: "user",
       id: this._id,
       uid: this.uid,
-      callSign: this.universeMetaData.callSign,
+      callSign: this.universeMetaData?.callSign,
     },
     process.env.ACCESS_TOKEN_SECRET,
     {
@@ -330,7 +502,7 @@ userSchema.methods.createRefreshToken = function () {
       role: "user",
       id: this._id,
       uid: this.uid,
-      callSign: this.universeMetaData.callSign,
+      callSign: this.universeMetaData?.callSign,
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
