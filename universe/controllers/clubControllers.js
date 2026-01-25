@@ -28,6 +28,10 @@ const {
   searchContentsFromIds,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
+const {
+  validateRequestBody,
+  sanitizeClubPayload,
+} = require("../controllers/validators/club.validator");
 
 //Middleware
 
@@ -72,58 +76,17 @@ const checkIsMember = async (clubId, userId) => {
 };
 
 //Controller 1
-
-const validateRequestBody = (body) => {
-  const errors = [];
-
-  // Required fields and their validation logic
-  if (!body.name || typeof body.name !== "string" || body.name.trim() === "") {
-    errors.push("Name is required and must be a non-empty string.");
-  }
-
-  if (
-    !body.motto ||
-    typeof body.motto !== "string" ||
-    body.motto.trim() === ""
-  ) {
-    errors.push("Motto is required and must be a non-empty string.");
-  }
-
-  if (
-    !body.featuringImg ||
-    typeof body.featuringImg !== "string" ||
-    body.featuringImg.trim() === ""
-  ) {
-    errors.push("Featuring image must be a valid URL.");
-  }
-
-  if (
-    !Array.isArray(body.tags) ||
-    body.tags.length === 0 ||
-    body.tags.some((tag) => typeof tag !== "string" || tag.trim() === "")
-  ) {
-    errors.push("Tags must be a non-empty array of non-empty strings.");
-  }
-
-  if (
-    !body.secondaryImg ||
-    typeof body.secondaryImg !== "string" ||
-    body.secondaryImg.trim() === ""
-  ) {
-    errors.push("Secondary image must be a valid URL.");
-  }
-
-  return errors;
-};
-
 const createClub = async (req, res) => {
   try {
     const errors = validateRequestBody(req.body);
     if (errors.length > 0) {
       return res.status(StatusCodes.BAD_REQUEST).json({ errors });
     }
+
+    const safePayload = sanitizeClubPayload(req.body);
+
     const club = await Club.create({
-      ...req.body,
+      ...safePayload,
       adminId: [req.user.id],
       mainAdmin: req.user.id,
       team: [{ id: req.user.id, pos: "Founder" }],
@@ -137,6 +100,7 @@ const createClub = async (req, res) => {
         whoCanDispatchAwards: [req.user.id],
       },
     });
+
     const founder = await User.findById(req.user.id, {
       clubs: 1,
       unreadNotice: 1,
@@ -147,17 +111,23 @@ const createClub = async (req, res) => {
       reg: 1,
       shortCuts: 1,
     });
+
     founder.clubs.push({
       clubId: club._id.toString(),
       joinDate: new Date(),
       badges: [],
     });
+
     await founder.save();
+
     secondaryActionsForClubCreation(req, club, founder);
+
     return res.status(StatusCodes.OK).json(club);
   } catch (error) {
     console.error(error);
-    return res.status(StatusCodes.OK).send("Something went wrong.");
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
   }
 };
 

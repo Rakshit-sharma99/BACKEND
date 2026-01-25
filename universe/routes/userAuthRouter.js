@@ -29,11 +29,14 @@ const {
   getAppConfig,
   suggestUsername,
 } = require("../controllers/userAuthControllers");
+const {
+  registerUserValidator,
+} = require("../controllers/validators/user.validator");
 
-router.post("/register", registerUser);
+router.post("/register", registerUserValidator, registerUser);
 router.post("/register/google", googleRegister);
 router.post("/login", loginUser);
-router.post('/login/google', googleLogin);
+router.post("/login/google", googleLogin);
 router.post("/recoveryEmail", recoveryEmail);
 router.post("/setOtp", setOtp);
 router.post("/setNewPassword", setNewPassword);
@@ -42,7 +45,7 @@ router.get("/userNameAvailable", userNameAvailable);
 router.get("/emailVerification", emailVerification);
 router.post(
   "/regenerateAccessToken-72f8c570-2a36-11ec-8d3d-0242ac130003",
-  regenerateAccessToken
+  regenerateAccessToken,
 );
 router.post("/generateAbout", generateAbout);
 router.get("/generateResearchAreas", generateResearchAreas);
