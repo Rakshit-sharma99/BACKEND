@@ -9,7 +9,7 @@ const kafka = require("../config/kafka_producer");
 const { io } = require("../app");
 const { default: mongoose } = require("mongoose");
 const jwt = require("jsonwebtoken");
-const axios = require("axios")
+const axios = require("axios");
 
 const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
@@ -30,7 +30,7 @@ const sendMail = async (
   subject,
   destination,
   action,
-  emailHTML
+  emailHTML,
 ) => {
   const mailGenerator = new Mailgen({
     theme: "cerberus",
@@ -65,7 +65,7 @@ const sendMail = async (
   }
 
   const emailBody = emailHTML ? emailHTML : mailGenerator.generate(email);
- 
+
   const params = {
     Source: '"Macbease" <support@macbease.com>',
     Destination: {
@@ -272,7 +272,7 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
     const targetAdmins = role
       ? await Admin.find(
           { role },
-          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 }
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
         )
       : await Admin.aggregate([
           { $match: { _id: { $in: ids } } },
@@ -293,7 +293,7 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
         : scheduleNotification(
             notificationPayload.pushToken,
             notificationPayload.title,
-            notificationPayload.body
+            notificationPayload.body,
           );
     }
     if (pingLevel === 1 || pingLevel === 2) {
@@ -326,7 +326,7 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
           email.outro,
           email.subject,
           targetMailIds,
-          email?.action
+          email?.action,
         );
         ses.sendEmail(params, function (err, data) {
           if (err) {
@@ -349,7 +349,7 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
     const targetUsers = role
       ? await User.find(
           { role },
-          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 }
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
         )
       : await User.aggregate([
           { $match: { _id: { $in: processedIds } } },
@@ -370,7 +370,7 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
         : scheduleNotification(
             notificationPayload.pushToken,
             notificationPayload.title,
-            notificationPayload.body
+            notificationPayload.body,
           );
     }
     if (pingLevel === 1 || pingLevel === 2) {
@@ -403,7 +403,7 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
           email.outro,
           email.subject,
           targetMailIds,
-          email?.action
+          email?.action,
         );
         ses.sendEmail(params, function (err, data) {
           if (err) {
@@ -427,7 +427,7 @@ const allotProjectChatroom = async (userIds, projectId) => {
 
     await User.updateMany(
       { _id: { $in: userIds } },
-      { $addToSet: { chatRooms: chatDoc } }
+      { $addToSet: { chatRooms: chatDoc } },
     );
 
     console.log("Successfully added chatRoom.");
@@ -1039,7 +1039,7 @@ const secondaryInvitationActions = async ({
               : scheduleNotification(
                   [target.pushToken],
                   notificationData.title,
-                  notificationData.body
+                  notificationData.body,
                 );
           } else {
             // Function to dispatch notification to admin
@@ -1064,12 +1064,12 @@ const secondaryInvitationActions = async ({
           const noticeSender = createNotice(
             senderNotification?.title,
             receiver.image,
-            sender.image
+            sender.image,
           );
           const noticeReceiver = createNotice(
             receiverNotification?.title,
             sender.image,
-            receiver.image
+            receiver.image,
           );
 
           sender.unreadNotice.unshift(noticeSender);
@@ -1087,7 +1087,7 @@ const secondaryInvitationActions = async ({
               emailData.intro,
               emailData.outro,
               emailData.subject,
-              [target.email]
+              [target.email],
             );
             ses.sendEmail(params, (err) => {
               if (err) console.error(err, err.stack);
@@ -1099,7 +1099,7 @@ const secondaryInvitationActions = async ({
             sendEmailToUser(receiver, receiverEmail),
           ]);
         }
-      }
+      },
     );
   } catch (error) {
     console.error(error);
@@ -1113,7 +1113,7 @@ const generateServiceToken = () => {
       role: "internal",
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "5m" }
+    { expiresIn: "5m" },
   );
   return {
     headers: {
@@ -1128,7 +1128,7 @@ const fetchOrgData = async (query) => {
     const orgData = await axios.post(
       "http://org:6080/org/api/v1/findOrg",
       query,
-      config
+      config,
     );
     return orgData.data.org;
   } catch (error) {
@@ -1143,7 +1143,7 @@ const createNewOrg = async (query) => {
     const orgData = await axios.post(
       "http://org:6080/org/api/v1/createOrg",
       query,
-      config
+      config,
     );
     return orgData.data.org;
   } catch (error) {
@@ -1152,90 +1152,90 @@ const createNewOrg = async (query) => {
   }
 };
 
-const fetchContentFromIds = async(query) => {
+const fetchContentFromIds = async (query) => {
   try {
     const config = generateServiceToken();
     const contents = await axios.post(
       "http://content:5000/content/api/v1/searchContentFromIds",
       query,
-      config
+      config,
     );
     return contents.data;
   } catch (error) {
     console.log(error.message);
     return null;
   }
-}
-const fetchMacbeaseContentFromIds = async(query) => {
+};
+const fetchMacbeaseContentFromIds = async (query) => {
   try {
     const config = generateServiceToken();
     const macbeaseContents = await axios.post(
       "http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
       query,
-      config
+      config,
     );
     return macbeaseContents.data;
   } catch (error) {
     console.log(error.message);
     return null;
   }
-}
-const fetchItineraryFromIds = async(query) => {
+};
+const fetchItineraryFromIds = async (query) => {
   try {
     const config = generateServiceToken();
     const itineraries = await axios.post(
       "http://itinerary:6050/itinerary/api/v1/getItinerariesByIds",
       query,
-      config
+      config,
     );
     return itineraries.data.itineraries;
   } catch (error) {
     console.log(error);
     return null;
   }
-}
-const fetchInvitationById = async(query) => {
+};
+const fetchInvitationById = async (query) => {
   try {
     const config = generateServiceToken();
     const invitation = await axios.post(
       "http://invitation:6030/invitation/api/v1/getInvitationById",
       query,
-      config
+      config,
     );
     return invitation.data;
   } catch (error) {
     console.log(error.message);
     return null;
   }
-}
-const fetchJoinLinkById = async(query) => {
+};
+const fetchJoinLinkById = async (query) => {
   try {
     const config = generateServiceToken();
     const joinLink = await axios.post(
       "http://join-link:6060/joinLink/api/v1/getJoinLinkById",
       query,
-      config
+      config,
     );
     return joinLink.data;
   } catch (error) {
     console.log(error.message);
     return null;
   }
-}
-const fetchBags = async(query) => {
+};
+const fetchBags = async (query) => {
   try {
     const config = generateServiceToken();
     const bags = await axios.post(
       "http://bag:5090/bag/api/v1/fetchBags",
       query,
-      config
+      config,
     );
     return bags.data;
   } catch (error) {
     console.log(error.message);
     return null;
   }
-}
+};
 
 const fetchRightSequence = async (events) => {
   try {
@@ -1251,7 +1251,7 @@ const fetchRightSequence = async (events) => {
     // Fetch clubs with ratings
     const clubs = await Club.find(
       { _id: { $in: clubIds } },
-      { rating: 1 }
+      { rating: 1 },
     ).lean();
 
     // Create lookup for club ratings
@@ -1298,6 +1298,45 @@ const fetchRightSequence = async (events) => {
   }
 };
 
+const sendOnboardingMail = async (user) => {
+  try {
+    const scheduleTimeForEmail = new Date(Date.now() + 3 * 1000);
+    schedule.scheduleJob(
+      `sendMailOnSignUp_${user._id}`,
+      scheduleTimeForEmail,
+      async () => {
+        const name = user.name;
+        const action = {};
+        const intro = [
+          "We are so delighted to have you onboard Macbease.",
+          `We look forward to making your college experience a delightful one.`,
+        ];
+        const outro = "Let us begin this journey together!";
+        const subject = "Macbease Confirmation";
+        const htmlContent =
+          "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>MacbeaseSpaceMail</title><meta name='viewport' content='width=device-width,initial-scale=1.0'><style>body, table, td, p { margin:0; padding:0; } img { border:0; display:block; line-height:0; } @media only screen and (max-width:600px) { table[class='container'] { width:100%!important; } td[class='responsive-column'] { display:block!important; width:100%!important; text-align:center!important; } img[class='responsive-img'] { width:100%!important; height:auto!important; } h1, h2, p { text-align:center!important; } }</style></head><body style='margin:0;padding:0;background-color:#000;font-family:Arial,sans-serif;color:#fff;'><table role='presentation' width='100%' cellspacing='0' cellpadding='0' border='0' style='background-repeat:no-repeat;background-size:cover;background-position:center;background-color:#02021c;'><tr><td align='center' valign='top'><table role='presentation' class='container' width='600' cellspacing='0' cellpadding='0' border='0' style='width:100%;max-width:600px;margin:auto;'><tr><td align='center'><img src='https://s3userdata25136-dev.s3.ap-northeast-1.amazonaws.com/public/certificates/astro3-removebg-preview.png' alt='' width='240' style='margin-bottom:1px;'></td></tr><tr><td align='center' style='padding:30px 20px;background:rgba(28,9,67,.8);border-radius:20px;'><h1 style='font-size:35px;margin:0;'>Welcome to Macbease 🚀</h1><p style='color:#cfcfcf;margin-top:10px;font-size:14px;'>All the Clubs. Infinite Communities. So many memories.</p></td></tr><tr><td style='height:25px;'></td></tr><tr><td style='background-color:#0b0d29;border-radius:20px;padding:30px;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td class='responsive-column' width='50%' align='center'><img src='https://cdn3d.iconscout.com/3d/premium/thumb/creative-writer-storytelling-process-3d-icon-png-download-13174809.png' width='260' class='responsive-img' style='border-radius:10px;'></td><td class='responsive-column' width='50%' align='left' style='padding-left:10px;'><h2 style='margin:0;'>Find Your Club</h2><p style='color:#d1d1d1;margin:10px 0;'>College life means crazy clubs. Join clubs where everyone vibes like you.</p><a href='https://app.macbease.com/explore' style='background:#6A5ACD;color:#fff;margin-top:12px;margin-right:12px;margin-bottom:12px;padding:12px 20px;text-decoration:none;border-radius:10px;display:inline-block;'>Explore</a></td></tr></table></td></tr><tr><td style='height:20px;'></td></tr><tr><td style='background-color:#0b0d29;border-radius:20px;padding:30px;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td class='responsive-column' width='50%' align='left' style='padding-right:10px;'><h2 style='margin:0;'>Communities for every hobby</h2><p style='color:#d1d1d1;margin:10px 0;'>From coding, dancing, music, to anything you love, we got campus community for all.</p><a href='https://app.macbease.com/explore' style='background:#6A5ACD;color:#fff;margin-top:12px;margin-right:12px;margin-bottom:12px;padding:12px 20px;text-decoration:none;border-radius:10px;display:inline-block;'>Explore</a></td><td class='responsive-column' width='50%' align='center'><img src='https://cdn3d.iconscout.com/3d/premium/thumb/people-joining-plug-connection-3d-icon-png-download-9685045.png' width='230' class='responsive-img' style='border-radius:10px;'></td></tr></table></td></tr><tr><td style='height:20px;'></td></tr><tr><td style='background-color:#0b0d29;border-radius:20px;padding:30px;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td class='responsive-column' width='50%' align='center'><img src='https://static.vecteezy.com/system/resources/thumbnails/011/665/522/small/3d-render-hand-carrying-megaphone-and-smartphone-digital-marketing-png.png' width='270' class='responsive-img' style='border-radius:10px;'></td><td class='responsive-column' width='50%' align='left' style='padding-left:10px;'><h2 style='margin:0;'>One place for all events</h2><p style='color:#d1d1d1;margin:10px 0;'>Fests, concerts, workshops — stay updated and avoid FOMO.</p><a href='https://app.macbease.com/explore' style='background:#6A5ACD;color:#fff;margin-top:12px;margin-right:12px;margin-bottom:12px;padding:12px 20px;text-decoration:none;border-radius:10px;display:inline-block;'>Explore</a></td></tr></table></td></tr><tr><td style='height:20px;'></td></tr><tr><td style='background-color:#0b0d29;border-radius:20px;padding:30px;'><table width='100%' cellpadding='0' cellspacing='0'><tr><td class='responsive-column' width='50%' align='left' style='padding-right:10px;'><h2 style='margin:0;'>Make your Memory Lane</h2><p style='color:#d1d1d1;margin:10px 0;'>Capture your college life in memories, you will cherish even the small ones later.</p><a href='https://app.macbease.com/explore' style='background:#6A5ACD;color:#fff;margin-top:12px;margin-right:12px;margin-bottom:12px;padding:12px 20px;text-decoration:none;border-radius:10px;display:inline-block;'>Explore</a></td><td class='responsive-column' width='50%' align='center'><img src='https://cdn3d.iconscout.com/3d/premium/thumb/people-taking-selfie-group-using-mobile-3d-icon-png-download-13170181.png' width='230' class='responsive-img' style='border-radius:10px;'></td></tr></table></td></tr><tr><td style='height:20px;'></td></tr><tr><td align='center' style='padding:20px;color:#aaa;font-size:12px;'><p>© 2025 Macbease. All Rights Reserved.</p></td></tr></table></td></tr></table></body></html>";
+        const destination = [user.email];
+        const { ses, params } = await sendMail(
+          name,
+          intro,
+          outro,
+          subject,
+          destination,
+          action,
+          htmlContent,
+        );
+        ses.sendEmail(params, function (err, data) {
+          if (err) {
+            console.log(err, err.stack);
+          }
+        });
+      },
+    );
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 module.exports = {
   sendMail,
   getCurrentISTDate,
@@ -1323,5 +1362,6 @@ module.exports = {
   fetchInvitationById,
   fetchJoinLinkById,
   fetchBags,
-  fetchRightSequence
+  fetchRightSequence,
+  sendOnboardingMail,
 };

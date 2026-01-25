@@ -6,7 +6,6 @@ const http = require("http");
 const admin = require("firebase-admin");
 
 const connectDB = require("./db/connect");
-const authenticate = require("./middlewares/authentication");
 const multiverse_adminAuthRouter = require("./routes/adminAuthRouter");
 const universeRouter = require("./routes/universeRouter");
 
@@ -30,7 +29,7 @@ app.get("/multiverse/api/v1/hello", (req, res) => {
 });
 
 app.use("/multiverse/api/v1/auth/multiverse_admin", multiverse_adminAuthRouter);
-app.use("/multiverse/api/v1/universe", authenticate, universeRouter);
+app.use("/multiverse/api/v1/universe", universeRouter);
 
 const port = process.env.PORT || 5020;
 

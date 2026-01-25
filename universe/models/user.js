@@ -228,6 +228,65 @@ const communitiesPartOfSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const likedContentsSchema = new mongoose.Schema(
+  {
+    contentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["community", "club", "macbease"],
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
+const taggedContentsSchema = new mongoose.Schema(
+  {
+    contentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["community", "club", "macbease"],
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
+const commentedContentsSchema = new mongoose.Schema(
+  {
+    contentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    type: {
+      type: String,
+      enum: ["community", "club", "macbease"],
+      required: true,
+    },
+    cid: {
+      type: String,
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
+const feedSchema = new mongoose.Schema(
+  {
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+  },
+  { _id: false },
+);
+
 const communityContributionSchema = new mongoose.Schema(
   {
     communityId: {
@@ -251,34 +310,44 @@ const userSchema = new mongoose.Schema(
       enum: ["Student", "Professor", "Alumni"],
       default: "Student",
     },
+
     incompleteProfile: {
       type: Boolean,
       default: false,
     },
+
     role: {
       type: String,
       enum: ["Creator", "Normal"],
       default: "Normal",
     },
+
     name: {
       type: String,
+      unique: true,
       required: [true, "Please provide the user name."],
     },
+
     reg: {
       type: Number,
     },
+
     course: {
       type: String,
     },
+
     field: {
       type: String,
     },
+
     passoutYear: {
       type: String,
     },
+
     level: {
       type: String,
     },
+
     email: {
       type: String,
       required: [true, "Please provide the email id."],
@@ -288,14 +357,17 @@ const userSchema = new mongoose.Schema(
       ],
       unique: true,
     },
+
     password: {
       type: String,
       required: [true, "Please provide the password."],
     },
+
     image: {
       type: String,
       default: "xyz.com",
     },
+
     cards: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -316,10 +388,11 @@ const userSchema = new mongoose.Schema(
         badges: [String],
       },
     ],
-    //blocked user from sending gifts ["user_id","user_id"]
+
     blockList: {
       type: Array,
     },
+
     likedCards: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -333,114 +406,166 @@ const userSchema = new mongoose.Schema(
 
     communityContribution: [communityContributionSchema],
 
-    //[contentId]
-    clubContributions: {
-      type: Array,
-    },
-    //[{contentId,type:enum["community","club","gift","Macbease"]}]
-    likedContents: {
-      type: Array,
-    },
-    taggedContents: {
-      type: Array,
-    },
-    //[{contentId,type:enum["community","club","gift","Macbease"],comment}]
-    commentedContents: {
-      type: Array,
-    },
-    //["Ai and Ml","Universe","Movies"]
+    clubContributions: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Content",
+      },
+    ],
+
+    likedContents: [likedContentsSchema],
+
+    taggedContents: [taggedContentsSchema],
+
+    commentedContents: [commentedContentsSchema],
+
     interests: {
-      type: Array,
+      type: [String],
     },
+
     lastActive: {
       type: Date,
     },
+
     recoveryOtp: {
       type: Number,
     },
+
     pushToken: {
       type: String,
     },
-    //["id"]
-    feed: {
-      type: Array,
-    },
-    eventFeed: {
-      type: Array,
-    },
-    //["id"]
-    macbeaseContentContribution: {
-      type: Array,
-    },
+
+    feed: [feedSchema],
+
+    eventFeed: [
+      {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+    ],
+
+    macbeaseContentContribution: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "MacbeaseContent",
+      },
+    ],
+
     shortCuts: [shortcutSchema],
+
     ticketsBought: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Ticket",
       },
     ],
-    refreshToken: { type: String },
-    cardFeed: {
-      type: Array,
+
+    refreshTokens: {
+      app: { type: String, default: null },
+      web: { type: String, default: null },
     },
-    badges: {
-      type: Array,
-    },
+
+    cardFeed: [
+      {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+    ],
+
+    badges: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Badge",
+      },
+    ],
+
     deactivated: {
       type: Boolean,
       default: false,
     },
+
     deactivationDate: {
       type: Date,
     },
-    pinnedBy: {
-      type: Array,
-    },
-    tunedIn_By: {
-      type: Array,
-    },
-    hasTunedTo: {
-      type: Array,
-    },
+
+    pinnedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    tunedIn_By: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Ticket",
+      },
+    ],
+
+    hasTunedTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Ticket",
+      },
+    ],
+
     creatorPost: {
       type: String,
     },
+
     resources: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Resource",
       },
     ],
+
     status: {
       type: String,
+      enum: ["offline", "online"],
+      default: "offline",
     },
+
     professionalEmail: {
       type: String,
+      unique: true,
+      match: [
+        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/,
+        "Please provide a valid email",
+      ],
     },
+
     incompleteFields: {
       type: Array,
     },
+
     career: {
       type: String,
     },
+
     company: {
       type: String,
     },
+
     workingPosition: {
       type: String,
     },
+
     orgId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Org",
     },
+
     appVersion: {
       type: String,
     },
+
     ip: {
       type: Number,
       default: 0,
       min: 0,
     },
+
     a_recommended: [
       {
         type: {
@@ -454,18 +579,33 @@ const userSchema = new mongoose.Schema(
         },
       },
     ],
-    memoryRequests: {
-      type: Array,
-    },
-    pinnedMemories: {
-      type: Array,
-    },
-    memoryList: {
-      type: Array,
-    },
+
+    memoryRequests: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Memory",
+      },
+    ],
+
+    pinnedMemories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Memory",
+      },
+    ],
+
+    memoryList: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
     uid: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Universe",
     },
+
     universeMetaData: universeSchema,
   },
   {

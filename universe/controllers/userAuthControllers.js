@@ -1,4 +1,5 @@
 const { StatusCodes } = require("http-status-codes");
+const { validationResult } = require("express-validator");
 const User = require("../models/user");
 const Community = require("../models/community");
 const Club = require("../models/club");
@@ -10,96 +11,17 @@ const {
   sendMail,
   fetchOrgData,
   createNewOrg,
+  sendOnboardingMail,
 } = require("../controllers/utils");
 const { OpenAI } = require("openai");
 const { default: mongoose } = require("mongoose");
 const { OAuth2Client } = require("google-auth-library");
 const AppConfig = require("../models/appConfig");
 const semver = require("semver");
-
 const schedule = require("node-schedule");
 const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
-
-const p1 = [
-  {
-    type: "club",
-    name: "Coding Club",
-    id: mongoose.Types.ObjectId("657b9303f18136e2f692398c"),
-    secondaryImg: "public/club/CodingPost3.jpg",
-  },
-  {
-    type: "community",
-    name: "Mamba Mentality ",
-    id: mongoose.Types.ObjectId("66ed18fe0c4142316f4c43f7"),
-    secondary: "public/community/FriSep20202412:11:00GMT+0530img",
-  },
-  {
-    type: "club",
-    name: "Pawn Knight",
-    id: mongoose.Types.ObjectId("657b97a8f18136e2f69239ab"),
-    secondaryImg: "public/club/chessClunCover.jpg",
-  },
-  {
-    type: "community",
-    name: "got-it!",
-    id: mongoose.Types.ObjectId("657b9407f18136e2f69239a1"),
-    secondary: "public/club/SocialClubLogo.jpg",
-  },
-];
-const p2 = [
-  {
-    type: "club",
-    name: "Sheyn",
-    id: mongoose.Types.ObjectId("65fbb7a60fa1132b8c9cc280"),
-    secondaryImg: "public/club/ThuMar21202409:59:22GMT+0530img",
-  },
-  {
-    type: "community",
-    name: "World Wizards",
-    id: mongoose.Types.ObjectId("657ba2e9f18136e2f69239d4"),
-    secondary: "public/communities/wAlogo.jpeg",
-  },
-  {
-    type: "club",
-    name: "Department of Entrepreneurship ",
-    id: mongoose.Types.ObjectId("66d29ec57657f2d4231cd22a"),
-    secondaryImg: "public/club/SatAug31202410:10:35GMT+0530img",
-  },
-  {
-    type: "community",
-    name: "Game devs",
-    id: mongoose.Types.ObjectId("670a1d50884ee1bcc3bb12b0"),
-    secondary: "public/community/SatOct12202412:25:09GMT+0530img",
-  },
-];
-const p3 = [
-  {
-    type: "club",
-    name: "Coding Club",
-    id: mongoose.Types.ObjectId("657b9303f18136e2f692398c"),
-    secondaryImg: "public/club/CodingPost3.jpg",
-  },
-  {
-    type: "community",
-    name: "got-it!",
-    id: mongoose.Types.ObjectId("657b9407f18136e2f69239a1"),
-    secondary: "public/club/SocialClubLogo.jpg",
-  },
-  {
-    type: "club",
-    name: "0x0CAFE",
-    id: mongoose.Types.ObjectId("670eb50be40cd552e8ba386d"),
-    secondaryImg: "public/club/WedOct16202400:01:37GMT+0530img",
-  },
-  {
-    type: "community",
-    name: "World Wizards",
-    id: mongoose.Types.ObjectId("657ba2e9f18136e2f69239d4"),
-    secondary: "public/communities/wAlogo.jpeg",
-  },
-];
-const arr = [p1, p2, p3];
+const { shortcuts } = require("./validators/user.validator");
 
 const securePassword = async (password) => {
   try {
@@ -183,191 +105,162 @@ const generateGibberishPassword = () => {
 };
 
 const registerUser = async (req, res) => {
-  console.log("sign up fired");
-  const {
-    name,
-    email,
-    password,
-    course,
-    reg,
-    interests,
-    cards,
-    image,
-    field,
-    passoutYear,
-    level,
-    incompleteProfile,
-    profession,
-    career,
-    company,
-    workingPosition,
-    orgMetaData,
-    universe,
-  } = req.body;
-
-  const universeMetaData = {
-    name: universe.name,
-    callSign: universe.callSign,
-    location: universe.location,
-    logo: universe.logo,
-  };
-
-  const existingUser = await User.findOne({ name, reg, email });
-  if (existingUser) {
-    return res
-      .status(StatusCodes.OK)
-      .send("Already a user with these credentials exist.");
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(StatusCodes.BAD_REQUEST).json({
+      success: false,
+      errors: errors.array(),
+    });
   }
 
-  const incompleteFields = [];
-  const checkField = (field, fieldName) => {
-    if (
-      field === null ||
-      field === undefined ||
-      (Array.isArray(field) && field.every((item) => item === "")) ||
-      (typeof field === "string" && field.trim() === "")
-    ) {
-      incompleteFields.push(fieldName);
+  try {
+    const {
+      name,
+      email,
+      password,
+      course,
+      reg,
+      interests,
+      image,
+      field,
+      passoutYear,
+      level,
+      incompleteProfile,
+      profession,
+      career,
+      company,
+      workingPosition,
+      orgMetaData,
+      universe,
+    } = req.body;
+    /* ---------- Platform ---------- */
+    const platform = req.body.platform || "app";
+
+    /* ---------- Build universeMetaData safely ---------- */
+    const universeMetaData = {
+      name: universe.name.trim(),
+      callSign: universe.callSign.trim(),
+      location: universe.location.trim(),
+      logo: universe.logo.trim(),
+      logoKey: universe.logoKey?.trim(),
+      lat: Number(universe.lat),
+      lng: Number(universe.lng),
+    };
+
+    /* ---------- Check existing user ---------- */
+    const existingUser = await User.findOne({ $or: [{ email }, { name }] });
+    if (existingUser) {
+      return res
+        .status(StatusCodes.CONFLICT)
+        .json({ success: false, message: "Email already registered" });
     }
-  };
 
-  checkField(course, "course");
-  checkField(interests, "interests");
-  checkField(field, "field");
-  checkField(passoutYear, "passoutYear");
-  checkField(level, "level");
-  if (profession === "Alumni") {
-    checkField(career, "career");
-    checkField(workingPosition, "workingPosition");
-    checkField(company, "company");
-  }
+    /* ---------- Find incomplete fields ---------- */
+    const incompleteFields = [];
 
-  console.log("Incomplete fields:", incompleteFields);
+    const checkField = (field, fieldName) => {
+      if (
+        field === null ||
+        field === undefined ||
+        (Array.isArray(field) && field.every((v) => v === "")) ||
+        (typeof field === "string" && field.trim() === "")
+      ) {
+        incompleteFields.push(fieldName);
+      }
+    };
 
-  let hashedPassword = await securePassword(password);
-  let newData = {
-    name,
-    email,
-    password: hashedPassword,
-    course,
-    reg: profession === "Alumni" ? "00000000" : reg,
-    interests,
-    cards,
-    image,
-    field,
-    passoutYear,
-    level,
-    incompleteProfile,
-    profession: profession || "Student",
-    career,
-    company,
-    workingPosition,
-    incompleteFields,
-    universeMetaData,
-    uid: universe._id,
-  };
-  let user = await User.create({
-    ...newData,
-  });
+    checkField(course, "course");
+    checkField(interests, "interests");
+    checkField(field, "field");
+    checkField(passoutYear, "passoutYear");
+    checkField(level, "level");
 
-  await sendKafkaMessage("CREATE_USER", "multiverse", {
-    _id: user._id.toString(),
-    profession,
-    name,
-    reg,
-    course,
-    field,
-    passoutYear,
-    level,
-    email,
-    image,
-    interests,
-    uid: universe._id,
-    universeMetaData,
-  });
-
-  const refreshToken = user.createRefreshToken();
-  user.refreshToken = refreshToken;
-  const rand = Math.floor(Math.random() * 3);
-  for (let j = 0; j < arr[rand].length; j++) {
-    const shortcut = arr[rand][j];
-    user.shortCuts.push(shortcut);
-    if (shortcut.type === "community") {
-      const community = await Community.findById(shortcut.id, {
-        pinnedBy: 1,
-      });
-      community.pinnedBy.push(mongoose.Types.ObjectId(user._id));
-      await community.save();
-    } else if (shortcut.type === "club") {
-      const club = await Club.findById(shortcut.id, { pinnedBy: 1 });
-      club.pinnedBy.push(mongoose.Types.ObjectId(user._id));
-      await club.save();
+    if (profession === "Alumni") {
+      checkField(career, "career");
+      checkField(workingPosition, "workingPosition");
+      checkField(company, "company");
     }
-  }
-  const randomUser = await User.aggregate([
-    { $sample: { size: 1 } },
-    { $project: { name: 1, image: 1, pushToken: 1 } },
-  ]);
-  const personShortCut = {
-    type: "people",
-    img: randomUser[0].image,
-    name: randomUser[0].name,
-    id: randomUser[0]._id,
-    userPushToken: randomUser[0].pushToken,
-  };
-  const concernedUser = await User.findById(personShortCut.id, { pinnedBy: 1 });
-  concernedUser.pinnedBy.push(mongoose.Types.ObjectId(user._id));
-  await concernedUser.save();
-  user.shortCuts.push(personShortCut);
-  user.save();
-  const AccessToken = user.createAccessToken();
 
-  //sending an email on signup
-  const scheduleTimeForEmail = new Date(Date.now() + 3 * 1000);
-  schedule.scheduleJob(
-    `sendMailOnSignUp_${user._id}`,
-    scheduleTimeForEmail,
-    async () => {
-      const intro = [
-        "We are so delighted to have you onboard Macbease.",
-        `We look forward to making your college experience a delightful one.`,
-      ];
-      const outro = "Let us begin this journey together!";
-      const subject = "Macbease Confirmation";
-      const destination = [user.email];
-      const { ses, params } = await sendMail(
-        name,
-        intro,
-        outro,
-        subject,
-        destination,
-      );
-      ses.sendEmail(params, function (err, data) {
-        if (err) {
-          console.log(err, err.stack);
-        }
-      });
-    },
-  );
+    /* ---------- Hash password ---------- */
+    const hashedPassword = await securePassword(password);
 
-  //creating org if alumni joins in
-  if (profession === "Alumni" && orgMetaData) {
-    createOrg(orgMetaData, user._id);
-  }
-
-  return res.status(StatusCodes.CREATED).json({
-    user: {
-      name: user.name,
-      image: user.image,
-      _id: user._id,
-      role: user.role,
-      reg: user.reg,
-      profession: user.profession,
+    /* ---------- Create user ---------- */
+    const user = await User.create({
+      name: name.trim(),
+      email,
+      password: hashedPassword,
+      course: course?.trim(),
+      reg: profession === "Alumni" ? "00000000" : reg,
+      interests,
+      image,
+      field: field?.trim(),
+      passoutYear: passoutYear?.trim(),
+      level: level?.trim(),
+      incompleteProfile,
+      profession: profession || "Student",
+      career: career?.trim(),
+      company: company?.trim(),
+      workingPosition: workingPosition?.trim(),
+      incompleteFields,
       universeMetaData,
-    },
-    token: AccessToken,
-    refreshToken,
-  });
+      uid: universe._id,
+    });
+
+    /* ---------- Tokens ---------- */
+    const refreshToken = user.createRefreshToken();
+    user.refreshTokens[platform] = refreshToken;
+
+    /* ---------- Shortcuts ---------- */
+    const randomIndex = Math.floor(Math.random() * shortcuts.length);
+    const selectedShortcuts = shortcuts[randomIndex];
+    user.shortCuts = selectedShortcuts;
+    await user.save();
+
+    const accessToken = user.createAccessToken();
+
+    /* ---------- Optional: alumni org creation ---------- */
+    if (profession === "Alumni" && orgMetaData) {
+      createOrg(orgMetaData, user._id);
+    }
+
+    /* ---------- Send onboarding mail ---------- */
+    sendOnboardingMail(user);
+
+    /* ---------- Cookies ---------- */
+    res.cookie("access_token", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 25 * 60 * 1000,
+    });
+    res.cookie("refresh_token", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(StatusCodes.CREATED).json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        image: user.image,
+        role: user.role,
+        reg: user.reg,
+        profession: user.profession,
+        universeMetaData,
+      },
+      token: accessToken,
+      refreshToken,
+    });
+  } catch (error) {
+    console.error("Register error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Registration failed",
+    });
+  }
 };
 
 const loginUtil = async (user) => {
