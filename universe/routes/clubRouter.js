@@ -73,6 +73,9 @@ const {
   getAllClubs,
   getClubById,
   populateUniverseMetaDataInClubs,
+  searchClubsWithRegex,
+  fetchMultipleClubsFromIds,
+  getClubsRecommendation,
 } = require("../controllers/clubControllers");
 
 router.post("/createClub", createClub);
@@ -149,5 +152,8 @@ router.post(
   "/populateUniverseMetaDataInClubs",
   populateUniverseMetaDataInClubs,
 );
+router.post("/getClubsRecommendation", getClubsRecommendation);
+router.post("/fetchMultipleClubsFromIds", fetchMultipleClubsFromIds);
+router.post("/searchClubsWithRegex", searchClubsWithRegex);
 
 module.exports = router;

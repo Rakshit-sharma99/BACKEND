@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const services = {
   universe: "universe:5050",
-   "macbeaseContent": "macbeaseContent:5070"
+  "macbeaseContent": "macbeaseContent:5070"
 };
 
 const generateServiceToken = () => {
@@ -33,7 +33,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://universe:5050/universe/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -90,4 +90,4 @@ const fetchMacbeaseContent = async (query) => {
   }
 };
 
-module.exports = {fetchNativeUserData,fetchUserData,fetchMacbeaseContent}
+module.exports = { fetchNativeUserData, fetchUserData, fetchMacbeaseContent }

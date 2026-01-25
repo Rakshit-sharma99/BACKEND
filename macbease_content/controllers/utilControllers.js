@@ -34,7 +34,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://universe:5050/universe/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -197,4 +197,4 @@ const scheduleNotification = (pushToken, title, body, image) => {
   });
 };
 
-module.exports = {fetchNativeUserData,fetchUserData,generateUri,scheduleNotification2,scheduleNotification}
+module.exports = { fetchNativeUserData, fetchUserData, generateUri, scheduleNotification2, scheduleNotification }

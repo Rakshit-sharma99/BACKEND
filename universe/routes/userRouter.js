@@ -48,6 +48,9 @@ const {
   getTuners,
   getMemoryListRecommendation,
   addUniverseMetaDataToShortcuts,
+  getUsersWithDynamicQuery,
+  fetchBulkUsers,
+  getUsersByFields,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -98,5 +101,8 @@ router.get("/getSearchResults", getSearchResults);
 router.get("/getTuners", getTuners);
 router.get("/getMemoryListRecommendation", getMemoryListRecommendation);
 router.post("/addUniverseMetaDataToShortcuts", addUniverseMetaDataToShortcuts);
+router.post("/getUsersWithDynamicQuery", getUsersWithDynamicQuery);
+router.post("/fetchBulkUsers", fetchBulkUsers);
+router.post("/getUsersByFields", getUsersByFields);
 
 module.exports = router;

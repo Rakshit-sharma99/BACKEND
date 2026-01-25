@@ -1919,6 +1919,125 @@ const addUniverseMetaDataToShortcuts = async (req, res) => {
   }
 };
 
+const getUsersWithDynamicQuery = async (req, res) => {
+  try {
+    const { filter, projection } = req.body;
+
+    // Validate that `filter` is an object
+    if (!filter || typeof filter !== "object") {
+      return res
+        .status(400)
+        .json({ error: "Invalid or missing filter object." });
+    }
+
+    // Projection can be either an object (recommended) or a string
+    const users = await User.find(filter, projection || {}).limit(6);
+
+    return res.status(200).json({ data: users });
+  } catch (error) {
+    console.error("Error fetching users with dynamic query:", error);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+const fetchBulkUsers = async (req, res) => {
+  try {
+    const { userIds, fields = [] } = req.body;
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: "User IDs are required." });
+    }
+
+    const projection = fields.reduce((acc, field) => {
+      acc[field] = 1;
+      return acc;
+    }, {});
+
+    const objectIds = userIds
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null
+      )
+      .filter(Boolean);
+
+    if (objectIds.length === 0) {
+      return res.status(400).json({ error: "No valid user IDs provided." });
+    }
+
+    const users = await User.find({ _id: { $in: objectIds } }, projection);
+
+    return res.status(200).json(users);
+  } catch (error) {
+    console.error("Error fetching users in bulk:", error);
+    return res.status(500).json({ error: "Internal server error." });
+  }
+};
+
+
+const getUsersByFields = async (req, res) => {
+  try {
+    const { filters = {}, fields = [] } = req.body;
+
+    if (!filters || typeof filters !== "object") {
+      return res.status(400).json({
+        success: false,
+        message: "Filters object is required",
+      });
+    }
+
+    if (fields && !Array.isArray(fields)) {
+      return res.status(400).json({
+        success: false,
+        message: "Fields must be an array",
+      });
+    }
+
+    const query = {};
+
+    for (const key in filters) {
+      const value = filters[key];
+
+      if (Array.isArray(value)) {
+        if (key === "_id") {
+          query[key] = {
+            $in: value
+              .filter(mongoose.Types.ObjectId.isValid)
+              .map((id) => new mongoose.Types.ObjectId(id)),
+          };
+        } else {
+          query[key] = { $in: value };
+        }
+      } else {
+        query[key] = value;
+      }
+    }
+
+    let projection = null;
+    if (fields.length > 0) {
+      projection = fields.join(" ");
+    }
+
+    const users = await User.find(query)
+      .select(projection)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      count: users.length,
+      users,
+    });
+
+  } catch (error) {
+    console.error("getUsersByFields error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+    });
+  }
+};
+
 module.exports = {
   getUser,
   updateUser,
@@ -1968,4 +2087,7 @@ module.exports = {
   getTuners,
   getMemoryListRecommendation,
   addUniverseMetaDataToShortcuts,
+  getUsersWithDynamicQuery,
+  fetchBulkUsers,
+  getUsersByFields
 };

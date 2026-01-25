@@ -32,7 +32,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://universe:5050/universe/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -77,7 +77,7 @@ const fetchClubData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/club/getClubFieldsById",
+      "http://universe:5050/universe/api/v1/club/getClubFieldsById",
       query,
       config
     );

@@ -56,7 +56,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/getUserFieldsById",
+      "http://universe:5050/universe/api/v1/user/getUserFieldsById",
       query,
       config
     );
@@ -101,7 +101,7 @@ const fetchMultipleClubsData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/club/fetchMultipleClubsFromIds",
+      "http://universe:5050/universe/api/v1/club/fetchMultipleClubsFromIds",
       query,
       config
     );
@@ -122,7 +122,7 @@ const fetchMultipleCommunitiesData = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/community/fetchMultipleCommunitiesFromIds",
+      "http://universe:5050/universe/api/v1/community/fetchMultipleCommunitiesFromIds",
       query,
       config
     );
@@ -207,7 +207,7 @@ const fetchRelevantProfessors = async (regexPatterns) => {
     };
 
     const professors = await axios.post(
-      `http://multiverse:5020/multiverse/api/v1/user/getUsersWithDynamicQuery`,
+      `http://universe:5050/universe/api/v1/user/getUsersWithDynamicQuery`,
       body,
       config
     );
@@ -228,7 +228,7 @@ const fetchRelevantClubs = async (regexPatterns) => {
     };
 
     const clubs = await axios.post(
-      `http://multiverse:5020/multiverse/api/v1/club/searchClubsWithRegex`,
+      `http://universe:5050/universe/api/v1/club/searchClubsWithRegex`,
       body,
       config
     );
@@ -249,7 +249,7 @@ const fetchRelevantCommunities = async (regexPatterns) => {
     };
 
     const communities = await axios.post(
-      `http://multiverse:5020/multiverse/api/v1/community/searchCommunitiesWithRegex`,
+      `http://universe:5050/universe/api/v1/community/searchCommunitiesWithRegex`,
       body,
       config
     );
@@ -281,7 +281,7 @@ const fetchClubsRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/club/getClubsRecommendation",
+      "http://universe:5050/universe/api/v1/club/getClubsRecommendation",
       query,
       config
     );
@@ -298,7 +298,7 @@ const fetchCommunitiesRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/community/getCommunitiesRecommendation",
+      "http://universe:5050/universe/api/v1/community/getCommunitiesRecommendation",
       query,
       config
     );

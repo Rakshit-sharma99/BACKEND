@@ -2,7 +2,7 @@ const axios = require("axios");
 const jwt = require("jsonwebtoken");
 
 const services = {
-    universe:"universe:5050"
+  universe: "universe:5050"
 };
 
 const generateServiceToken = () => {
@@ -56,7 +56,7 @@ const fetchClubData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/club/getClubFieldsById",
+      "http://universe:5050/universe/api/v1/club/getClubFieldsById",
       query,
       config
     );
@@ -73,7 +73,7 @@ const getUserMetaMap = async (userIds, fields) => {
     }
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/fetchBulkUsers",
+      "http://universe:5050/universe/api/v1/user/fetchBulkUsers",
       {
         userIds,
         fields,
@@ -93,7 +93,7 @@ const fetchUsersByFields = async (body) => {
   try {
     const config = generateServiceToken();
     const { data } = await axios.post(
-      "http://multiverse:5020/multiverse/api/v1/user/getUsersByFields",
+      "http://universe:5050/universe/api/v1/user/getUsersByFields",
       body,
       config
     );
@@ -120,9 +120,9 @@ const fetchMacbeaseContentByField = async (body) => {
 };
 
 module.exports = {
-    fetchNativeUserData,
-    fetchClubData,
-    getUserMetaMap,
-    fetchMacbeaseContentByField,
-    fetchUsersByFields
+  fetchNativeUserData,
+  fetchClubData,
+  getUserMetaMap,
+  fetchMacbeaseContentByField,
+  fetchUsersByFields
 }

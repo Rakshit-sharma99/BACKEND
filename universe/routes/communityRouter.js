@@ -65,6 +65,9 @@ const {
   fetchCommunityLeaderBoard,
   getAllCommunity,
   populateUniverseMetaDataInCommunities,
+  fetchMultipleCommunitiesFromIds,
+  searchCommunitiesWithRegex,
+  getCommunitiesRecommendation,
 } = require("../controllers/communityControllers");
 
 router.post("/createCommunity", createCommunity);
@@ -132,6 +135,12 @@ router.post("/getAllCommunity", getAllCommunity);
 router.post(
   "/populateUniverseMetaDataInCommunities",
   populateUniverseMetaDataInCommunities,
+);
+router.post("/getCommunitiesRecommendation", getCommunitiesRecommendation);
+router.post("/searchCommunitiesWithRegex", searchCommunitiesWithRegex);
+router.post(
+  "/fetchMultipleCommunitiesFromIds",
+  fetchMultipleCommunitiesFromIds
 );
 
 module.exports = router;
