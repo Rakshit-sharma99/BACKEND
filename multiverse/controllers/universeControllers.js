@@ -200,17 +200,6 @@ const getAllUniverses = async (req, res) => {
   }
 };
 
-function dedupeUniverses(list) {
-  const seen = new Set();
-
-  return list.filter((u) => {
-    const key = `${u.name?.toLowerCase().trim()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 const searchUniverse = async (req, res) => {
   try {
     const { q, limit = 12 } = req.query;
@@ -222,48 +211,75 @@ const searchUniverse = async (req, res) => {
       });
     }
 
+    const regex = new RegExp(q, "i");
+
     // 1️⃣ Search your DB first
     let universes = await Universe.find({
-      $or: [
-        { name: { $regex: q, $options: "i" } },
-        { callSign: { $regex: q, $options: "i" } },
-        { location: { $regex: q, $options: "i" } },
-      ],
+      $or: [{ name: regex }, { callSign: regex }, { location: regex }],
     })
       .sort({ rank: 1 })
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean(); // ⚡ faster, safer
 
-    // 2️⃣ If not enough results → use external APIs
-    if (universes.length < limit) {
-      const remaining = limit - universes.length;
+    // 2️⃣ If already enough → return
+    if (universes.length >= limit) {
+      return res.status(200).json({
+        success: true,
+        message: "Search results fetched successfully",
+        count: universes.length,
+        data: universes,
+      });
+    }
 
-      // 🔹 Hipolabs
+    const remaining = limit - universes.length;
+
+    // 3️⃣ External API (protected)
+    let externalUniversities = [];
+    try {
       const uniRes = await axios.get(
         `http://universities.hipolabs.com/search?name=${encodeURIComponent(q)}`,
+        {
+          timeout: 2000, // ⏱ prevent hanging
+          maxContentLength: 2000000,
+        },
       );
 
-      const externalUniversities = uniRes.data.slice(0, remaining);
-
-      const enriched = externalUniversities.map((uni) => ({
-        uid: null,
-        name: uni.name,
-        callSign: uni.alpha_two_code || "",
-        location: uni.country,
-        lat: null,
-        lng: null,
-        rank: 9999,
-        logo: `https://www.google.com/s2/favicons?sz=64&domain=${uni.domains?.[0]}`,
-        source: "external",
-      }));
-
-      universes = dedupeUniverses([...universes, ...enriched]);
+      externalUniversities = uniRes.data.slice(0, remaining);
+    } catch (apiErr) {
+      console.warn("Hipolabs API failed:", apiErr.message);
     }
+
+    const enriched = externalUniversities.map((uni) => ({
+      uid: null,
+      name: uni.name,
+      callSign: uni.alpha_two_code || "",
+      location: uni.country || "",
+      lat: null,
+      lng: null,
+      rank: 9999,
+      logo: uni.domains?.[0]
+        ? `https://www.google.com/s2/favicons?sz=64&domain=${uni.domains[0]}`
+        : null,
+      source: "external",
+    }));
+
+    // 4️⃣ Deduplicate by name
+    const map = new Map();
+
+    [...universes, ...enriched].forEach((u) => {
+      const key = u.name.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, u);
+      }
+    });
+
+    const finalResults = Array.from(map.values()).slice(0, limit);
 
     return res.status(200).json({
       success: true,
       message: "Search results fetched successfully",
-      count: universes.length,
-      data: universes,
+      count: finalResults.length,
+      data: finalResults,
     });
   } catch (err) {
     console.error("Search Universe Error:", err);
