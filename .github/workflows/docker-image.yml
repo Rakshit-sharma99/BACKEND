@@ -30,7 +30,7 @@ jobs:
             badge bag blog card content event invitation ipls itinerary
             joinLink macbease_content multiverse offer org project quest
             refund resource ticket tile universe unsorted memory overlay
-            coupon map 
+            coupon map  
           ) 
 
           for SERVICE in "${SERVICES[@]}"; do
