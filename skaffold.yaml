@@ -1,220 +1,222 @@
-apiVersion: skaffold/v2alpha3
+apiVersion: skaffold/v2beta29
 kind: Config
-
-deploy:
-  kubectl:
-    manifests:
-      - ./infra/k8s/*
 
 build:
   local:
     push: false
+    tryImportMissing: true   # reuse existing images aggressively
+    useDockerCLI: true       # faster on large repos
+
   artifacts:
     - image: spargens/universe
       context: universe
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/ipls
       context: ipls
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/content
       context: content
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/card
       context: card
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/resource
       context: resource
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/multiverse
       context: multiverse
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/event
       context: event
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/macbease-content
-      context: macbease_content # folder name of the service
+      context: macbease_content
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/offer
-      context: offer # folder name of the service
+      context: offer
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/quest
-      context: quest # folder name of the service
+      context: quest
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/invitation
-      context: invitation # folder name of the service
+      context: invitation
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/project
-      context: project # folder name of the service
+      context: project
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/itinerary
-      context: itinerary # folder name of the service
+      context: itinerary
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/join-link
-      context: joinLink # folder name of the service
+      context: joinLink
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/tile
-      context: tiles # folder name of the service
+      context: tiles
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/ticket
-      context: ticket # folder name of the service
+      context: ticket
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/org
-      context: org # folder name of the service
+      context: org
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/bag
-      context: bag # folder name of the service
+      context: bag
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/badge
-      context: badge # folder name of the service
+      context: badge
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/unsorted
-      context: unsorted # folder name of the service
+      context: unsorted
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/refund
-      context: refund # folder name of the service
+      context: refund
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/blog
-      context: blog # folder name of the service
+      context: blog
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/coupon
-      context: coupon # folder name of the service
+      context: coupon
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/memory
-      context: memory # folder name of the service
+      context: memory
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/overlay
-      context: overlay # folder name of the service
+      context: overlay
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
     - image: spargens/map
-      context: map # folder name of the service
+      context: map
       docker:
         dockerfile: Dockerfile
       sync:
-        manual:
-          - src: "src/**/*.js"
-            dest: .
+        infer:
+          - "**/*.js"
+
+deploy:
+  kubectl:
+    manifests:
+      - infra/k8s/*.yaml

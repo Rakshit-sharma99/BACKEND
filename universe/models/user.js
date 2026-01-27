@@ -108,7 +108,7 @@ const notificationSchema = new mongoose.Schema(
   {
     uid: {
       type: String,
-      required: true,
+      required: false,
     },
     value: {
       type: String,
@@ -137,7 +137,8 @@ const notificationSchema = new mongoose.Schema(
         "invitation",
         "memory",
         "certificate",
-        "read",
+        "community",
+        "likedACard",
       ],
       required: false,
     },

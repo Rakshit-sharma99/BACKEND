@@ -49,6 +49,7 @@ const searchUserByName = async (req, res) => {
 
 //Controller 2
 const getUserBio = async (req, res) => {
+  console.log("user bio")
   try {
     const user = await User.findById(req.user.id, {
       course: 1,
@@ -76,10 +77,6 @@ const getUserBio = async (req, res) => {
         .status(StatusCodes.NOT_FOUND)
         .json({ message: "User not found" });
     }
-    if (user.notifications.length > 30) {
-      user.notifications = user.notifications.slice(0, 30);
-      await user.save();
-    }
     const {
       course,
       role,
@@ -105,15 +102,15 @@ const getUserBio = async (req, res) => {
       course,
       role,
       interests,
-      clubs: clubs.length,
-      communitiesCreated: communitiesCreated.length,
-      communitiesPartOf: communitiesPartOf.length,
-      giftsSend: giftsSend.length,
+      clubs: clubs?.length,
+      communitiesCreated: communitiesCreated?.length,
+      communitiesPartOf: communitiesPartOf?.length,
+      giftsSend: giftsSend?.length,
       name,
       image,
       chatRooms,
       email,
-      notices: unreadNotice.length,
+      notices: unreadNotice?.length,
       level,
       passoutYear,
       field,
