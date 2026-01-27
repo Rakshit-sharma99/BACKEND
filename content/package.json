@@ -4,7 +4,7 @@
   "description": "Content service for multiverse",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
@@ -24,6 +24,7 @@
     "mongoose": "^8.15.0",
     "multer": "^2.0.2",
     "node-schedule": "^2.1.1",
+    "nodemon": "^3.1.11",
     "openai": "^5.1.1",
     "uuid": "^11.1.0"
   }

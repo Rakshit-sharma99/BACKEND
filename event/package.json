@@ -4,7 +4,7 @@
   "description": "Event service for multiverse",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
@@ -24,6 +24,7 @@
     "mailgen": "^2.0.29",
     "mongoose": "^8.15.2",
     "node-schedule": "^2.1.1",
+    "nodemon": "^3.1.11",
     "path": "^0.12.7",
     "pdfkit": "^0.17.1",
     "stream": "^0.0.3",

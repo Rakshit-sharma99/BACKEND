@@ -4,7 +4,7 @@
   "description": "Ticket service for multiverse",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
@@ -24,6 +24,7 @@
     "kafkajs": "^2.2.4",
     "mongoose": "^8.16.1",
     "node-schedule": "^2.1.1",
+    "nodemon": "^3.1.11",
     "socket.io": "^4.8.3"
   }
 }
