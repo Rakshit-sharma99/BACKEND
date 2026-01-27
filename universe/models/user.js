@@ -64,8 +64,18 @@ const universeSchema = new mongoose.Schema(
     logo: String,
     callSign: String,
     logoKey: String,
-    lat: Number,
-    lng: Number,
+
+    lat: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
+
+    lng: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
   },
   { _id: false },
 );
