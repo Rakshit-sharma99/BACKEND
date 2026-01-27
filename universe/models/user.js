@@ -322,6 +322,11 @@ const userSchema = new mongoose.Schema(
       default: "Normal",
     },
 
+    gender: {
+      type: String,
+      enum: ["she_her", "he_him", "they_them", "custom"],
+    },
+
     name: {
       type: String,
       unique: true,

@@ -1,4 +1,5 @@
 const Universe = require("../models/universe");
+const axios = require("axios");
 
 const createUniverse = async (req, res) => {
   try {
@@ -199,6 +200,17 @@ const getAllUniverses = async (req, res) => {
   }
 };
 
+function dedupeUniverses(list) {
+  const seen = new Set();
+
+  return list.filter((u) => {
+    const key = `${u.name?.toLowerCase().trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 const searchUniverse = async (req, res) => {
   try {
     const { q, limit = 12 } = req.query;
@@ -210,7 +222,8 @@ const searchUniverse = async (req, res) => {
       });
     }
 
-    const universes = await Universe.find({
+    // 1️⃣ Search your DB first
+    let universes = await Universe.find({
       $or: [
         { name: { $regex: q, $options: "i" } },
         { callSign: { $regex: q, $options: "i" } },
@@ -219,6 +232,32 @@ const searchUniverse = async (req, res) => {
     })
       .sort({ rank: 1 })
       .limit(Number(limit));
+
+    // 2️⃣ If not enough results → use external APIs
+    if (universes.length < limit) {
+      const remaining = limit - universes.length;
+
+      // 🔹 Hipolabs
+      const uniRes = await axios.get(
+        `http://universities.hipolabs.com/search?name=${encodeURIComponent(q)}`,
+      );
+
+      const externalUniversities = uniRes.data.slice(0, remaining);
+
+      const enriched = externalUniversities.map((uni) => ({
+        uid: null,
+        name: uni.name,
+        callSign: uni.alpha_two_code || "",
+        location: uni.country,
+        lat: null,
+        lng: null,
+        rank: 9999,
+        logo: `https://www.google.com/s2/favicons?sz=64&domain=${uni.domains?.[0]}`,
+        source: "external",
+      }));
+
+      universes = dedupeUniverses([...universes, ...enriched]);
+    }
 
     return res.status(200).json({
       success: true,
