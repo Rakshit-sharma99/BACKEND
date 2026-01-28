@@ -1128,6 +1128,8 @@ const getContentForLanding = async (req, res) => {
           "notifications",
           "shortCuts",
           "incompleteFields",
+          "uid",
+          "universeMetaData",
         ],
         callSign: "universe",
       });
@@ -1156,6 +1158,8 @@ const getContentForLanding = async (req, res) => {
         incompleteProfile,
         shortCuts,
         incompleteFields,
+        uid,
+        universeMetaData,
       } = user;
       const eventFeed = user.eventFeed;
       const eventFeedLenMid = Math.floor(eventFeed.length / 2);
@@ -1353,6 +1357,8 @@ const getContentForLanding = async (req, res) => {
             incompleteProfile,
             shortCuts,
             incompleteFields,
+            uid,
+            universeMetaData,
           },
           clubRecommendations: clubsR,
           communityRecommendations: communitiesR,

@@ -64,7 +64,13 @@ const createContent = async (req, res) => {
       userPushToken: user.pushToken,
     };
 
-    const data = { ...req.body, idOfSender, timeStamp: timestamp, params, uid: req.user.uid };
+    const data = {
+      ...req.body,
+      idOfSender,
+      timeStamp: timestamp,
+      params,
+      uid: req.user.uid,
+    };
     const content = await MacbeaseContent.create(data);
 
     if (project) {
@@ -72,11 +78,7 @@ const createContent = async (req, res) => {
         projectId: project,
         contentId: content._id.toString(),
       };
-      await sendKafkaMessage(
-        "CONTENT_ADDEDTO_PROJECT",
-        "project",
-        payload
-      );
+      await sendKafkaMessage("CONTENT_ADDEDTO_PROJECT", "project", payload);
     }
 
     if (peopleTagged.length !== 0) {
@@ -100,14 +102,10 @@ const createContent = async (req, res) => {
         }
       }
     }
-    await sendKafkaMessage(
-      "UPDATE_MACBEASECONTENT_CONTRIIBUTION",
-      "universe",
-      {
-        userId: idOfSender,
-        contentId: content._id.toString(),
-      }
-    );
+    await sendKafkaMessage("UPDATE_MACBEASECONTENT_CONTRIIBUTION", "universe", {
+      userId: idOfSender,
+      contentId: content._id.toString(),
+    });
 
     await sendKafkaMessage("NOTIFY_TUNEDIN_USERS", "multiverse", {
       tunedIn_By: user.tunedIn_By,
@@ -147,9 +145,8 @@ const likeContent = async (req, res) => {
     session.startTransaction();
     try {
       const userId = req.user.id;
-      const contentInfo = await MacbeaseContent.findById(contentId).session(
-        session
-      );
+      const contentInfo =
+        await MacbeaseContent.findById(contentId).session(session);
 
       const contentAlreadyLiked = contentInfo.likes.includes(userId);
 
@@ -178,7 +175,7 @@ const likeContent = async (req, res) => {
           publisherId: contentInfo.idOfSender,
           userInfo,
           contentInfo,
-        }
+        },
       );
 
       return res
@@ -254,9 +251,8 @@ const comment = async (req, res) => {
       id: content.idOfSender,
       fields: ["pushToken"],
     };
-    const { pushToken: contributorPushToken } = await fetchUserData(
-      contributor_query
-    );
+    const { pushToken: contributorPushToken } =
+      await fetchUserData(contributor_query);
 
     if (actionHandled) {
       if (content.contentType === "image") {
@@ -283,13 +279,13 @@ const comment = async (req, res) => {
           [contributorPushToken],
           `${user.name} commented on your post!`,
           `${content.text.substring(0, 50)}...`,
-          img
+          img,
         );
       } else {
         scheduleNotification(
           [contributorPushToken],
           `${user.name} commented on your post!`,
-          `${content.text.substring(0, 50)}...`
+          `${content.text.substring(0, 50)}...`,
         );
       }
     }
@@ -321,7 +317,7 @@ const unlikeContent = async (req, res) => {
 
       const userIdStr = String(userId);
       contentInfo.likes = contentInfo.likes.filter(
-        (item) => String(item) !== userIdStr
+        (item) => String(item) !== userIdStr,
       );
 
       await contentInfo.save({ session });
@@ -471,7 +467,7 @@ const getComments = async (req, res) => {
     if (!isNaN(parsedBatch) && !isNaN(parsedBatchSize)) {
       finalComments = allComments.slice(
         (parsedBatch - 1) * parsedBatchSize,
-        parsedBatch * parsedBatchSize
+        parsedBatch * parsedBatchSize,
       );
 
       if (!isNaN(parsedRemainder) && parsedRemainder > 0) {
@@ -521,7 +517,7 @@ const getPopularComments = async (req, res) => {
     const batchNumber = Math.max(1, parseInt(batch, 10) || 1);
     const commentsSlice = allComments.slice(
       (batchNumber - 1) * 100,
-      batchNumber * 100
+      batchNumber * 100,
     );
 
     const popularComments = commentsSlice
@@ -645,7 +641,7 @@ const getMacbeaseContribution = async (req, res) => {
     const user = await fetchNativeUserData(user_query);
 
     const contentIds = (user?.macbeaseContentContribution || []).map(
-      (id) => new mongoose.Types.ObjectId(id)
+      (id) => new mongoose.Types.ObjectId(id),
     );
 
     if (!Array.isArray(contentIds) || contentIds.length === 0) {
@@ -826,7 +822,7 @@ const editContent = async (req, res) => {
     const updatedContent = await MacbeaseContent.findByIdAndUpdate(
       contentId,
       req.body,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     return res.status(StatusCodes.OK).json({
@@ -866,7 +862,7 @@ const likeAComment = async (req, res) => {
     }
 
     const targetComment = content.comments.find(
-      (comment) => comment.cid === cid
+      (comment) => comment.cid === cid,
     );
 
     if (!targetComment) {
@@ -913,7 +909,7 @@ const unLikeAComment = async (req, res) => {
     }
 
     const targetComment = content.comments.find(
-      (comment) => comment.cid === cid
+      (comment) => comment.cid === cid,
     );
 
     if (!targetComment) {
@@ -925,7 +921,7 @@ const unLikeAComment = async (req, res) => {
     const originalLength = targetComment.likes.length;
 
     targetComment.likes = targetComment.likes.filter(
-      (userId) => userId !== req.user.id
+      (userId) => userId !== req.user.id,
     );
 
     if (targetComment.likes.length !== originalLength) {
@@ -1079,7 +1075,7 @@ const replyToComment = async (req, res) => {
     }
 
     const targetComment = content.comments.find(
-      (comment) => comment.cid === cid
+      (comment) => comment.cid === cid,
     );
 
     if (!targetComment) {
@@ -1152,7 +1148,7 @@ const searchContentByText = async (req, res) => {
         _id: 1,
         text: 1,
         contentType: 1,
-      }
+      },
     ).limit(12);
 
     return res.status(StatusCodes.OK).json(contents);
@@ -1243,7 +1239,7 @@ const getContentFromLastTimeStamp = async (req, res) => {
     } else {
       pipeline.push(
         { $sort: { timeStamp: sort === "asc" ? 1 : -1 } },
-        { $limit: parsedLimit }
+        { $limit: parsedLimit },
       );
     }
 
@@ -1270,7 +1266,7 @@ const getMacbeaseContentByIds = async (req, res) => {
     const objectIds = ids.map((id) =>
       id instanceof mongoose.Types.ObjectId
         ? id
-        : new mongoose.Types.ObjectId(id)
+        : new mongoose.Types.ObjectId(id),
     );
 
     const pipeline = [
@@ -1320,7 +1316,7 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
@@ -1344,12 +1340,7 @@ const insertNewFields = async (req, res) => {
 
 const getMacbeaseContentByField = async (req, res) => {
   try {
-    const {
-      limit = 5,
-      select,
-      sortField = "timeStamp",
-      searchBy
-    } = req.body;
+    const { limit = 5, select, sortField = "timeStamp", searchBy } = req.body;
 
     // Validate search fields
     if (!Object.keys(searchBy).length) {
@@ -1372,7 +1363,6 @@ const getMacbeaseContentByField = async (req, res) => {
     const results = await query;
 
     return res.status(StatusCodes.OK).send(results);
-
   } catch (error) {
     console.error("Error fetching macbease content by field :", error);
 
@@ -1381,7 +1371,7 @@ const getMacbeaseContentByField = async (req, res) => {
       message: "Internal server error",
     });
   }
-}
+};
 
 module.exports = {
   createContent,
@@ -1406,5 +1396,5 @@ module.exports = {
   getContentFromLastTimeStamp,
   getMacbeaseContentByIds,
   insertNewFields,
-  getMacbeaseContentByField
+  getMacbeaseContentByField,
 };
