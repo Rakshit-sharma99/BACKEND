@@ -28,7 +28,7 @@ const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 20 * 1024 * 1024 }
+  limits: { fileSize: 20 * 1024 * 1024 },
 });
 
 const mongoose = require("mongoose");
@@ -100,7 +100,7 @@ const createContent = async (req, res) => {
       url: processedUrl,
       idOfSender,
       params,
-      uid: req.user.uid
+      uid: req.user.uid,
     };
     const content = await Content.create(data);
     let taggedLen = peopleTagged.length;
@@ -167,7 +167,7 @@ const likeContent = async (req, res) => {
           publisherId: contentInfo.idOfSender,
           userInfo,
           contentInfo,
-        }
+        },
       );
       return res
         .status(StatusCodes.OK)
@@ -245,9 +245,8 @@ const comment = async (req, res) => {
       id: content.idOfSender,
       fields: ["pushToken"],
     };
-    const { pushToken: contributorPushToken } = await fetchUserData(
-      contributor_query
-    );
+    const { pushToken: contributorPushToken } =
+      await fetchUserData(contributor_query);
 
     const notification = {
       pushToken: [contributorPushToken],
@@ -534,7 +533,7 @@ const unLikeAComment = async (req, res) => {
 
     const targetComment = content.comments[index];
     targetComment.likes = targetComment.likes.filter(
-      (userId) => userId !== req.user.id
+      (userId) => userId !== req.user.id,
     );
 
     // Reassign the updated comment
@@ -965,14 +964,14 @@ const getEngagementData = async (req, res) => {
     const [contentData, macbeaseContentData, cardsData] = await Promise.all([
       contentIds.length
         ? Content.find({ _id: { $in: contentIds } })
-          .select("likes comments")
-          .lean()
+            .select("likes comments")
+            .lean()
         : [],
       macbeaseContentIds.length
         ? fetchMacbeaseContentFromIds({
-          ids: macbeaseContentIds,
-          select: "likes comments",
-        })
+            ids: macbeaseContentIds,
+            select: "likes comments",
+          })
         : [],
       cardIds.length
         ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
@@ -1029,7 +1028,7 @@ const searchContentByText = async (req, res) => {
 
     const contents = await Content.find(
       { text: { $regex: regex } },
-      { _id: 1, text: 1, contentType: 1 }
+      { _id: 1, text: 1, contentType: 1 },
     )
       .limit(12)
       .lean(); // Using lean for faster read performance
@@ -1085,7 +1084,7 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
         Content.aggregate(createAggregationPipeline(clubContentsMatch)),
         fetchRandomCardsForFeed(),
       ]).then((results) =>
-        results.map((r) => (r.status === "fulfilled" ? r.value : []))
+        results.map((r) => (r.status === "fulfilled" ? r.value : [])),
       );
 
     const result = [...macbeaseContents, ...commContents, ...clubContents];
@@ -1183,7 +1182,7 @@ const getContentForLanding = async (req, res) => {
           async (community) => {
             const randomContent =
               community.content[
-              Math.floor(Math.random() * community.content.length)
+                Math.floor(Math.random() * community.content.length)
               ];
             if (randomContent) {
               const content = await Content.aggregate([
@@ -1204,7 +1203,7 @@ const getContentForLanding = async (req, res) => {
               }
             }
             return null;
-          }
+          },
         );
 
         const clubContentPromises = randomClubs.map(async (club) => {
@@ -1235,7 +1234,7 @@ const getContentForLanding = async (req, res) => {
           await Promise.all(communityContentPromises)
         ).filter(Boolean);
         const clubContents = (await Promise.all(clubContentPromises)).filter(
-          Boolean
+          Boolean,
         );
         newFeed = [...newFeed, ...communityContents, ...clubContents];
       }
@@ -1243,7 +1242,7 @@ const getContentForLanding = async (req, res) => {
         let contentIds = feed.slice(0, 12).map((item) => item._id.toString());
         if (cachedFlagId) {
           const matchedIndex = contentIds.findIndex(
-            (item) => item === cachedFlagId
+            (item) => item === cachedFlagId,
           );
           if (matchedIndex !== -1) {
             contentIds = contentIds.slice(0, matchedIndex);
@@ -1261,7 +1260,8 @@ const getContentForLanding = async (req, res) => {
                 return {
                   ...doc,
                   commentsNum,
-                  irrelevanceVote: doc.sendBy === "userCommunity" ? 0 : undefined,
+                  irrelevanceVote:
+                    doc.sendBy === "userCommunity" ? 0 : undefined,
                 };
               }
             }
@@ -1290,7 +1290,7 @@ const getContentForLanding = async (req, res) => {
         }
       }
       newFeed = newFeed.sort(
-        (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp)
+        (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
       );
       if (cachedEndTimeStamp && newFeed.length === 0) {
         newFeed = await getSecondaryFeed(cachedEndTimeStamp, clubs);
@@ -1342,7 +1342,6 @@ const getContentForLanding = async (req, res) => {
             clubs: clubs.length,
             communitiesCreated: communitiesCreated.length,
             communitiesPartOf: communitiesPartOf.length,
-            giftsSend: giftsSend.length,
             name,
             image,
             chatRooms,
@@ -1369,7 +1368,7 @@ const getContentForLanding = async (req, res) => {
     }
   } catch (err) {
     console.log("Error in get content for landing :", err);
-    return res.status(500).send("Something went wrong")
+    return res.status(500).send("Something went wrong");
   }
 };
 
@@ -1531,12 +1530,13 @@ const migrateCollectionController = async (req, res) => {
 
 const uploadToS3 = async (req, res) => {
   try {
-
     const file = req.file;
     let { key } = req.body;
 
     if (!file) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "No file provided!" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "No file provided!" });
     }
 
     const uniqueName = `${Date.now()}_${file.originalname.replace(/\s+/g, "_")}`;
@@ -1566,13 +1566,13 @@ const uploadToS3 = async (req, res) => {
         key: data.Key,
       });
     });
-
   } catch (err) {
     console.log("Error uploading file to s3:", err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({ success: false, message: "Something went wrong!" })
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: "Something went wrong!" });
   }
-}
+};
 
 const insertNewFields = async (req, res) => {
   try {
@@ -1591,7 +1591,7 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
@@ -1637,5 +1637,5 @@ module.exports = {
   migrateCollectionController,
   uploadMiddleware: upload.single("file"),
   uploadToS3,
-  insertNewFields
+  insertNewFields,
 };
