@@ -1099,277 +1099,85 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
 //Controller 20
 const getContentForLanding = async (req, res) => {
   try {
-    if (req.user.role === "user") {
-      const { key, cachedStartTimeStamp, cachedEndTimeStamp, cachedFlagId } =
-        req.query;
-      let mode = "primary";
-      const user = await fetchNativeUserData({
-        id: req.user.id,
-        fields: [
-          "lastActive",
-          "name",
-          "image",
-          "_id",
-          "feed",
-          "eventFeed",
-          "course",
-          "role",
-          "interests",
-          "clubs",
-          "communitiesCreated",
-          "communitiesPartOf",
-          "giftsSend",
-          "chatRooms",
-          "email",
-          "unreadNotice",
-          "level",
-          "passoutYear",
-          "field",
-          "incompleteProfile",
-          "notifications",
-          "shortCuts",
-          "incompleteFields",
-        ],
-        callSign: "universe",
-      });
+    // 1. Fetch User's Feed
+    // NOTE: This implementation fetches the entire feed array from the user service.
+    // As the feed grows, this will become a performance bottleneck.
+    // Ideally, the User Service should provide a paginated feed endpoint.
+    const user = await fetchNativeUserData({
+      id: req.user.id,
+      fields: ["feed"],
+      callSign: "universe",
+    });
 
-      if (!user) {
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ error: "User not found." });
-      }
-      const {
-        course,
-        role,
-        interests,
-        clubs,
-        communitiesCreated,
-        communitiesPartOf,
-        giftsSend,
-        name,
-        image,
-        chatRooms,
-        email,
-        unreadNotice,
-        level,
-        passoutYear,
-        field,
-        incompleteProfile,
-        shortCuts,
-        incompleteFields,
-      } = user;
-      const eventFeed = user.eventFeed;
-      const eventFeedLenMid = Math.floor(eventFeed.length / 2);
-      const eventFeed1 = eventFeed.slice(0, eventFeedLenMid);
-      const eventFeed2 = eventFeed.slice(eventFeedLenMid);
-      let lastActive = user.lastActive;
-      lastActive = new Date(lastActive);
-      let feed = user.feed || [];
-      let newFeed = [];
-      if (key !== "all") {
-        const [randomCommunities, randomClubs] = await Promise.all([
-          fetchNativeRandomCommunities({
-            size: 3,
-            projection: "content",
-            callSign: "universe",
-          }),
-          fetchNativeRandomClubs({
-            size: 3,
-            projection: "content",
-            callSign: "universe",
-          }),
-        ]);
-        const communityContentPromises = randomCommunities.map(
-          async (community) => {
-            const randomContent =
-              community.content[
-              Math.floor(Math.random() * community.content.length)
-              ];
-            if (randomContent) {
-              const content = await Content.aggregate([
-                {
-                  $match: {
-                    _id: mongoose.Types.ObjectId(randomContent.contentId),
-                  },
-                },
-                {
-                  $addFields: {
-                    commentsNum: { $size: "$comments" },
-                    comments: { $slice: ["$comments", 12] },
-                  },
-                },
-              ]);
-              if (content.length > 0) {
-                return content[0];
-              }
-            }
-            return null;
-          }
-        );
-
-        const clubContentPromises = randomClubs.map(async (club) => {
-          const randomContent =
-            club.content[Math.floor(Math.random() * club.content.length)];
-          if (randomContent) {
-            const content = await Content.aggregate([
-              {
-                $match: {
-                  _id: mongoose.Types.ObjectId(randomContent.contentId),
-                },
-              },
-              {
-                $addFields: {
-                  commentsNum: { $size: "$comments" },
-                  comments: { $slice: ["$comments", 12] },
-                },
-              },
-            ]);
-            if (content.length > 0) {
-              return content[0];
-            }
-          }
-          return null;
-        });
-
-        const communityContents = (
-          await Promise.all(communityContentPromises)
-        ).filter(Boolean);
-        const clubContents = (await Promise.all(clubContentPromises)).filter(
-          Boolean
-        );
-        newFeed = [...newFeed, ...communityContents, ...clubContents];
-      }
-      if (key === "all") {
-        let contentIds = feed.slice(0, 12).map((item) => item._id.toString());
-        if (cachedFlagId) {
-          const matchedIndex = contentIds.findIndex(
-            (item) => item === cachedFlagId
-          );
-          if (matchedIndex !== -1) {
-            contentIds = contentIds.slice(0, matchedIndex);
-          }
-        }
-        const contentDocs = await Content.find({ _id: { $in: contentIds } })
-          .select("-vector")
-          .lean();
-        const processedDocs = contentDocs
-          .map((doc) => {
-            if (doc) {
-              const commentsNum = doc.comments.length;
-              doc.comments = doc.comments.slice(0, 12);
-              if (doc.sendBy === "userCommunity" || doc.sendBy === "club") {
-                return {
-                  ...doc,
-                  commentsNum,
-                  irrelevanceVote: doc.sendBy === "userCommunity" ? 0 : undefined,
-                };
-              }
-            }
-            return null;
-          })
-          .filter(Boolean);
-
-        await sendKafkaMessage("CLEAR_FEED", "universe", {
-          userId: req.user.id,
-        });
-
-        if (cachedStartTimeStamp) {
-          const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-            timeStamp: cachedStartTimeStamp,
-            operator: "gt",
-            sort: "desc",
-            limit: 12,
-          });
-          newFeed = [...processedDocs, ...macbeaseContents];
-        } else {
-          const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-            sort: "desc",
-            limit: 12,
-          });
-          newFeed = [...processedDocs, ...macbeaseContents];
-        }
-      }
-      newFeed = newFeed.sort(
-        (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp)
-      );
-      if (cachedEndTimeStamp && newFeed.length === 0) {
-        newFeed = await getSecondaryFeed(cachedEndTimeStamp, clubs);
-        mode = "secondary";
-      }
-      let rand1 = Math.ceil(Math.random() * newFeed.length);
-      let rand2 = newFeed.length - rand1;
-      if (rand1 === rand2) rand2 += 1;
-      if (rand1 > rand2) [rand1, rand2] = [rand2, rand1];
-      const cardContents = await fetchRandomCardsForFeed();
-
-      let data1 = [
-        newFeed[0],
-        ...(cardContents.length > 0 ? [cardContents[0]] : []),
-        ...newFeed.slice(1, rand1),
-        ...(cardContents.length > 1 ? [cardContents[1]] : []),
-      ];
-      let data2 = [
-        ...(cardContents.length > 2 ? [cardContents[2]] : []),
-        ...newFeed.slice(rand1, rand2),
-      ];
-      let data3 = [
-        ...(cardContents.length > 3 ? cardContents.slice(3) : []),
-        ...newFeed.slice(rand2),
-      ];
-
-      if (key === "all") {
-        const clubIdsPartOf = clubs.map((club) => club.clubId);
-        const clubsR = await fetchClubsRecommendations({
-          nIds: clubIdsPartOf,
-        });
-        const commIdspartOf = communitiesPartOf.map((comm) => comm.communityId);
-        const communitiesR = await fetchCommunitiesRecommendations({
-          nIds: commIdspartOf,
-        });
-
-        return res.status(StatusCodes.OK).json({
-          data1,
-          data2,
-          data3,
-          eventFeed1,
-          eventFeed2,
-          name: user.name,
-          image: user.image,
-          bio: {
-            course,
-            role,
-            interests,
-            clubs: clubs.length,
-            communitiesCreated: communitiesCreated.length,
-            communitiesPartOf: communitiesPartOf.length,
-            giftsSend: giftsSend.length,
-            name,
-            image,
-            chatRooms,
-            email,
-            notices: unreadNotice.length,
-            level,
-            passoutYear,
-            field,
-            incompleteProfile,
-            shortCuts,
-            incompleteFields,
-          },
-          clubRecommendations: clubsR,
-          communityRecommendations: communitiesR,
-          cache: mode === "primary" ? true : false,
-        });
-      } else {
-        return res.status(StatusCodes.OK).json({
-          data1,
-          data2,
-          data3,
-        });
-      }
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
     }
+
+    const feed = user.feed || []; // Assuming feed is an array of IDs or Objects with _id
+    const totalFeedSize = feed.length;
+
+    // 2. Parse Cursor and Limit
+    // Cursor here acts as an offset/index in the feed array.
+    const cursor = parseInt(req.query.cursor) || 0;
+    const limit = parseInt(req.query.limit) || 12;
+
+    // 3. Slice the Feed
+    const feedSlice = feed.slice(cursor, cursor + limit);
+
+    // If slice is empty, return empty response
+    if (feedSlice.length === 0) {
+      return res.status(StatusCodes.OK).json({
+        data: [],
+        nextCursor: null,
+      });
+    }
+
+    // 4. Extract IDs
+    // Handling case where feed might be array of strings or objects
+    const contentIds = feedSlice.map((item) => {
+      if (typeof item === "string") return item;
+      return item._id || item.contentId; // Fallback properties if object
+    }).filter(id => mongoose.Types.ObjectId.isValid(id));
+
+    // 5. Fetch Content Details
+    const contents = await Content.aggregate([
+      {
+        $match: {
+          _id: { $in: contentIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        },
+      },
+      {
+        $addFields: {
+          commentsNum: { $size: "$comments" },
+          comments: { $slice: ["$comments", 12] },
+          // Add a sort index to preserve order from the feed array ?
+          // MongoDB $in does not guarantee order.
+          // To preserve order, we can map the results back to the original ID list order in JS.
+        },
+      },
+      {
+        $project: {
+          vector: 0,
+        },
+      },
+    ]);
+
+    // 6. Preserve Order (Optional but recommended for a Feed)
+    const contentMap = new Map(contents.map((c) => [c._id.toString(), c]));
+    const orderedContents = contentIds
+      .map((id) => contentMap.get(id.toString()))
+      .filter((c) => c !== undefined);
+
+    // 7. Determine Next Cursor
+    const nextCursor = (cursor + limit) < totalFeedSize ? cursor + limit : null;
+
+    return res.status(StatusCodes.OK).json({
+      data: orderedContents,
+      nextCursor,
+    });
   } catch (err) {
     console.log("Error in get content for landing :", err);
-    return res.status(500).send("Something went wrong")
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Something went wrong");
   }
 };
 
