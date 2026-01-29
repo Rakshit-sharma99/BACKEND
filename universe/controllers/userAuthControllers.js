@@ -240,8 +240,7 @@ const registerUser = async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    return res.status(StatusCodes.CREATED).json({
-      success: true,
+    const res_payload = {
       user: {
         _id: user._id,
         name: user.name,
@@ -250,9 +249,15 @@ const registerUser = async (req, res) => {
         reg: user.reg,
         profession: user.profession,
         universeMetaData,
-      },
-      token: accessToken,
-      refreshToken,
+      }
+    }
+    if (platform === "app") {
+      res_payload.token = accessToken;
+      res_payload.refreshToken = refreshToken;
+    }
+    return res.status(StatusCodes.CREATED).json({
+      success: true,
+      res_payload,
     });
   } catch (error) {
     console.error("Register error:", error);
@@ -263,7 +268,7 @@ const registerUser = async (req, res) => {
   }
 };
 
-const loginUtil = async (user) => {
+const loginUtil = async (user, platform) => {
   if (user.deactivated) {
     const deactivationDate = user.deactivationDate;
     const givenDate = new Date(deactivationDate);
@@ -279,7 +284,8 @@ const loginUtil = async (user) => {
     };
   }
   const refreshToken = user.createRefreshToken();
-  user.refreshToken = refreshToken;
+  user.refreshTokens = user.refreshTokens || {};
+  user.refreshTokens[platform] = refreshToken;
   user.save();
   const AccessToken = user.createAccessToken();
   return {
@@ -335,6 +341,7 @@ const googleRegister = async (req, res) => {
 
 const googleLogin = async (req, res) => {
   const { idToken } = req.body;
+  const platform = req.body.platform || "app";
   try {
     // Verify the ID token
     const ticket = await client.verifyIdToken({
@@ -368,7 +375,7 @@ const googleLogin = async (req, res) => {
       return res.status(StatusCodes.OK).json({ msg: "User does not exists." });
     }
 
-    const result = await loginUtil(user);
+    const result = await loginUtil(user, platform);
     if (result === "User does not exist.") {
       res.status(StatusCodes.OK).json({ msg: "User does not exists." });
       return;
@@ -389,6 +396,7 @@ const googleLogin = async (req, res) => {
 const loginUser = async (req, res) => {
   console.log("login attempted");
   const { email, password } = req.body;
+  const platform = req.body.platform || "app";
   let user = await User.findOne(
     { email },
     {
@@ -413,7 +421,7 @@ const loginUser = async (req, res) => {
     return res.status(StatusCodes.OK).send("Wrong password.");
   }
 
-  const result = await loginUtil(user);
+  const result = await loginUtil(user, platform);
   if (result === "User does not exist.") {
     return res.status(StatusCodes.OK).send(result);
   }
@@ -424,6 +432,7 @@ const loginUser = async (req, res) => {
 const regenerateAccessToken = async (req, res) => {
   const { refreshToken, appVersion } = req.body;
   let id;
+  const platform = req.body.platform || "app";
   try {
     const payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     id = payload.id;
@@ -434,7 +443,7 @@ const regenerateAccessToken = async (req, res) => {
       .send("Invalid refresh token...");
   }
   const user = await User.findById(id, {
-    refreshToken: 1,
+    refreshTokens: 1,
     appVersion: 1,
     uid: 1,
     universeMetaData: 1,
@@ -444,7 +453,7 @@ const regenerateAccessToken = async (req, res) => {
       .status(StatusCodes.MISDIRECTED_REQUEST)
       .send("Invalid refresh token...");
   }
-  if (user.refreshToken !== refreshToken) {
+  if (user.refreshTokens[platform] !== refreshToken) {
     return res
       .status(StatusCodes.MISDIRECTED_REQUEST)
       .send("Invalid refresh token...");
@@ -455,7 +464,7 @@ const regenerateAccessToken = async (req, res) => {
   if (appVersion) {
     user.appVersion = appVersion;
   }
-  user.refreshToken = newRefreshToken;
+  user.refreshTokens[platform] = newRefreshToken;
   await user.save();
 
   return res.status(StatusCodes.OK).send({ newAccessToken, newRefreshToken });

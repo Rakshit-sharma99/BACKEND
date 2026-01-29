@@ -237,7 +237,7 @@ const likedContentsSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["community", "club", "macbease"],
+      enum: ["usercommunity", "club", "Macbease", "community", "macbease", "Club"],
       required: true,
     },
   },
