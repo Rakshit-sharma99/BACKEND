@@ -873,7 +873,7 @@ const search = async (req, res) => {
   }
 };
 
-//controller to return user bio from an array of ids
+//controller to return user bio from an array of user ids
 const fetchMultipleProfiles = async (req, res) => {
   try {
     const { ids } = req.body;
