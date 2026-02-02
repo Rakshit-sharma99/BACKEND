@@ -31,6 +31,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }
 });
 
+const redis = require("../config/redis");
 const mongoose = require("mongoose");
 
 //Controller 1
@@ -1099,13 +1100,25 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
 //Controller 20
 const getContentForLanding = async (req, res) => {
   try {
-    // 1. Fetch User's Feed
-    // NOTE: This implementation fetches the entire feed array from the user service.
-    // As the feed grows, this will become a performance bottleneck.
-    // Ideally, the User Service should provide a paginated feed endpoint.
+    const { cursor, limit } = req.query;
+
+    const parsedLimit = parseInt(limit) || 5;
+    const parsedCursor = cursor ? new Date(cursor) : new Date();
+
+    if (!cursor) {
+      try {
+        const cachedFeed = await redis.get(`landing_feed:${req.user.id}`);
+        if (cachedFeed) {
+          return res.status(StatusCodes.OK).json(JSON.parse(cachedFeed));
+        }
+      } catch (e) {
+        console.error("Redis Cache Error:", e);
+      }
+    }
+
     const user = await fetchNativeUserData({
       id: req.user.id,
-      fields: ["feed"],
+      fields: ["communitiesPartOf", "clubs", "interests"],
       callSign: "universe",
     });
 
@@ -1113,71 +1126,84 @@ const getContentForLanding = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
     }
 
-    const feed = user.feed || []; // Assuming feed is an array of IDs or Objects with _id
-    const totalFeedSize = feed.length;
+    const communityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+    const belongsToIds = [...communityIds, ...clubIds];
+    const interestTags = user.interests || [];
 
-    // 2. Parse Cursor and Limit
-    // Cursor here acts as an offset/index in the feed array.
-    const cursor = parseInt(req.query.cursor) || 0;
-    const limit = parseInt(req.query.limit) || 12;
-
-    // 3. Slice the Feed
-    const feedSlice = feed.slice(cursor, cursor + limit);
-
-    // If slice is empty, return empty response
-    if (feedSlice.length === 0) {
-      return res.status(StatusCodes.OK).json({
-        data: [],
-        nextCursor: null,
-      });
-    }
-
-    // 4. Extract IDs
-    // Handling case where feed might be array of strings or objects
-    const contentIds = feedSlice.map((item) => {
-      if (typeof item === "string") return item;
-      return item._id || item.contentId; // Fallback properties if object
-    }).filter(id => mongoose.Types.ObjectId.isValid(id));
-
-    // 5. Fetch Content Details
-    const contents = await Content.aggregate([
+    const followedQuery = Content.aggregate([
       {
         $match: {
-          _id: { $in: contentIds.map((id) => new mongoose.Types.ObjectId(id)) },
+          belongsTo: { $in: belongsToIds },
+          timeStamp: { $lt: parsedCursor },
         },
       },
+      { $sort: { timeStamp: -1 } },
+      { $limit: parsedLimit },
       {
         $addFields: {
+          feedType: "followed",
           commentsNum: { $size: "$comments" },
-          comments: { $slice: ["$comments", 12] },
-          // Add a sort index to preserve order from the feed array ?
-          // MongoDB $in does not guarantee order.
-          // To preserve order, we can map the results back to the original ID list order in JS.
+          comments: { $slice: ["$comments", 6] },
         },
       },
-      {
-        $project: {
-          vector: 0,
-        },
-      },
+      { $project: { vector: 0 } },
     ]);
 
-    // 6. Preserve Order (Optional but recommended for a Feed)
-    const contentMap = new Map(contents.map((c) => [c._id.toString(), c]));
-    const orderedContents = contentIds
-      .map((id) => contentMap.get(id.toString()))
-      .filter((c) => c !== undefined);
+    const suggestedQuery =
+      interestTags.length > 0
+        ? Content.aggregate([
+          {
+            $match: {
+              tags: { $in: interestTags },
+              timeStamp: { $lt: parsedCursor },
+            },
+          },
+          { $sort: { timeStamp: -1 } },
+          { $limit: parsedLimit },
+          {
+            $addFields: {
+              feedType: "suggested",
+              commentsNum: { $size: "$comments" },
+              comments: { $slice: ["$comments", 6] },
+            },
+          },
+          { $project: { vector: 0 } },
+        ])
+        : Promise.resolve([]);
 
-    // 7. Determine Next Cursor
-    const nextCursor = (cursor + limit) < totalFeedSize ? cursor + limit : null;
+    const [followedContent, suggestedContent] = await Promise.all([
+      followedQuery,
+      suggestedQuery,
+    ]);
 
-    return res.status(StatusCodes.OK).json({
-      data: orderedContents,
+    const combined = [...followedContent, ...suggestedContent].sort(
+      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp)
+    );
+
+
+    const finalFeed = combined.slice(0, parsedLimit);
+
+    const nextCursor =
+      finalFeed.length > 0
+        ? finalFeed[finalFeed.length - 1].timeStamp
+        : null;
+
+    const responsePayload = {
+      data: finalFeed,
       nextCursor,
-    });
+    };
+
+    if (!cursor) {
+      await redis.setex(`landing_feed:${req.user.id}`, 60, JSON.stringify(responsePayload));
+    }
+
+    return res.status(StatusCodes.OK).json(responsePayload);
   } catch (err) {
-    console.log("Error in get content for landing :", err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Something went wrong");
+    console.error("Error in getContentForLanding:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
   }
 };
 

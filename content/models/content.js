@@ -145,4 +145,9 @@ const contentSchema = new mongoose.Schema({
   },
 });
 
+// Indexes for Feed Generation Strategy
+contentSchema.index({ belongsTo: 1, timeStamp: -1 }); // For Followed Content
+contentSchema.index({ tags: 1, timeStamp: -1 });      // For Suggested Content
+contentSchema.index({ timeStamp: -1 });               // Global fallback
+
 module.exports = mongoose.model("Content", contentSchema);
