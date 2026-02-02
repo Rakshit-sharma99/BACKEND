@@ -819,7 +819,8 @@ const search = async (req, res) => {
           secondaryCover: 1,
           title: 1,
           _id: 1,
-          un,
+          universeMetaData: 1,
+          uid: 1,
         },
       ).lean();
       communitiesWithType = communities.map((community) => ({
@@ -832,6 +833,8 @@ const search = async (req, res) => {
           secondaryImg: 1,
           name: 1,
           _id: 1,
+          universeMetaData: 1,
+          uid: 1,
         },
       ).lean();
       clubsWithType = clubs.map((club) => ({
@@ -841,9 +844,17 @@ const search = async (req, res) => {
     }
     const users = await User.find(
       { name: new RegExp(query, "i", "g") },
-      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 },
+      {
+        image: 1,
+        name: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        universeMetaData: 1,
+        uid: 1,
+      },
     )
-      .limit(100)
+      .limit(24)
       .lean();
     const usersWithType = users.map((user) => ({
       ...user,
@@ -1957,7 +1968,7 @@ const fetchBulkUsers = async (req, res) => {
       .map((id) =>
         mongoose.Types.ObjectId.isValid(id)
           ? new mongoose.Types.ObjectId(id)
-          : null
+          : null,
       )
       .filter(Boolean);
 
@@ -1973,7 +1984,6 @@ const fetchBulkUsers = async (req, res) => {
     return res.status(500).json({ error: "Internal server error." });
   }
 };
-
 
 const getUsersByFields = async (req, res) => {
   try {
@@ -2018,16 +2028,13 @@ const getUsersByFields = async (req, res) => {
       projection = fields.join(" ");
     }
 
-    const users = await User.find(query)
-      .select(projection)
-      .lean();
+    const users = await User.find(query).select(projection).lean();
 
     return res.status(200).json({
       success: true,
       count: users.length,
       users,
     });
-
   } catch (error) {
     console.error("getUsersByFields error:", error);
 
@@ -2089,5 +2096,5 @@ module.exports = {
   addUniverseMetaDataToShortcuts,
   getUsersWithDynamicQuery,
   fetchBulkUsers,
-  getUsersByFields
+  getUsersByFields,
 };

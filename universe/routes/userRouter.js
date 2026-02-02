@@ -82,7 +82,6 @@ router.post("/verifyEmail", verifyEmail);
 router.post("/completeProfile", completeProfile);
 router.post("/sendBatchedNotifications", sendBatchedNotifications);
 router.post("/sendMailVerification", sendMailVerification);
-router.post("/verifyEmail", verifyEmail);
 router.post("/completeProfile", completeProfile);
 (router.get("/getInactiveUsers", getInactiveUsers),
   router.post("/updateIncompleteFields", updateIncompleteFields));
