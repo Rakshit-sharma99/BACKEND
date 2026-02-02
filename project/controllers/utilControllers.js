@@ -3,7 +3,7 @@ const axios = require("axios");
 
 const services = {
   universe: "universe:5050",
-  "macbeaseContent": "macbease-content:5070"
+  "macbeaseContent": "macbeaseContent:5070"
 };
 
 const generateServiceToken = () => {

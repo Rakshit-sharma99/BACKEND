@@ -1170,7 +1170,7 @@ const fetchMacbeaseContentFromIds = async (query) => {
   try {
     const config = generateServiceToken();
     const macbeaseContents = await axios.post(
-      "http://macbease-content:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
+      "http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
       query,
       config,
     );
