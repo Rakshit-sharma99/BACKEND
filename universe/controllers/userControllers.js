@@ -2078,7 +2078,9 @@ const getPostableSpaces = async (req, res) => {
         _id: { $in: clubIds },
         "permissions.whoCanPost": userId,
       })
-        .select("_id name secondaryImg universeMetaData uid rating")
+        .select(
+          "_id name secondaryImg universeMetaData uid rating members motto",
+        )
         .sort({ rating: -1 }) //  top rated clubs
         .lean(),
 
@@ -2086,7 +2088,7 @@ const getPostableSpaces = async (req, res) => {
         _id: { $in: communityIds },
         $or: [{ postPermission: true }, { creatorId: userId }],
       })
-        .select("_id title secondaryCover universeMetaData uid")
+        .select("_id title secondaryCover universeMetaData uid members tag")
         .lean(),
     ]);
 
@@ -2103,6 +2105,8 @@ const getPostableSpaces = async (req, res) => {
       secondaryImg: c.secondaryImg,
       universeMetaData: c.universeMetaData,
       uid: c.uid,
+      motto: c.motto,
+      membersCount: c.members?.length || 0,
       type: "club",
     }));
 
@@ -2112,6 +2116,8 @@ const getPostableSpaces = async (req, res) => {
       secondaryCover: c.secondaryCover,
       universeMetaData: c.universeMetaData,
       uid: c.uid,
+      tag: c.tag,
+      membersCount: c.members?.length || 0,
       label: "Just Posted",
       type: "community",
     }));
@@ -2191,7 +2197,9 @@ const searchPostableSpaces = async (req, res) => {
         "permissions.whoCanPost": userId,
         name: { $regex: regex },
       })
-        .select("_id name secondaryImg universeMetaData uid")
+        .select(
+          "_id name secondaryImg universeMetaData uid rating members motto",
+        )
         .limit(6)
         .lean(),
 
@@ -2200,7 +2208,7 @@ const searchPostableSpaces = async (req, res) => {
         $or: [{ postPermission: true }, { creatorId: userId }],
         title: { $regex: regex },
       })
-        .select("_id title secondaryCover universeMetaData uid")
+        .select("_id title secondaryCover universeMetaData uid members tag")
         .limit(6)
         .lean(),
     ]);
@@ -2212,6 +2220,8 @@ const searchPostableSpaces = async (req, res) => {
         secondaryCover: c.secondaryCover,
         universeMetaData: c.universeMetaData,
         uid: c.uid,
+        tag: c.tag,
+        membersCount: c.members?.length || 0,
         type: "community",
       })),
       ...clubs.map((c) => ({
@@ -2220,6 +2230,8 @@ const searchPostableSpaces = async (req, res) => {
         secondaryImg: c.secondaryImg,
         universeMetaData: c.universeMetaData,
         uid: c.uid,
+        motto: c.motto,
+        membersCount: c.members?.length || 0,
         type: "club",
       })),
     ];
