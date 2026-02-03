@@ -2045,6 +2045,199 @@ const getUsersByFields = async (req, res) => {
   }
 };
 
+const getPostableSpaces = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId)
+      .select("clubs communitiesPartOf communitiesCreated")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+
+    //  Sort communities by lastPosted (recent first)
+    const sortedCommunitiesPartOf = [
+      ...(user.communitiesPartOf || []),
+      ...(user.communitiesCreated || []),
+    ].sort((a, b) => {
+      if (!a.lastPosted && !b.lastPosted) return 0;
+      if (!a.lastPosted) return 1;
+      if (!b.lastPosted) return -1;
+      return new Date(b.lastPosted) - new Date(a.lastPosted);
+    });
+
+    const communityIds = sortedCommunitiesPartOf.map((c) => c.communityId);
+
+    // 2. Fetch allowed clubs & communities
+    const [clubs, communities] = await Promise.all([
+      Club.find({
+        _id: { $in: clubIds },
+        "permissions.whoCanPost": userId,
+      })
+        .select("_id name secondaryImg universeMetaData uid rating")
+        .sort({ rating: -1 }) //  top rated clubs
+        .lean(),
+
+      Community.find({
+        _id: { $in: communityIds },
+        $or: [{ postPermission: true }, { creatorId: userId }],
+      })
+        .select("_id title secondaryCover universeMetaData uid")
+        .lean(),
+    ]);
+
+    // Create lookup for lastPosted
+    const lastPostedMap = {};
+    sortedCommunitiesPartOf.forEach((c) => {
+      lastPostedMap[c.communityId.toString()] = c.lastPosted;
+    });
+
+    // Normalize
+    const normalizedClubs = clubs.map((c) => ({
+      id: c._id,
+      name: c.name,
+      secondaryImg: c.secondaryImg,
+      universeMetaData: c.universeMetaData,
+      uid: c.uid,
+      type: "club",
+    }));
+
+    const normalizedCommunities = communities.map((c) => ({
+      id: c._id,
+      title: c.title,
+      secondaryCover: c.secondaryCover,
+      universeMetaData: c.universeMetaData,
+      uid: c.uid,
+      label: "Just Posted",
+      type: "community",
+    }));
+
+    // Final limit = 12
+    const MAX = 12;
+
+    // pick TOP ones (not random)
+    const topCommunities = normalizedCommunities.slice(0, 6);
+    const topClubs = normalizedClubs.slice(0, 6);
+
+    // now interleave them randomly
+    const mixed = [];
+    let i = 0;
+    let j = 0;
+
+    while (
+      mixed.length < MAX &&
+      (i < topCommunities.length || j < topClubs.length)
+    ) {
+      const takeCommunity =
+        i < topCommunities.length &&
+        (j >= topClubs.length || Math.random() > 0.5);
+
+      if (takeCommunity) {
+        mixed.push(topCommunities[i++]);
+      } else if (j < topClubs.length) {
+        mixed.push(topClubs[j++]);
+      }
+    }
+
+    const result = mixed;
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (err) {
+    console.error("getPostableSpaces error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+const searchPostableSpaces = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { q } = req.query; // search text
+
+    if (!q || !q.trim()) {
+      return res.status(400).json({ message: "Search query required" });
+    }
+
+    const user = await User.findById(userId)
+      .select("clubs communitiesPartOf communitiesCreated")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+
+    const communityIds = [
+      ...(user.communitiesPartOf || []),
+      ...(user.communitiesCreated || []),
+    ].map((c) => c.communityId);
+
+    const regex = new RegExp(q, "i");
+
+    const [clubs, communities] = await Promise.all([
+      Club.find({
+        _id: { $in: clubIds },
+        "permissions.whoCanPost": userId,
+        name: { $regex: regex },
+      })
+        .select("_id name secondaryImg universeMetaData uid")
+        .limit(6)
+        .lean(),
+
+      Community.find({
+        _id: { $in: communityIds },
+        $or: [{ postPermission: true }, { creatorId: userId }],
+        title: { $regex: regex },
+      })
+        .select("_id title secondaryCover universeMetaData uid")
+        .limit(6)
+        .lean(),
+    ]);
+
+    const result = [
+      ...communities.map((c) => ({
+        id: c._id,
+        title: c.title,
+        secondaryCover: c.secondaryCover,
+        universeMetaData: c.universeMetaData,
+        uid: c.uid,
+        type: "community",
+      })),
+      ...clubs.map((c) => ({
+        id: c._id,
+        name: c.name,
+        secondaryImg: c.secondaryImg,
+        universeMetaData: c.universeMetaData,
+        uid: c.uid,
+        type: "club",
+      })),
+    ];
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (err) {
+    console.error("searchPostableSpaces error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   getUser,
   updateUser,
@@ -2097,4 +2290,6 @@ module.exports = {
   getUsersWithDynamicQuery,
   fetchBulkUsers,
   getUsersByFields,
+  getPostableSpaces,
+  searchPostableSpaces,
 };
