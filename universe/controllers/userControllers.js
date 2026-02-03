@@ -2110,7 +2110,7 @@ const getPostableSpaces = async (req, res) => {
       type: "club",
     }));
 
-    const normalizedCommunities = communities.map((c) => ({
+    const normalizedCommunities = communities.map((c, index) => ({
       id: c._id,
       title: c.title,
       secondaryCover: c.secondaryCover,
@@ -2118,7 +2118,7 @@ const getPostableSpaces = async (req, res) => {
       uid: c.uid,
       tag: c.tag,
       membersCount: c.members?.length || 0,
-      label: "Just Posted",
+      label: index < 3 ? "Just Posted" : undefined,
       type: "community",
     }));
 
