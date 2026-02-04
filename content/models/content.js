@@ -61,6 +61,9 @@ const contentSchema = new mongoose.Schema({
   c_url: {
     type: String,
   },
+  title: {
+    type: String,
+  },
   text: {
     type: String,
   },
@@ -101,7 +104,7 @@ const contentSchema = new mongoose.Schema({
         communityTitle: String,
         communityCover: String,
       },
-      { _id: false }
+      { _id: false },
     ),
   },
   metaData: {
@@ -112,7 +115,7 @@ const contentSchema = new mongoose.Schema({
         uri: String,
         mimeType: String,
       },
-      { _id: false }
+      { _id: false },
     ),
   },
   underReview: {
@@ -137,7 +140,7 @@ const contentSchema = new mongoose.Schema({
     callSign: { type: String },
     logoKey: { type: String },
     lat: { type: Number },
-    lng: { type: Number }
+    lng: { type: Number },
   },
   timeStamp: {
     type: Date,

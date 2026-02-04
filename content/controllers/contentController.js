@@ -40,8 +40,6 @@ const createContent = async (req, res) => {
       contentType,
       sendBy,
       url,
-      text,
-      key,
       peopleTagged,
       belongsTo,
       universeMetaData,
