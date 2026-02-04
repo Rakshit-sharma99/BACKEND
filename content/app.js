@@ -21,13 +21,13 @@ app.use(express.json());
 
 app.use((req, res, next) => {
   console.log(
-    `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`
+    `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`,
   );
   next();
 });
 
 app.get("/content/api/v1/hello", (req, res) => {
-  res.send("Macbease content service responding!");
+  res.send("Macbease content service responding.");
 });
 
 app.use("/content/api/v1", authenticate, contentRouter);
