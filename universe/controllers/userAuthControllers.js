@@ -1,6 +1,7 @@
 const { StatusCodes } = require("http-status-codes");
 const { validationResult } = require("express-validator");
 const User = require("../models/user");
+const Session = require("../models/session");
 const Community = require("../models/community");
 const Club = require("../models/club");
 const Org = require("../models/org");
@@ -194,7 +195,7 @@ const registerUser = async (req, res) => {
       interests,
       image,
       field: field?.trim(),
-      passoutYear: passoutYear?.trim(),
+      passoutYear: String(passoutYear)?.trim(),
       level: level?.trim(),
       incompleteProfile,
       profession: profession || "Student",
@@ -270,19 +271,26 @@ const registerUser = async (req, res) => {
 
 const loginUtil = async (user, platform) => {
   if (user.deactivated) {
-    const deactivationDate = user.deactivationDate;
-    const givenDate = new Date(deactivationDate);
-    const currentDate = new Date();
-    const timeDifference = currentDate - givenDate;
-    const daysElapsed = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
-    if (daysElapsed > 29) {
-      return "User does not exist.";
-    }
+    const daysElapsed = Math.floor(
+      (Date.now() - new Date(user.deactivationDate)) / (1000 * 60 * 60 * 24),
+    );
+
+    if (daysElapsed > 29) return "User does not exist.";
+
     return {
       msg: "Account is currently deactivated.",
       days: 29 - daysElapsed,
     };
   }
+
+  // ensure object exists
+  if (!user.refreshTokens) {
+    user.refreshTokens = {};
+  }
+
+  // normalize platform
+  const key = platform.toLowerCase();
+
   const refreshToken = user.createRefreshToken();
   user.refreshTokens = user.refreshTokens || {};
   user.refreshTokens[platform] = refreshToken;
@@ -290,9 +298,9 @@ const loginUtil = async (user, platform) => {
   const AccessToken = user.createAccessToken();
   return {
     user: {
+      _id: user._id,
       name: user.name,
       image: user.image,
-      _id: user._id,
       role: user.role,
       reg: user.reg,
       profession: user.profession,
@@ -300,7 +308,7 @@ const loginUtil = async (user, platform) => {
       universeMetaData: user.universeMetaData,
       email: user.email,
     },
-    token: AccessToken,
+    token: accessToken,
     refreshToken,
   };
 };
@@ -389,85 +397,175 @@ const googleLogin = async (req, res) => {
   }
 };
 
-//using this function the user can log in to his account
-//req configuration:
-//send login credentials in req body,eg, {"email":"1234@gmail.com","password":"1234"}
-
 const loginUser = async (req, res) => {
-  console.log("login attempted");
-  const { email, password } = req.body;
-  const platform = req.body.platform || "app";
-  let user = await User.findOne(
-    { email },
-    {
-      password: 1,
-      deactivated: 1,
-      deactivationDate: 1,
-      name: 1,
-      image: 1,
-      role: 1,
-      reg: 1,
-      profession: 1,
-      uid: 1,
-      universeMetaData: 1,
-      email,
-    },
-  );
-  if (!user) {
-    return res.status(StatusCodes.OK).send("User does not exist.");
-  }
-  const isPasswordCorrect = await bcrypt.compare(password, user.password);
-  if (!isPasswordCorrect) {
-    return res.status(StatusCodes.OK).send("Wrong password.");
-  }
+  try {
+    console.log("login attempted");
 
-  const result = await loginUtil(user, platform);
-  if (result === "User does not exist.") {
-    return res.status(StatusCodes.OK).send(result);
+    const { email, password, platform = "app" } = req.body;
+
+    const user = await User.findOne(
+      { email },
+      {
+        password: 1,
+        deactivated: 1,
+        deactivationDate: 1,
+        name: 1,
+        image: 1,
+        role: 1,
+        reg: 1,
+        profession: 1,
+        uid: 1,
+        universeMetaData: 1,
+        email: 1,
+      },
+    );
+
+    if (!user) {
+      return res
+        .status(StatusCodes.OK)
+        .json({ message: "User does not exist." });
+    }
+
+    if (user.deactivated) {
+      return res.status(StatusCodes.OK).json({
+        message: "Account is deactivated",
+        deactivationDate: user.deactivationDate,
+      });
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(StatusCodes.OK).json({ message: "Wrong password." });
+    }
+
+    const result = await loginUtil(user, platform);
+
+    if (!result || result === "User does not exist.") {
+      return res
+        .status(StatusCodes.OK)
+        .json({ message: "User does not exist." });
+    }
+
+    res.cookie("access_token", result.token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 25 * 60 * 1000,
+    });
+
+    res.cookie("refresh_token", result.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    if (platform === "web") {
+      const { token, refreshToken, ...safeData } = result;
+      return res.status(StatusCodes.OK).json(safeData);
+    }
+
+    return res.status(StatusCodes.OK).json(result);
+  } catch (err) {
+    console.error("Login error:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Login failed" });
   }
-  return res.status(StatusCodes.OK).json(result);
 };
 
 //Create new Access token using refresh token
 const regenerateAccessToken = async (req, res) => {
-  const { refreshToken, appVersion } = req.body;
-  let id;
-  const platform = req.body.platform || "app";
   try {
-    const payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    id = payload.id;
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(StatusCodes.MISDIRECTED_REQUEST)
-      .send("Invalid refresh token...");
-  }
-  const user = await User.findById(id, {
-    refreshTokens: 1,
-    appVersion: 1,
-    uid: 1,
-    universeMetaData: 1,
-  });
-  if (!user) {
-    return res
-      .status(StatusCodes.MISDIRECTED_REQUEST)
-      .send("Invalid refresh token...");
-  }
-  if (user.refreshTokens[platform] !== refreshToken) {
-    return res
-      .status(StatusCodes.MISDIRECTED_REQUEST)
-      .send("Invalid refresh token...");
-  }
+    const { appVersion, platform = "app" } = req.body;
 
-  const newRefreshToken = user.createRefreshToken();
-  const newAccessToken = user.createAccessToken();
-  if (appVersion) {
-    user.appVersion = appVersion;
-  }
-  user.refreshTokens[platform] = newRefreshToken;
-  await user.save();
+    // 1. Get refresh token (cookie preferred)
+    const refreshToken = req.cookies?.refresh_token || req.body.refreshToken;
 
-  return res.status(StatusCodes.OK).send({ newAccessToken, newRefreshToken });
+    if (!refreshToken) {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ message: "Refresh token missing" });
+    }
+
+    // 2. Verify refresh token
+    let payload;
+    try {
+      payload = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ message: "Invalid refresh token" });
+    }
+
+    const user = await User.findById(payload.id, {
+      refreshTokens: 1,
+      appVersion: 1,
+    });
+
+    if (!user) {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ message: "Invalid refresh token" });
+    }
+
+    const key = platform.toLowerCase();
+
+    if (!user.refreshTokens || user.refreshTokens[key] !== refreshToken) {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .json({ message: "Invalid refresh token" });
+    }
+
+    // 3. Rotate tokens
+    const newRefreshToken = user.createRefreshToken();
+    const newAccessToken = user.createAccessToken();
+
+    if (appVersion) user.appVersion = appVersion;
+    user.refreshTokens[key] = newRefreshToken;
+    await user.save();
+
+    // 4. Create session
+    const session = await Session.create({ userId: payload.id });
+
+    // 5. Set cookies
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    };
+
+    res.cookie("access_token", newAccessToken, {
+      ...cookieOptions,
+      maxAge: 25 * 60 * 1000,
+    });
+
+    res.cookie("refresh_token", newRefreshToken, {
+      ...cookieOptions,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    res.cookie("session_id", session._id.toString(), {
+      ...cookieOptions,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+
+    // 6. Response only for app
+    if (key === "app") {
+      return res.status(StatusCodes.OK).json({
+        newAccessToken,
+        newRefreshToken,
+        sessionId: session._id,
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({});
+  } catch (err) {
+    console.error("regenerateAccessToken error:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Token refresh failed" });
+  }
 };
 
 //to send recovery otp via email

@@ -110,7 +110,7 @@ const authLimiter = rateLimit({
 });
 
 app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
-  res.send("Macbease - updated!");
+  res.send("Macbease - updated.");
 });
 
 app.use("/universe/api/v1/auth/user", userAuthRouter);
@@ -237,7 +237,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}!`);
+      console.log(`✅ Server is listening to port ${port}.`);
     });
   } catch (error) {
     console.log(error);

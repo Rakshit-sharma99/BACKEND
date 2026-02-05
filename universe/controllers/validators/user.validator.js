@@ -21,8 +21,6 @@ const registerUserValidator = [
   body("company").optional().trim(),
   body("workingPosition").optional().trim(),
 
-  body("reg").optional().isNumeric(),
-
   body("interests").optional().isArray().withMessage("Interests must be array"),
 
   body("platform")
@@ -54,18 +52,6 @@ const registerUserValidator = [
     .withMessage("Universe callSign required"),
 
   body("universe.logoKey").optional().trim(),
-
-  body("universe.lat")
-    .notEmpty()
-    .withMessage("Universe latitude required")
-    .isFloat({ min: -90, max: 90 })
-    .withMessage("Latitude must be between -90 and 90"),
-
-  body("universe.lng")
-    .notEmpty()
-    .withMessage("Universe longitude required")
-    .isFloat({ min: -180, max: 180 })
-    .withMessage("Longitude must be between -180 and 180"),
 ];
 
 const p1 = [

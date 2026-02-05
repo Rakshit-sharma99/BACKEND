@@ -64,8 +64,18 @@ const universeSchema = new mongoose.Schema(
     logo: String,
     callSign: String,
     logoKey: String,
-    lat: Number,
-    lng: Number,
+
+    lat: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
+
+    lng: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
   },
   { _id: false },
 );
@@ -321,6 +331,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["Creator", "Normal"],
       default: "Normal",
+    },
+
+    gender: {
+      type: String,
+      enum: ["she_her", "he_him", "they_them", "custom"],
     },
 
     name: {

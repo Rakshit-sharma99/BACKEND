@@ -51,6 +51,8 @@ const {
   getUsersWithDynamicQuery,
   fetchBulkUsers,
   getUsersByFields,
+  getPostableSpaces,
+  searchPostableSpaces,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -82,7 +84,6 @@ router.post("/verifyEmail", verifyEmail);
 router.post("/completeProfile", completeProfile);
 router.post("/sendBatchedNotifications", sendBatchedNotifications);
 router.post("/sendMailVerification", sendMailVerification);
-router.post("/verifyEmail", verifyEmail);
 router.post("/completeProfile", completeProfile);
 (router.get("/getInactiveUsers", getInactiveUsers),
   router.post("/updateIncompleteFields", updateIncompleteFields));
@@ -104,5 +105,7 @@ router.post("/addUniverseMetaDataToShortcuts", addUniverseMetaDataToShortcuts);
 router.post("/getUsersWithDynamicQuery", getUsersWithDynamicQuery);
 router.post("/fetchBulkUsers", fetchBulkUsers);
 router.post("/getUsersByFields", getUsersByFields);
+router.get("/getPostableSpaces", getPostableSpaces);
+router.get("/searchPostableSpaces", searchPostableSpaces);
 
 module.exports = router;

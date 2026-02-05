@@ -816,7 +816,8 @@ const search = async (req, res) => {
           secondaryCover: 1,
           title: 1,
           _id: 1,
-          un,
+          universeMetaData: 1,
+          uid: 1,
         },
       ).lean();
       communitiesWithType = communities.map((community) => ({
@@ -829,6 +830,8 @@ const search = async (req, res) => {
           secondaryImg: 1,
           name: 1,
           _id: 1,
+          universeMetaData: 1,
+          uid: 1,
         },
       ).lean();
       clubsWithType = clubs.map((club) => ({
@@ -838,9 +841,17 @@ const search = async (req, res) => {
     }
     const users = await User.find(
       { name: new RegExp(query, "i", "g") },
-      { image: 1, name: 1, _id: 1, course: 1, pushToken: 1 },
+      {
+        image: 1,
+        name: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        universeMetaData: 1,
+        uid: 1,
+      },
     )
-      .limit(100)
+      .limit(24)
       .lean();
     const usersWithType = users.map((user) => ({
       ...user,
@@ -859,7 +870,7 @@ const search = async (req, res) => {
   }
 };
 
-//controller to return user bio from an array of ids
+//controller to return user bio from an array of user ids
 const fetchMultipleProfiles = async (req, res) => {
   try {
     const { ids } = req.body;
@@ -1954,7 +1965,7 @@ const fetchBulkUsers = async (req, res) => {
       .map((id) =>
         mongoose.Types.ObjectId.isValid(id)
           ? new mongoose.Types.ObjectId(id)
-          : null
+          : null,
       )
       .filter(Boolean);
 
@@ -1970,7 +1981,6 @@ const fetchBulkUsers = async (req, res) => {
     return res.status(500).json({ error: "Internal server error." });
   }
 };
-
 
 const getUsersByFields = async (req, res) => {
   try {
@@ -2015,22 +2025,224 @@ const getUsersByFields = async (req, res) => {
       projection = fields.join(" ");
     }
 
-    const users = await User.find(query)
-      .select(projection)
-      .lean();
+    const users = await User.find(query).select(projection).lean();
 
     return res.status(200).json({
       success: true,
       count: users.length,
       users,
     });
-
   } catch (error) {
     console.error("getUsersByFields error:", error);
 
     return res.status(500).json({
       success: false,
       message: "Failed to fetch users",
+    });
+  }
+};
+
+const getPostableSpaces = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await User.findById(userId)
+      .select("clubs communitiesPartOf communitiesCreated")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+
+    //  Sort communities by lastPosted (recent first)
+    const sortedCommunitiesPartOf = [
+      ...(user.communitiesPartOf || []),
+      ...(user.communitiesCreated || []),
+    ].sort((a, b) => {
+      if (!a.lastPosted && !b.lastPosted) return 0;
+      if (!a.lastPosted) return 1;
+      if (!b.lastPosted) return -1;
+      return new Date(b.lastPosted) - new Date(a.lastPosted);
+    });
+
+    const communityIds = sortedCommunitiesPartOf.map((c) => c.communityId);
+
+    // 2. Fetch allowed clubs & communities
+    const [clubs, communities] = await Promise.all([
+      Club.find({
+        _id: { $in: clubIds },
+        "permissions.whoCanPost": userId,
+      })
+        .select(
+          "_id name secondaryImg universeMetaData uid rating members motto",
+        )
+        .sort({ rating: -1 }) //  top rated clubs
+        .lean(),
+
+      Community.find({
+        _id: { $in: communityIds },
+        $or: [{ postPermission: true }, { creatorId: userId }],
+      })
+        .select("_id title secondaryCover universeMetaData uid members tag")
+        .lean(),
+    ]);
+
+    // Create lookup for lastPosted
+    const lastPostedMap = {};
+    sortedCommunitiesPartOf.forEach((c) => {
+      lastPostedMap[c.communityId.toString()] = c.lastPosted;
+    });
+
+    // Normalize
+    const normalizedClubs = clubs.map((c) => ({
+      id: c._id,
+      name: c.name,
+      secondaryImg: c.secondaryImg,
+      universeMetaData: c.universeMetaData,
+      uid: c.uid,
+      motto: c.motto,
+      membersCount: c.members?.length || 0,
+      type: "club",
+    }));
+
+    const normalizedCommunities = communities.map((c, index) => ({
+      id: c._id,
+      title: c.title,
+      secondaryCover: c.secondaryCover,
+      universeMetaData: c.universeMetaData,
+      uid: c.uid,
+      tag: c.tag,
+      membersCount: c.members?.length || 0,
+      label: index < 3 ? "Just Posted" : undefined,
+      type: "community",
+    }));
+
+    // Final limit = 12
+    const MAX = 12;
+
+    // pick TOP ones (not random)
+    const topCommunities = normalizedCommunities.slice(0, 6);
+    const topClubs = normalizedClubs.slice(0, 6);
+
+    // now interleave them randomly
+    const mixed = [];
+    let i = 0;
+    let j = 0;
+
+    while (
+      mixed.length < MAX &&
+      (i < topCommunities.length || j < topClubs.length)
+    ) {
+      const takeCommunity =
+        i < topCommunities.length &&
+        (j >= topClubs.length || Math.random() > 0.5);
+
+      if (takeCommunity) {
+        mixed.push(topCommunities[i++]);
+      } else if (j < topClubs.length) {
+        mixed.push(topClubs[j++]);
+      }
+    }
+
+    const result = mixed;
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (err) {
+    console.error("getPostableSpaces error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+const searchPostableSpaces = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { q } = req.query; // search text
+
+    if (!q || !q.trim()) {
+      return res.status(400).json({ message: "Search query required" });
+    }
+
+    const user = await User.findById(userId)
+      .select("clubs communitiesPartOf communitiesCreated")
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+
+    const communityIds = [
+      ...(user.communitiesPartOf || []),
+      ...(user.communitiesCreated || []),
+    ].map((c) => c.communityId);
+
+    const regex = new RegExp(q, "i");
+
+    const [clubs, communities] = await Promise.all([
+      Club.find({
+        _id: { $in: clubIds },
+        "permissions.whoCanPost": userId,
+        name: { $regex: regex },
+      })
+        .select(
+          "_id name secondaryImg universeMetaData uid rating members motto",
+        )
+        .limit(6)
+        .lean(),
+
+      Community.find({
+        _id: { $in: communityIds },
+        $or: [{ postPermission: true }, { creatorId: userId }],
+        title: { $regex: regex },
+      })
+        .select("_id title secondaryCover universeMetaData uid members tag")
+        .limit(6)
+        .lean(),
+    ]);
+
+    const result = [
+      ...communities.map((c) => ({
+        id: c._id,
+        title: c.title,
+        secondaryCover: c.secondaryCover,
+        universeMetaData: c.universeMetaData,
+        uid: c.uid,
+        tag: c.tag,
+        membersCount: c.members?.length || 0,
+        type: "community",
+      })),
+      ...clubs.map((c) => ({
+        id: c._id,
+        name: c.name,
+        secondaryImg: c.secondaryImg,
+        universeMetaData: c.universeMetaData,
+        uid: c.uid,
+        motto: c.motto,
+        membersCount: c.members?.length || 0,
+        type: "club",
+      })),
+    ];
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (err) {
+    console.error("searchPostableSpaces error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
     });
   }
 };
@@ -2086,5 +2298,7 @@ module.exports = {
   addUniverseMetaDataToShortcuts,
   getUsersWithDynamicQuery,
   fetchBulkUsers,
-  getUsersByFields
+  getUsersByFields,
+  getPostableSpaces,
+  searchPostableSpaces,
 };
