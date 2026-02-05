@@ -1,0 +1,2 @@
+@echo off
+docker compose logs -f --tail=50 universe multiverse content card resource event bag badge macbeaseContent offer quest invitation project itinerary joinLink tile org unsorted ticket refund blog coupon memory overlay map

@@ -31,6 +31,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const redis = require("../config/redis");
 const mongoose = require("mongoose");
 
 //Controller 1
@@ -1096,283 +1097,168 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
 //Controller 20
 const getContentForLanding = async (req, res) => {
   try {
-    if (req.user.role === "user") {
-      const { key, cachedStartTimeStamp, cachedEndTimeStamp, cachedFlagId } =
-        req.query;
-      let mode = "primary";
-      const user = await fetchNativeUserData({
-        id: req.user.id,
-        fields: [
-          "lastActive",
-          "name",
-          "image",
-          "_id",
-          "feed",
-          "eventFeed",
-          "course",
-          "role",
-          "interests",
-          "clubs",
-          "communitiesCreated",
-          "communitiesPartOf",
-          "giftsSend",
-          "chatRooms",
-          "email",
-          "unreadNotice",
-          "level",
-          "passoutYear",
-          "field",
-          "incompleteProfile",
-          "notifications",
-          "shortCuts",
-          "incompleteFields",
-          "uid",
-          "universeMetaData",
-        ],
-        callSign: "universe",
-      });
+    const { cursor, limit } = req.query;
+    const userId = req.user.id;
+    const parsedLimit = parseInt(limit) || 5;
+    const parsedCursor = cursor ? new Date(cursor) : new Date();
 
-      if (!user) {
-        return res
-          .status(StatusCodes.NOT_FOUND)
-          .json({ error: "User not found." });
-      }
-      const {
-        course,
-        role,
-        interests,
-        clubs,
-        communitiesCreated,
-        communitiesPartOf,
-        giftsSend,
-        name,
-        image,
-        chatRooms,
-        email,
-        unreadNotice,
-        level,
-        passoutYear,
-        field,
-        incompleteProfile,
-        shortCuts,
-        incompleteFields,
-        uid,
-        universeMetaData,
-      } = user;
-      const eventFeed = user.eventFeed;
-      const eventFeedLenMid = Math.floor(eventFeed.length / 2);
-      const eventFeed1 = eventFeed.slice(0, eventFeedLenMid);
-      const eventFeed2 = eventFeed.slice(eventFeedLenMid);
-      let lastActive = user.lastActive;
-      lastActive = new Date(lastActive);
-      let feed = user.feed || [];
-      let newFeed = [];
-      if (key !== "all") {
-        const [randomCommunities, randomClubs] = await Promise.all([
-          fetchNativeRandomCommunities({
-            size: 3,
-            projection: "content",
-            callSign: "universe",
-          }),
-          fetchNativeRandomClubs({
-            size: 3,
-            projection: "content",
-            callSign: "universe",
-          }),
-        ]);
-        const communityContentPromises = randomCommunities.map(
-          async (community) => {
-            const randomContent =
-              community.content[
-                Math.floor(Math.random() * community.content.length)
-              ];
-            if (randomContent) {
-              const content = await Content.aggregate([
-                {
-                  $match: {
-                    _id: mongoose.Types.ObjectId(randomContent.contentId),
-                  },
-                },
-                {
-                  $addFields: {
-                    commentsNum: { $size: "$comments" },
-                    comments: { $slice: ["$comments", 12] },
-                  },
-                },
-              ]);
-              if (content.length > 0) {
-                return content[0];
-              }
-            }
-            return null;
-          },
-        );
-
-        const clubContentPromises = randomClubs.map(async (club) => {
-          const randomContent =
-            club.content[Math.floor(Math.random() * club.content.length)];
-          if (randomContent) {
-            const content = await Content.aggregate([
-              {
-                $match: {
-                  _id: mongoose.Types.ObjectId(randomContent.contentId),
-                },
-              },
-              {
-                $addFields: {
-                  commentsNum: { $size: "$comments" },
-                  comments: { $slice: ["$comments", 12] },
-                },
-              },
-            ]);
-            if (content.length > 0) {
-              return content[0];
-            }
-          }
-          return null;
-        });
-
-        const communityContents = (
-          await Promise.all(communityContentPromises)
-        ).filter(Boolean);
-        const clubContents = (await Promise.all(clubContentPromises)).filter(
-          Boolean,
-        );
-        newFeed = [...newFeed, ...communityContents, ...clubContents];
-      }
-      if (key === "all") {
-        let contentIds = feed.slice(0, 12).map((item) => item._id.toString());
-        if (cachedFlagId) {
-          const matchedIndex = contentIds.findIndex(
-            (item) => item === cachedFlagId,
-          );
-          if (matchedIndex !== -1) {
-            contentIds = contentIds.slice(0, matchedIndex);
-          }
+    if (!cursor) {
+      try {
+        const cachedFeed = await redis.get(`landing_feed:${userId}`);
+        if (cachedFeed) {
+          return res.status(StatusCodes.OK).json(JSON.parse(cachedFeed));
         }
-        const contentDocs = await Content.find({ _id: { $in: contentIds } })
-          .select("-vector")
-          .lean();
-        const processedDocs = contentDocs
-          .map((doc) => {
-            if (doc) {
-              const commentsNum = doc.comments.length;
-              doc.comments = doc.comments.slice(0, 12);
-              if (doc.sendBy === "userCommunity" || doc.sendBy === "club") {
-                return {
-                  ...doc,
-                  commentsNum,
-                  irrelevanceVote:
-                    doc.sendBy === "userCommunity" ? 0 : undefined,
-                };
-              }
-            }
-            return null;
-          })
-          .filter(Boolean);
-
-        await sendKafkaMessage("CLEAR_FEED", "universe", {
-          userId: req.user.id,
-        });
-
-        if (cachedStartTimeStamp) {
-          const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-            timeStamp: cachedStartTimeStamp,
-            operator: "gt",
-            sort: "desc",
-            limit: 12,
-          });
-          newFeed = [...processedDocs, ...macbeaseContents];
-        } else {
-          const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-            sort: "desc",
-            limit: 12,
-          });
-          newFeed = [...processedDocs, ...macbeaseContents];
-        }
-      }
-      newFeed = newFeed.sort(
-        (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
-      );
-      if (cachedEndTimeStamp && newFeed.length === 0) {
-        newFeed = await getSecondaryFeed(cachedEndTimeStamp, clubs);
-        mode = "secondary";
-      }
-      let rand1 = Math.ceil(Math.random() * newFeed.length);
-      let rand2 = newFeed.length - rand1;
-      if (rand1 === rand2) rand2 += 1;
-      if (rand1 > rand2) [rand1, rand2] = [rand2, rand1];
-      const cardContents = await fetchRandomCardsForFeed();
-
-      let data1 = [
-        newFeed[0],
-        ...(cardContents.length > 0 ? [cardContents[0]] : []),
-        ...newFeed.slice(1, rand1),
-        ...(cardContents.length > 1 ? [cardContents[1]] : []),
-      ];
-      let data2 = [
-        ...(cardContents.length > 2 ? [cardContents[2]] : []),
-        ...newFeed.slice(rand1, rand2),
-      ];
-      let data3 = [
-        ...(cardContents.length > 3 ? cardContents.slice(3) : []),
-        ...newFeed.slice(rand2),
-      ];
-
-      if (key === "all") {
-        const clubIdsPartOf = clubs.map((club) => club.clubId);
-        const clubsR = await fetchClubsRecommendations({
-          nIds: clubIdsPartOf,
-        });
-        const commIdspartOf = communitiesPartOf.map((comm) => comm.communityId);
-        const communitiesR = await fetchCommunitiesRecommendations({
-          nIds: commIdspartOf,
-        });
-
-        return res.status(StatusCodes.OK).json({
-          data1,
-          data2,
-          data3,
-          eventFeed1,
-          eventFeed2,
-          name: user.name,
-          image: user.image,
-          bio: {
-            course,
-            role,
-            interests,
-            clubs: clubs.length,
-            communitiesCreated: communitiesCreated.length,
-            communitiesPartOf: communitiesPartOf.length,
-            name,
-            image,
-            chatRooms,
-            email,
-            notices: unreadNotice.length,
-            level,
-            passoutYear,
-            field,
-            incompleteProfile,
-            shortCuts,
-            incompleteFields,
-            uid,
-            universeMetaData,
-          },
-          clubRecommendations: clubsR,
-          communityRecommendations: communitiesR,
-          cache: mode === "primary" ? true : false,
-        });
-      } else {
-        return res.status(StatusCodes.OK).json({
-          data1,
-          data2,
-          data3,
-        });
+      } catch (e) {
+        console.error("Redis Cache Error:", e);
       }
     }
+
+    // 2. Fetch User Data & Seen IDs
+    const [user, seenIdsRaw] = await Promise.all([
+      fetchNativeUserData({
+        id: userId,
+        fields: ["communitiesPartOf", "clubs", "interests"],
+        callSign: "universe",
+      }),
+      redis.smembers(`seen_content:${userId}`),
+    ]);
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    const seenIds = (seenIdsRaw || []).map((id) =>
+      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null
+    ).filter(Boolean);
+
+    const communityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
+    const clubIds = (user.clubs || []).map((c) => c.clubId);
+    const belongsToIds = [...communityIds, ...clubIds];
+    const interestTags = user.interests || [];
+
+    // 3. Define Queries (Excluding Seen IDs)
+
+    // A. Followed Content (Clubs/Communities)
+    const followedQuery = Content.aggregate([
+      {
+        $match: {
+          belongsTo: { $in: belongsToIds },
+          _id: { $nin: seenIds },
+          timeStamp: { $lt: parsedCursor },
+        },
+      },
+      { $sort: { timeStamp: -1 } },
+      { $limit: parsedLimit },
+      {
+        $addFields: {
+          feedType: "followed",
+          commentsNum: { $size: "$comments" },
+          comments: { $slice: ["$comments", 6] },
+        },
+      },
+      { $project: { vector: 0 } },
+    ]);
+
+    // B. Suggested Content (Interests)
+    const suggestedQuery =
+      interestTags.length > 0
+        ? Content.aggregate([
+          {
+            $match: {
+              tags: { $in: interestTags },
+              _id: { $nin: seenIds },
+              timeStamp: { $lt: parsedCursor },
+            },
+          },
+          { $sort: { timeStamp: -1 } },
+          { $limit: parsedLimit },
+          {
+            $addFields: {
+              feedType: "suggested",
+              commentsNum: { $size: "$comments" },
+              comments: { $slice: ["$comments", 6] },
+            },
+          },
+          { $project: { vector: 0 } },
+        ])
+        : Promise.resolve([]);
+
+    // Execute Initial Queries
+    const [followedContent, suggestedContent] = await Promise.all([
+      followedQuery,
+      suggestedQuery,
+    ]);
+
+    // Merge & Deduplicate (in case overlap between followed/suggested)
+    let combined = [...followedContent, ...suggestedContent];
+    const uniqueCombined = Array.from(new Map(combined.map(item => [item._id.toString(), item])).values());
+
+    // Sort by Time
+    uniqueCombined.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+
+    // 4. Fallback Mechanism
+    // If we don't have enough content, fetch popular/random content
+    let finalFeed = uniqueCombined;
+
+    if (finalFeed.length < parsedLimit) {
+      const needed = parsedLimit - finalFeed.length;
+
+      // IDs to exclude in fallback (Seen + Just Fetched)
+      const currentFetchedIds = finalFeed.map(c => c._id);
+      const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
+
+      const fallbackContent = await Content.aggregate([
+        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor } } },
+        { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
+        {
+          $addFields: {
+            feedType: "suggested", // Mark as suggested so UI handles it gracefully
+            commentsNum: { $size: "$comments" },
+            comments: { $slice: ["$comments", 6] },
+          },
+        },
+        { $project: { vector: 0 } },
+        { $limit: needed }
+      ]);
+
+      finalFeed = [...finalFeed, ...fallbackContent];
+      // Resort after adding fallback
+      finalFeed.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    }
+
+    // Trim to limit
+    finalFeed = finalFeed.slice(0, parsedLimit);
+
+    // 5. Update Seen List in Redis
+    if (finalFeed.length > 0) {
+      const newIds = finalFeed.map((c) => c._id.toString());
+      const pipeline = redis.pipeline();
+      pipeline.sadd(`seen_content:${userId}`, ...newIds);
+      pipeline.expire(`seen_content:${userId}`, 60 * 60 * 24);
+      await pipeline.exec();
+    }
+
+    const nextCursor =
+      finalFeed.length > 0
+        ? finalFeed[finalFeed.length - 1].timeStamp
+        : null;
+
+    const responsePayload = {
+      data: finalFeed,
+      nextCursor,
+    };
+
+    // Update Short-term Cache
+    if (!cursor) {
+      await redis.setex(`landing_feed:${userId}`, 60, JSON.stringify(responsePayload));
+    }
+
+    return res.status(StatusCodes.OK).json(responsePayload);
   } catch (err) {
-    console.log("Error in get content for landing :", err);
-    return res.status(500).send("Something went wrong");
+    console.error("Error in getContentForLanding:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
   }
 };
 

@@ -1,0 +1,106 @@
+version: '3.8'
+services:
+  ipls:
+    volumes:
+      - ./ipls:/app
+      - /app/node_modules
+  universe:
+    volumes:
+      - ./universe:/app
+      - /app/node_modules
+  multiverse:
+    volumes:
+      - ./multiverse:/app
+      - /app/node_modules
+  content:
+    volumes:
+      - ./content:/app
+      - /app/node_modules
+  card:
+    volumes:
+      - ./card:/app
+      - /app/node_modules
+  resource:
+    volumes:
+      - ./resource:/app
+      - /app/node_modules
+  event:
+    volumes:
+      - ./event:/app
+      - /app/node_modules
+  bag:
+    volumes:
+      - ./bag:/app
+      - /app/node_modules
+  badge:
+    volumes:
+      - ./badge:/app
+      - /app/node_modules
+  macbeaseContent:
+    volumes:
+      - ./macbease_content:/app
+      - /app/node_modules
+  offer:
+    volumes:
+      - ./offer:/app
+      - /app/node_modules
+  quest:
+    volumes:
+      - ./quest:/app
+      - /app/node_modules
+  invitation:
+    volumes:
+      - ./invitation:/app
+      - /app/node_modules
+  project:
+    volumes:
+      - ./project:/app
+      - /app/node_modules
+  itinerary:
+    volumes:
+      - ./itinerary:/app
+      - /app/node_modules
+  joinLink:
+    volumes:
+      - ./joinLink:/app
+      - /app/node_modules
+  tile:
+    volumes:
+      - ./tiles:/app
+      - /app/node_modules
+  org:
+    volumes:
+      - ./org:/app
+      - /app/node_modules
+  unsorted:
+    volumes:
+      - ./unsorted:/app
+      - /app/node_modules
+  ticket:
+    volumes:
+      - ./ticket:/app
+      - /app/node_modules
+  refund:
+    volumes:
+      - ./refund:/app
+      - /app/node_modules
+  blog:
+    volumes:
+      - ./blog:/app
+      - /app/node_modules
+  coupon:
+    volumes:
+      - ./coupon:/app
+      - /app/node_modules
+  memory:
+    volumes:
+      - ./memory:/app
+      - /app/node_modules
+  overlay:
+    volumes:
+      - ./overlay:/app
+      - /app/node_modules
+  map:
+    volumes:
+      - ./map:/app
+      - /app/node_modules

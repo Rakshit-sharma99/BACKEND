@@ -4,7 +4,7 @@
   "description": "IPLS Service",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon -L app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
@@ -15,6 +15,6 @@
     "http": "^0.0.1-security",
     "kafkajs": "^2.2.4",
     "mongoose": "^8.12.1",
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.11"
   }
 }

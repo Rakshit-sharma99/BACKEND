@@ -4,7 +4,7 @@
   "description": "",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon app.js"
   },
   "author": "Ayush Amartya",
   "license": "ISC",
@@ -22,6 +22,7 @@
     "kafkajs": "^2.2.4",
     "mongoose": "^8.16.0",
     "node-schedule": "^2.1.1",
+    "nodemon": "^3.1.11",
     "pdfkit": "^0.17.1"
   }
 }

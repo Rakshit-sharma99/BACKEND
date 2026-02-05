@@ -1496,168 +1496,168 @@ const giveBonusIP = (streakDays) => {
 };
 
 //Secondary actions for community post
-const secondaryActionsForPost = async (
-  communityId,
-  contentType,
-  contentId,
-  userId,
-) => {
-  const threeSec = new Date(Date.now() + 5 * 1000);
-  schedule.scheduleJob(
-    `feedCommunity_${userId}_${threeSec}_${contentId}`,
-    threeSec,
-    async () => {
-      const community = await Community.findById(communityId, {
-        members: 1,
-        muted: 1,
-        seeLessFeed: 1,
-        title: 1,
-        pinnedBy: 1,
-        secondaryCover: 1,
-      });
-      if (!community) {
-        return console.error("Community not found");
-      }
-      await updateDynamicIsland(community.pinnedBy, communityId, "posts", true);
-      let { members } = community;
-      let memebersForPushToken = members;
-      memebersForPushToken = memebersForPushToken.filter(
-        (item, index) => !community.muted.includes(item.toString()),
-      );
-      const users = await User.find(
-        { _id: { $in: memebersForPushToken } },
-        { pushToken: 1 },
-      );
-      const tokens = users.map((item) => item.pushToken);
-      if (contentType === "text") {
-        members = members.filter(
-          (item, index) => !community.seeLessFeed.includes(item.toString()),
-        );
-      }
-      const point = { _id: mongoose.Types.ObjectId(contentId) };
-      if (contentType !== "text") {
-        await User.updateMany(
-          { _id: { $in: members } },
-          {
-            $push: { feed: { $each: [point], $position: 0 } },
-          },
-        );
-      }
-      const contentMetaData = await fetchContent({
-        contentId,
-        select: "url,text,contentType",
-      });
-      const user = await User.findById(userId, {
-        communityContribution: 1,
-        communitiesPartOf: 1,
-        name: 1,
-      });
-      user.communityContribution.push({ contentId, communityId });
+// const secondaryActionsForPost = async (
+//   communityId,
+//   contentType,
+//   contentId,
+//   userId,
+// ) => {
+//   const threeSec = new Date(Date.now() + 5 * 1000);
+//   schedule.scheduleJob(
+//     `feedCommunity_${userId}_${threeSec}_${contentId}`,
+//     threeSec,
+//     async () => {
+//       const community = await Community.findById(communityId, {
+//         members: 1,
+//         muted: 1,
+//         seeLessFeed: 1,
+//         title: 1,
+//         pinnedBy: 1,
+//         secondaryCover: 1,
+//       });
+//       if (!community) {
+//         return console.error("Community not found");
+//       }
+//       await updateDynamicIsland(community.pinnedBy, communityId, "posts", true);
+//       let { members } = community;
+//       let memebersForPushToken = members;
+//       memebersForPushToken = memebersForPushToken.filter(
+//         (item, index) => !community.muted.includes(item.toString()),
+//       );
+//       const users = await User.find(
+//         { _id: { $in: memebersForPushToken } },
+//         { pushToken: 1 },
+//       );
+//       const tokens = users.map((item) => item.pushToken);
+//       if (contentType === "text") {
+//         members = members.filter(
+//           (item, index) => !community.seeLessFeed.includes(item.toString()),
+//         );
+//       }
+//       const point = { _id: mongoose.Types.ObjectId(contentId) };
+//       if (contentType !== "text") {
+//         await User.updateMany(
+//           { _id: { $in: members } },
+//           {
+//             $push: { feed: { $each: [point], $position: 0 } },
+//           },
+//         );
+//       }
+//       const contentMetaData = await fetchContent({
+//         contentId,
+//         select: "url,text,contentType",
+//       });
+//       const user = await User.findById(userId, {
+//         communityContribution: 1,
+//         communitiesPartOf: 1,
+//         name: 1,
+//       });
+//       user.communityContribution.push({ contentId, communityId });
 
-      if (contentMetaData.contentType === "image") {
-        const img = await generateUri(contentMetaData.url.split("@")[0]);
-        scheduleNotification2({
-          pushToken: tokens,
-          title: `${user.name} posted in ${community.title}`,
-          body: `${contentMetaData.text.substring(0, 50)}...`,
-          image: img,
-          url: `https://macbease.com/app/community/${community._id}`,
-        });
-      } else {
-        scheduleNotification2({
-          pushToken: tokens,
-          title: `${user.name} posted in ${community.title}`,
-          body: `${contentMetaData.text.substring(0, 50)}...`,
-          url: `https://macbease.com/app/community/${community._id}`,
-        });
-      }
+//       if (contentMetaData.contentType === "image") {
+//         const img = await generateUri(contentMetaData.url.split("@")[0]);
+//         scheduleNotification2({
+//           pushToken: tokens,
+//           title: `${user.name} posted in ${community.title}`,
+//           body: `${contentMetaData.text.substring(0, 50)}...`,
+//           image: img,
+//           url: `https://macbease.com/app/community/${community._id}`,
+//         });
+//       } else {
+//         scheduleNotification2({
+//           pushToken: tokens,
+//           title: `${user.name} posted in ${community.title}`,
+//           body: `${contentMetaData.text.substring(0, 50)}...`,
+//           url: `https://macbease.com/app/community/${community._id}`,
+//         });
+//       }
 
-      //logic for updating streak
-      let communitiesPartOf = user.communitiesPartOf;
+//       //logic for updating streak
+//       let communitiesPartOf = user.communitiesPartOf;
 
-      // Find the community object to update
-      let dataToBeChanged = communitiesPartOf.find(
-        (item) => item.communityId === communityId,
-      );
+//       // Find the community object to update
+//       let dataToBeChanged = communitiesPartOf.find(
+//         (item) => item.communityId === communityId,
+//       );
 
-      if (!dataToBeChanged) return; // Ensure the community exists
+//       if (!dataToBeChanged) return; // Ensure the community exists
 
-      let today = new Date();
-      let lastPosted = dataToBeChanged.lastPosted
-        ? new Date(dataToBeChanged.lastPosted)
-        : new Date(0);
+//       let today = new Date();
+//       let lastPosted = dataToBeChanged.lastPosted
+//         ? new Date(dataToBeChanged.lastPosted)
+//         : new Date(0);
 
-      const _MS_PER_DAY = 1000 * 60 * 60 * 24;
-      const diff = Math.floor(
-        (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
-          Date.UTC(
-            lastPosted.getFullYear(),
-            lastPosted.getMonth(),
-            lastPosted.getDate(),
-          )) /
-        _MS_PER_DAY,
-      );
+//       const _MS_PER_DAY = 1000 * 60 * 60 * 24;
+//       const diff = Math.floor(
+//         (Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) -
+//           Date.UTC(
+//             lastPosted.getFullYear(),
+//             lastPosted.getMonth(),
+//             lastPosted.getDate(),
+//           )) /
+//         _MS_PER_DAY,
+//       );
 
-      if (diff < 0) {
-        console.error("Invalid lastPosted date detected.");
-        return;
-      }
+//       if (diff < 0) {
+//         console.error("Invalid lastPosted date detected.");
+//         return;
+//       }
 
-      // Update streaks
-      if (diff === 1 || dataToBeChanged.totalPosts === 0) {
-        dataToBeChanged.currentStreak += 1;
-        // Rewarding IP for maintainign streak
-        const reward = 1 + giveBonusIP(dataToBeChanged.currentStreak);
-        dataToBeChanged.rating += reward;
-        await updateUserIP({
-          userId,
-          ipChange: reward, // Accepts both negative and positive values
-          c_source: "user",
-          d_source: "system",
-          c_ref: userId,
-          description: "Credited for maintaining contribution streak!",
-          noEmissions: true, // preventing generic credit popover for displaying streak counter
-        });
-        //emission for streak counter
-        setTimeout(() => {
-          io.emit(`streakUpdate_${communityId}_${userId}`, {
-            streak: dataToBeChanged.currentStreak,
-            ip: reward,
-          });
-        }, 6000);
-      } else if (diff > 1) {
-        dataToBeChanged.currentStreak = 1;
-      }
+//       // Update streaks
+//       if (diff === 1 || dataToBeChanged.totalPosts === 0) {
+//         dataToBeChanged.currentStreak += 1;
+//         // Rewarding IP for maintainign streak
+//         const reward = 1 + giveBonusIP(dataToBeChanged.currentStreak);
+//         dataToBeChanged.rating += reward;
+//         await updateUserIP({
+//           userId,
+//           ipChange: reward, // Accepts both negative and positive values
+//           c_source: "user",
+//           d_source: "system",
+//           c_ref: userId,
+//           description: "Credited for maintaining contribution streak!",
+//           noEmissions: true, // preventing generic credit popover for displaying streak counter
+//         });
+//         //emission for streak counter
+//         setTimeout(() => {
+//           io.emit(`streakUpdate_${communityId}_${userId}`, {
+//             streak: dataToBeChanged.currentStreak,
+//             ip: reward,
+//           });
+//         }, 6000);
+//       } else if (diff > 1) {
+//         dataToBeChanged.currentStreak = 1;
+//       }
 
-      // Ensure best streak is updated
-      if (dataToBeChanged.currentStreak > dataToBeChanged.bestStreak) {
-        dataToBeChanged.bestStreak = dataToBeChanged.currentStreak;
-      }
+//       // Ensure best streak is updated
+//       if (dataToBeChanged.currentStreak > dataToBeChanged.bestStreak) {
+//         dataToBeChanged.bestStreak = dataToBeChanged.currentStreak;
+//       }
 
-      // If it's the first post ever, initialize streaks
-      if (
-        dataToBeChanged.currentStreak === 0 &&
-        dataToBeChanged.bestStreak === 0
-      ) {
-        dataToBeChanged.currentStreak = 1;
-        dataToBeChanged.bestStreak = 1;
-      }
+//       // If it's the first post ever, initialize streaks
+//       if (
+//         dataToBeChanged.currentStreak === 0 &&
+//         dataToBeChanged.bestStreak === 0
+//       ) {
+//         dataToBeChanged.currentStreak = 1;
+//         dataToBeChanged.bestStreak = 1;
+//       }
 
-      // Update post count and last posted date
-      dataToBeChanged.lastPosted = today;
-      dataToBeChanged.totalPosts += 1;
+//       // Update post count and last posted date
+//       dataToBeChanged.lastPosted = today;
+//       dataToBeChanged.totalPosts += 1;
 
-      user.markModified("communitiesPartOf");
-      user.markModified("communityContribution");
+//       user.markModified("communitiesPartOf");
+//       user.markModified("communityContribution");
 
-      // Save changes
-      await User.findByIdAndUpdate(user._id, {
-        communitiesPartOf: user.communitiesPartOf,
-        communityContribution: user.communityContribution,
-      });
-    },
-  );
-};
+//       // Save changes
+//       await User.findByIdAndUpdate(user._id, {
+//         communitiesPartOf: user.communitiesPartOf,
+//         communityContribution: user.communityContribution,
+//       });
+//     },
+//   );
+// };
 
 //Controller 29
 const post = async (req, res) => {
@@ -1699,7 +1699,7 @@ const post = async (req, res) => {
         type: contentType,
       });
     }
-    secondaryActionsForPost(communityId, contentType, contentId, req.user.id);
+    // secondaryActionsForPost(communityId, contentType, contentId, req.user.id);
 
     await community.save();
     const contentDoc = await fetchContent({ contentId });

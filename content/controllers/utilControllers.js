@@ -313,6 +313,7 @@ const fetchMacbeaseContentFromLastTimeStamp = async ({
     return macbeaseContent.data;
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 
@@ -328,6 +329,7 @@ const fetchMacbeaseContentFromIds = async ({ ids, select }) => {
     return macbeaseContent.data;
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 
@@ -343,6 +345,7 @@ const fetchCardsFromIds = async ({ ids, select }) => {
     return cards.data;
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 
@@ -356,6 +359,7 @@ const fetchRandomCardsForFeed = async () => {
     return cards.data;
   } catch (error) {
     console.log(error);
+    return [];
   }
 };
 

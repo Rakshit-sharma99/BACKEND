@@ -22,11 +22,12 @@ const connectConsumer = async () => {
       await consumer.connect();
       console.log(`✅ Kafka Consumer connected (${prefix})`);
 
-      // Dynamically subscribe to all topics in handlers
-      for (const topic of Object.keys(handlers)) {
-        await consumer.subscribe({ topic });
-        console.log(`🔗 Subscribed to topic: ${topic}`);
-      }
+      await Promise.all(
+        Object.keys(handlers).map(async (topic) => {
+          await consumer.subscribe({ topic });
+          console.log(`🔗 Subscribed to topic: ${topic}`);
+        })
+      );
 
       await consumer.run({
         eachMessage: async ({ topic, message }) => {

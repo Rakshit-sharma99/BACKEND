@@ -4,7 +4,7 @@
   "description": "Card service for multiverse",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "nodemon app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
@@ -20,6 +20,7 @@
     "http-status-codes": "^2.3.0",
     "jsonwebtoken": "^9.0.2",
     "kafkajs": "^2.2.4",
-    "mongoose": "^8.15.1"
+    "mongoose": "^8.15.1",
+    "nodemon": "^3.1.11"
   }
 }

@@ -922,74 +922,74 @@ const postContent = async (req, res) => {
       select: "url,contentType,text",
     });
     content = content;
-    schedule.scheduleJob(
-      `feedClub_${req.user.id}_${new Date()}`,
-      threeSec,
-      async () => {
-        try {
-          //reproduce actual content to be pushed in the user's feed
-          const club = await Club.findById(clubId, {
-            members: 1,
-            name: 1,
-            secondaryImg: 1,
-            pinnedBy: 1,
-            _id: 0,
-          });
-          let point = {
-            _id: contentId,
-          };
-          let noticeTemplate = {
-            value: `${club.name} posted a pin.`,
-            img1: club.secondaryImg,
-            img2: content.url,
-            contentType: content.contentType,
-            key: "content",
-            action: "club",
-            params: {
-              name: club.name,
-              secondaryImg: club.secondaryImg,
-              id: clubId,
-            },
-            time: new Date(),
-          };
-          let users = await User.find(
-            { _id: { $in: club.members } },
-            { pushToken: 1, feed: 1, unreadNotice: 1 },
-          );
-          const tokens = users.map((item) => item.pushToken);
-          let userUpdatePromise = users.map((user) => {
-            let notice = {
-              ...noticeTemplate,
-              uid: `${new Date()}/${user._id}/${req.user.id}`,
-            };
-            user.feed = [point, ...user.feed];
-            user.unreadNotice = [notice, ...user.unreadNotice];
-            return user.save();
-          });
-          await Promise.all(userUpdatePromise);
-          await updateDynamicIsland(club.pinnedBy, clubId, "posts", true);
-          if (content.contentType === "image") {
-            const img = await generateUri(content.url.split("@")[0]);
-            scheduleNotification2({
-              pushToken: tokens,
-              title: `${club.name} posted a pin.`,
-              body: `${content.text.substring(0, 50)}...`,
-              image: img,
-              url: `https://macbease.com/app/club/${clubId}`,
-            });
-          } else {
-            scheduleNotification2({
-              pushToken: tokens,
-              title: `${club.name} posted a pin.`,
-              body: `${content.text.substring(0, 50)}...`,
-              url: `https://macbease.com/app/club/${clubId}`,
-            });
-          }
-        } catch (error) {
-          console.error("Error in scheduled job:", error);
-        }
-      },
-    );
+    // schedule.scheduleJob(
+    //   `feedClub_${req.user.id}_${new Date()}`,
+    //   threeSec,
+    //   async () => {
+    //     try {
+    //       //reproduce actual content to be pushed in the user's feed
+    //       const club = await Club.findById(clubId, {
+    //         members: 1,
+    //         name: 1,
+    //         secondaryImg: 1,
+    //         pinnedBy: 1,
+    //         _id: 0,
+    //       });
+    //       let point = {
+    //         _id: contentId,
+    //       };
+    //       let noticeTemplate = {
+    //         value: `${club.name} posted a pin.`,
+    //         img1: club.secondaryImg,
+    //         img2: content.url,
+    //         contentType: content.contentType,
+    //         key: "content",
+    //         action: "club",
+    //         params: {
+    //           name: club.name,
+    //           secondaryImg: club.secondaryImg,
+    //           id: clubId,
+    //         },
+    //         time: new Date(),
+    //       };
+    //       let users = await User.find(
+    //         { _id: { $in: club.members } },
+    //         { pushToken: 1, feed: 1, unreadNotice: 1 },
+    //       );
+    //       const tokens = users.map((item) => item.pushToken);
+    //       let userUpdatePromise = users.map((user) => {
+    //         let notice = {
+    //           ...noticeTemplate,
+    //           uid: `${new Date()}/${user._id}/${req.user.id}`,
+    //         };
+    //         user.feed = [point, ...user.feed];
+    //         user.unreadNotice = [notice, ...user.unreadNotice];
+    //         return user.save();
+    //       });
+    //       await Promise.all(userUpdatePromise);
+    //       await updateDynamicIsland(club.pinnedBy, clubId, "posts", true);
+    //       if (content.contentType === "image") {
+    //         const img = await generateUri(content.url.split("@")[0]);
+    //         scheduleNotification2({
+    //           pushToken: tokens,
+    //           title: `${club.name} posted a pin.`,
+    //           body: `${content.text.substring(0, 50)}...`,
+    //           image: img,
+    //           url: `https://macbease.com/app/club/${clubId}`,
+    //         });
+    //       } else {
+    //         scheduleNotification2({
+    //           pushToken: tokens,
+    //           title: `${club.name} posted a pin.`,
+    //           body: `${content.text.substring(0, 50)}...`,
+    //           url: `https://macbease.com/app/club/${clubId}`,
+    //         });
+    //       }
+    //     } catch (error) {
+    //       console.error("Error in scheduled job:", error);
+    //     }
+    //   },
+    // );
     let data = { contentId, postedBy: req.user.id, timeStamp: new Date() };
     let concernedClub = await Club.findById(clubId, {
       content: 1,
