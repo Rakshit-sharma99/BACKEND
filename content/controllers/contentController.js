@@ -1101,13 +1101,13 @@ const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
 const getContentForLanding = async (req, res) => {
   try {
     const { cursor, limit } = req.query;
-
+    const userId = req.user.id;
     const parsedLimit = parseInt(limit) || 5;
     const parsedCursor = cursor ? new Date(cursor) : new Date();
 
     if (!cursor) {
       try {
-        const cachedFeed = await redis.get(`landing_feed:${req.user.id}`);
+        const cachedFeed = await redis.get(`landing_feed:${userId}`);
         if (cachedFeed) {
           return res.status(StatusCodes.OK).json(JSON.parse(cachedFeed));
         }
@@ -1116,25 +1116,37 @@ const getContentForLanding = async (req, res) => {
       }
     }
 
-    const user = await fetchNativeUserData({
-      id: req.user.id,
-      fields: ["communitiesPartOf", "clubs", "interests"],
-      callSign: "universe",
-    });
+    // 2. Fetch User Data & Seen IDs
+    const [user, seenIdsRaw] = await Promise.all([
+      fetchNativeUserData({
+        id: userId,
+        fields: ["communitiesPartOf", "clubs", "interests"],
+        callSign: "universe",
+      }),
+      redis.smembers(`seen_content:${userId}`),
+    ]);
 
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
     }
+
+    const seenIds = (seenIdsRaw || []).map((id) =>
+      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null
+    ).filter(Boolean);
 
     const communityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
     const clubIds = (user.clubs || []).map((c) => c.clubId);
     const belongsToIds = [...communityIds, ...clubIds];
     const interestTags = user.interests || [];
 
+    // 3. Define Queries (Excluding Seen IDs)
+
+    // A. Followed Content (Clubs/Communities)
     const followedQuery = Content.aggregate([
       {
         $match: {
           belongsTo: { $in: belongsToIds },
+          _id: { $nin: seenIds },
           timeStamp: { $lt: parsedCursor },
         },
       },
@@ -1150,12 +1162,14 @@ const getContentForLanding = async (req, res) => {
       { $project: { vector: 0 } },
     ]);
 
+    // B. Suggested Content (Interests)
     const suggestedQuery =
       interestTags.length > 0
         ? Content.aggregate([
           {
             $match: {
               tags: { $in: interestTags },
+              _id: { $nin: seenIds },
               timeStamp: { $lt: parsedCursor },
             },
           },
@@ -1172,17 +1186,60 @@ const getContentForLanding = async (req, res) => {
         ])
         : Promise.resolve([]);
 
+    // Execute Initial Queries
     const [followedContent, suggestedContent] = await Promise.all([
       followedQuery,
       suggestedQuery,
     ]);
 
-    const combined = [...followedContent, ...suggestedContent].sort(
-      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp)
-    );
+    // Merge & Deduplicate (in case overlap between followed/suggested)
+    let combined = [...followedContent, ...suggestedContent];
+    const uniqueCombined = Array.from(new Map(combined.map(item => [item._id.toString(), item])).values());
 
+    // Sort by Time
+    uniqueCombined.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
 
-    const finalFeed = combined.slice(0, parsedLimit);
+    // 4. Fallback Mechanism
+    // If we don't have enough content, fetch popular/random content
+    let finalFeed = uniqueCombined;
+
+    if (finalFeed.length < parsedLimit) {
+      const needed = parsedLimit - finalFeed.length;
+
+      // IDs to exclude in fallback (Seen + Just Fetched)
+      const currentFetchedIds = finalFeed.map(c => c._id);
+      const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
+
+      const fallbackContent = await Content.aggregate([
+        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor } } },
+        { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
+        {
+          $addFields: {
+            feedType: "suggested", // Mark as suggested so UI handles it gracefully
+            commentsNum: { $size: "$comments" },
+            comments: { $slice: ["$comments", 6] },
+          },
+        },
+        { $project: { vector: 0 } },
+        { $limit: needed }
+      ]);
+
+      finalFeed = [...finalFeed, ...fallbackContent];
+      // Resort after adding fallback
+      finalFeed.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    }
+
+    // Trim to limit
+    finalFeed = finalFeed.slice(0, parsedLimit);
+
+    // 5. Update Seen List in Redis
+    if (finalFeed.length > 0) {
+      const newIds = finalFeed.map((c) => c._id.toString());
+      const pipeline = redis.pipeline();
+      pipeline.sadd(`seen_content:${userId}`, ...newIds);
+      pipeline.expire(`seen_content:${userId}`, 60 * 60 * 24);
+      await pipeline.exec();
+    }
 
     const nextCursor =
       finalFeed.length > 0
@@ -1194,8 +1251,9 @@ const getContentForLanding = async (req, res) => {
       nextCursor,
     };
 
+    // Update Short-term Cache
     if (!cursor) {
-      await redis.setex(`landing_feed:${req.user.id}`, 60, JSON.stringify(responsePayload));
+      await redis.setex(`landing_feed:${userId}`, 60, JSON.stringify(responsePayload));
     }
 
     return res.status(StatusCodes.OK).json(responsePayload);
