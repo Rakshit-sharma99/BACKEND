@@ -283,14 +283,6 @@ const loginUtil = async (user, platform) => {
     };
   }
 
-  // ensure object exists
-  if (!user.refreshTokens) {
-    user.refreshTokens = {};
-  }
-
-  // normalize platform
-  const key = platform.toLowerCase();
-
   const refreshToken = user.createRefreshToken();
   user.refreshTokens = user.refreshTokens || {};
   user.refreshTokens[platform] = refreshToken;
@@ -308,7 +300,7 @@ const loginUtil = async (user, platform) => {
       universeMetaData: user.universeMetaData,
       email: user.email,
     },
-    token: accessToken,
+    token: AccessToken,
     refreshToken,
   };
 };
