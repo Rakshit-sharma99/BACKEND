@@ -963,14 +963,14 @@ const getEngagementData = async (req, res) => {
     const [contentData, macbeaseContentData, cardsData] = await Promise.all([
       contentIds.length
         ? Content.find({ _id: { $in: contentIds } })
-            .select("likes comments")
-            .lean()
+          .select("likes comments")
+          .lean()
         : [],
       macbeaseContentIds.length
         ? fetchMacbeaseContentFromIds({
-            ids: macbeaseContentIds,
-            select: "likes comments",
-          })
+          ids: macbeaseContentIds,
+          select: "likes comments",
+        })
         : [],
       cardIds.length
         ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
@@ -1112,7 +1112,6 @@ const getContentForLanding = async (req, res) => {
         console.error("Redis Cache Error:", e);
       }
     }
-
     // 2. Fetch User Data & Seen IDs
     const [user, seenIdsRaw] = await Promise.all([
       fetchNativeUserData({
@@ -1145,6 +1144,7 @@ const getContentForLanding = async (req, res) => {
           belongsTo: { $in: belongsToIds },
           _id: { $nin: seenIds },
           timeStamp: { $lt: parsedCursor },
+          contentType: { $in: ["image", "video"] },
         },
       },
       { $sort: { timeStamp: -1 } },
@@ -1168,6 +1168,7 @@ const getContentForLanding = async (req, res) => {
               tags: { $in: interestTags },
               _id: { $nin: seenIds },
               timeStamp: { $lt: parsedCursor },
+              contentType: { $in: ["image", "video"] },
             },
           },
           { $sort: { timeStamp: -1 } },
@@ -1208,7 +1209,7 @@ const getContentForLanding = async (req, res) => {
       const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
 
       const fallbackContent = await Content.aggregate([
-        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor } } },
+        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor }, contentType: { $in: ["image", "video"] } } },
         { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
         {
           $addFields: {
