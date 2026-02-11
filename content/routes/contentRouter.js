@@ -29,6 +29,7 @@ const {
   uploadMiddleware,
   insertNewFields,
 } = require("../controllers/contentController");
+const { bulkUpdateContentParams } = require("../controllers/maintenanceController");
 
 router.post("/createContent", createContent);
 router.post("/likeContent", likeContent);
@@ -55,4 +56,5 @@ router.post("/searchContentFromIds", searchContentFromIds);
 router.post("/migrateCollectionController", migrateCollectionController);
 router.post("/uploadToS3", uploadMiddleware, uploadToS3);
 router.post("/insertNewFields", insertNewFields);
+router.post("/bulkUpdateContentParams", bulkUpdateContentParams);
 module.exports = router;

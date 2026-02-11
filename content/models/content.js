@@ -49,6 +49,18 @@ const commentSchema = new mongoose.Schema({
   ],
 });
 
+const universeMetaDataSchema = new mongoose.Schema({
+  name: { type: String },
+  location: { type: String },
+  logo: { type: String },
+  callSign: { type: String },
+  logoKey: { type: String },
+  lat: { type: Number },
+  lng: { type: Number },
+},
+  { _id: false },
+);
+
 const contentSchema = new mongoose.Schema({
   contentType: {
     type: String,
@@ -103,6 +115,8 @@ const contentSchema = new mongoose.Schema({
         clubCover: String,
         communityTitle: String,
         communityCover: String,
+        uid: String,
+        universeMetaData: universeMetaDataSchema,
       },
       { _id: false },
     ),
@@ -133,15 +147,7 @@ const contentSchema = new mongoose.Schema({
   uid: {
     type: String,
   },
-  universeMetaData: {
-    name: { type: String },
-    location: { type: String },
-    logo: { type: String },
-    callSign: { type: String },
-    logoKey: { type: String },
-    lat: { type: Number },
-    lng: { type: Number },
-  },
+  universeMetaData: universeMetaDataSchema,
   timeStamp: {
     type: Date,
     default: Date.now,
