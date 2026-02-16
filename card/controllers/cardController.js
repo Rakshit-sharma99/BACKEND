@@ -908,6 +908,81 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+const getCardForLanding = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = 4;
+
+    console.log("called get cards for landing")
+
+    const user = await fetchNativeUserData({
+      id: userId,
+      fields: ["interests"],
+      callSign: "universe",
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    const interestTags = user.interests || [];
+
+    // Query for cards matching interests and value > 10 words
+    const suggestedCards =
+      interestTags.length > 0
+        ? await Card.aggregate([
+          {
+            $match: {
+              tags: { $in: interestTags },
+              $expr: {
+                $gt: [
+                  { $size: { $split: [{ $ifNull: ["$value", ""] }, " "] } },
+                  10,
+                ],
+              },
+            },
+          },
+          { $sort: { createdAt: -1 } },
+          { $limit: limit },
+          { $project: { vector: 0 } },
+        ])
+        : [];
+
+    let finalCards = [...suggestedCards];
+
+    // Fallback if not enough cards
+    if (finalCards.length < limit) {
+      const needed = limit - finalCards.length;
+      const currentIds = finalCards.map((c) => c._id);
+
+      const fallbackCards = await Card.aggregate([
+        {
+          $match: {
+            _id: { $nin: currentIds },
+            $expr: {
+              $gt: [
+                { $size: { $split: [{ $ifNull: ["$value", ""] }, " "] } },
+                10,
+              ],
+            },
+          },
+        },
+        { $sample: { size: needed } },
+        { $project: { vector: 0 } },
+      ]);
+
+      finalCards = [...finalCards, ...fallbackCards];
+    }
+
+    return res.status(StatusCodes.OK).json({ cards: finalCards });
+  } catch (error) {
+    console.error("Error in getCardForLanding:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
 module.exports = {
   createCard,
   deleteCard,
@@ -924,5 +999,6 @@ module.exports = {
   getRandomCardsForFeed,
   indexedReturn,
   getSearchedCards,
-  insertNewFields
+  insertNewFields,
+  getCardForLanding
 };
