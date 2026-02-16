@@ -4,7 +4,7 @@
   "description": "Event service for multiverse",
   "main": "app.js",
   "scripts": {
-    "start": "nodemon app.js"
+    "start": "nodemon -L app.js"
   },
   "author": "Amartya Ayush",
   "license": "ISC",
