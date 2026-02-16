@@ -4067,6 +4067,82 @@ const searchClubsWithRegex = async (req, res) => {
   }
 };
 
+const getClubsForFeed = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = 4;
+
+    const user = await User.findById(userId, {
+      interests: 1,
+      clubs: 1,
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    const interestTags = user.interests || [];
+    const joinedClubIds = (user.clubs || []).map((c) => c.clubId);
+
+    // Query for suggested clubs: matches interests, not already joined
+    const suggestedClubs =
+      interestTags.length > 0
+        ? await Club.aggregate([
+          {
+            $match: {
+              tags: { $in: interestTags },
+              _id: { $nin: joinedClubIds },
+            },
+          },
+          { $sample: { size: limit } },
+          {
+            $project: {
+              name: 1,
+              secondaryImg: 1,
+              tags: 1,
+              motto: 1,
+            },
+          },
+        ])
+        : [];
+
+    let finalClubs = [...suggestedClubs];
+
+    // Fallback if not enough
+    if (finalClubs.length < limit) {
+      const needed = limit - finalClubs.length;
+      const currentIds = finalClubs.map((c) => c._id);
+      const excludeIds = [...joinedClubIds, ...currentIds];
+
+      const fallbackClubs = await Club.aggregate([
+        {
+          $match: {
+            _id: { $nin: excludeIds },
+          },
+        },
+        { $sample: { size: needed } },
+        {
+          $project: {
+            name: 1,
+            secondaryImg: 1,
+            tags: 1,
+            motto: 1,
+          },
+        },
+      ]);
+
+      finalClubs = [...finalClubs, ...fallbackClubs];
+    }
+
+    return res.status(StatusCodes.OK).json({ clubs: finalClubs });
+  } catch (error) {
+    console.error("Error in getClubsForFeed:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
 module.exports = {
   createClub,
   deleteClub,
@@ -4142,4 +4218,5 @@ module.exports = {
   getClubsRecommendation,
   fetchMultipleClubsFromIds,
   searchClubsWithRegex,
+  getClubsForFeed,
 };

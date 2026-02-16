@@ -76,6 +76,7 @@ const {
   searchClubsWithRegex,
   fetchMultipleClubsFromIds,
   getClubsRecommendation,
+  getClubsForFeed
 } = require("../controllers/clubControllers");
 
 router.post("/createClub", createClub);
@@ -155,5 +156,6 @@ router.post(
 router.post("/getClubsRecommendation", getClubsRecommendation);
 router.post("/fetchMultipleClubsFromIds", fetchMultipleClubsFromIds);
 router.post("/searchClubsWithRegex", searchClubsWithRegex);
+router.get("/getClubsForFeed", getClubsForFeed)
 
 module.exports = router;
