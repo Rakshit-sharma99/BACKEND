@@ -3235,6 +3235,99 @@ const getFeaturedEvents = async (req, res) => {
   }
 };
 
+const getFeaturedEventsForFeed = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = 4;
+
+    const user = await fetchNativeUserData({
+      id: userId,
+      fields: ["interests"],
+      callSign: "universe",
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    const interestTags = user.interests || [];
+    const now = new Date();
+
+    // Query for featured events, future, matching interests
+    const suggestedEvents =
+      interestTags.length > 0
+        ? await Event.aggregate([
+          {
+            $match: {
+              status: "featured",
+              eventDate: { $gte: now },
+              tags: { $in: interestTags },
+            },
+          },
+          { $limit: limit },
+          {
+            $project: {
+              bookedBy: 0,
+              amtPaid: 0,
+              amtPaidTo: 0,
+              ticketSellingDays: 0,
+              cumulativeRevenue: 0,
+              courseAnalytics: 0,
+              faq: 0,
+            },
+          },
+        ])
+        : [];
+
+    let finalEvents = [...suggestedEvents];
+
+    // Fallback
+    if (finalEvents.length < limit) {
+      const needed = limit - finalEvents.length;
+      const currentIds = finalEvents.map((e) => e._id);
+
+      const fallbackEvents = await Event.aggregate([
+        {
+          $match: {
+            status: "featured",
+            eventDate: { $gte: now },
+            _id: { $nin: currentIds },
+          },
+        },
+        { $sample: { size: needed } },
+        {
+          $project: {
+            bookedBy: 0,
+            amtPaid: 0,
+            amtPaidTo: 0,
+            ticketSellingDays: 0,
+            cumulativeRevenue: 0,
+            courseAnalytics: 0,
+            faq: 0,
+          },
+        },
+      ]);
+
+      finalEvents = [...finalEvents, ...fallbackEvents];
+    }
+
+    console.log('final events', finalEvents.length);
+    if (finalEvents.length === 0) {
+      return res.status(StatusCodes.OK).json({ events: [] })
+    }
+
+    // Sequence them using existing helper
+    const sequencedEvents = await fetchRightSequence(finalEvents);
+
+    return res.status(StatusCodes.OK).json({ events: sequencedEvents });
+  } catch (error) {
+    console.error("Error in getFeaturedEventsForFeed:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -3286,5 +3379,6 @@ module.exports = {
   toggleWaitlist,
   getSearchedEvents,
   insertNewFields,
-  getFeaturedEvents
+  getFeaturedEvents,
+  getFeaturedEventsForFeed
 };

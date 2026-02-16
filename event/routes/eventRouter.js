@@ -53,6 +53,7 @@ const {
   getSearchedEvents,
   insertNewFields,
   getFeaturedEvents,
+  getFeaturedEventsForFeed,
 } = require("../controllers/eventControllers");
 
 router.post("/createEvent", createEvent);
@@ -106,5 +107,6 @@ router.post("/toggleWaitlist", toggleWaitlist);
 router.get("/getSearchedEvents", getSearchedEvents);
 router.post("/insertNewFields", insertNewFields);
 router.post("/getFeaturedEvents", getFeaturedEvents);
+router.get("/getLandingEvent", getFeaturedEventsForFeed);
 
 module.exports = router;
