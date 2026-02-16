@@ -1507,6 +1507,26 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+const getMemoryRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const user = await fetchNativeUserData({
+      id: userId,
+      fields: ["memoryRequests"],
+      callSign: "universe"
+    })
+
+    const memories = await Memory.find({ _id: { $in: user.memoryRequests } }).sort({ createdAt: -1 }).lean();
+
+    return res.status(StatusCodes.OK).json({ memories })
+
+  } catch (err) {
+    console.log("Error getting memory request:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
+  }
+}
+
 module.exports = {
   createMemory,
   getMemories,
@@ -1528,5 +1548,6 @@ module.exports = {
   getCertificateMemories,
   handleTags, // this function is not used in router, but in event gallery
   getMemoryCount,
-  insertNewFields
+  insertNewFields,
+  getMemoryRequest
 };
