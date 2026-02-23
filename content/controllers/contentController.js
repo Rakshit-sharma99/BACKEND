@@ -70,7 +70,7 @@ const createContent = async (req, res) => {
     if (sendBy === "club") {
       const club_query = {
         id: belongsTo,
-        fields: ["name", "secondaryImg"],
+        fields: ["name", "secondaryImg", "universeMetaData"],
       };
       group = await fetchClubData(club_query);
       params = {
@@ -79,11 +79,12 @@ const createContent = async (req, res) => {
         clubTitle: group.name,
         clubCover: group.secondaryImg,
         userPushToken: sender.pushToken,
+        universeMetaData: group.universeMetaData,
       };
     } else if (sendBy === "userCommunity") {
       const community_query = {
         id: belongsTo,
-        fields: ["title", "secondaryCover"],
+        fields: ["title", "secondaryCover", "universeMetaData"],
       };
       group = await fetchCommunityData(community_query);
       params = {
@@ -92,6 +93,7 @@ const createContent = async (req, res) => {
         communityTitle: group.title,
         communityCover: group.secondaryCover,
         userPushToken: sender.pushToken,
+        universeMetaData: group.universeMetaData,
       };
     }
     const data = {
