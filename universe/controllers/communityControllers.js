@@ -3396,6 +3396,89 @@ const searchCommunitiesWithRegex = async (req, res) => {
   }
 };
 
+const getCommunitiesForFeed = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const limit = 4;
+
+    const user = await User.findById(userId, {
+      interests: 1,
+      communitiesPartOf: 1,
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+    }
+
+    const interestTags = user.interests || [];
+    const joinedCommunityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
+
+    // Query for suggested communities: matches interests (tag/label/title), not already matched
+    // We use $or for flexibility
+    const suggestedCommunities =
+      interestTags.length > 0
+        ? await Community.aggregate([
+          {
+            $match: {
+              _id: { $nin: joinedCommunityIds },
+              $or: [
+                { tag: { $in: interestTags } },
+                { label: { $in: interestTags } },
+                // Optional: { title: { $in: interestTags } } if titles match interests
+              ],
+            },
+          },
+          { $sample: { size: limit } },
+          {
+            $project: {
+              secondaryCover: 1,
+              title: 1,
+              tag: 1,
+              activeMembers: 1,
+              label: 1,
+            },
+          },
+        ])
+        : [];
+
+    let finalCommunities = [...suggestedCommunities];
+
+    // Fallback
+    if (finalCommunities.length < limit) {
+      const needed = limit - finalCommunities.length;
+      const currentIds = finalCommunities.map((c) => c._id);
+      const excludeIds = [...joinedCommunityIds, ...currentIds];
+
+      const fallbackCommunities = await Community.aggregate([
+        {
+          $match: {
+            _id: { $nin: excludeIds },
+          },
+        },
+        { $sample: { size: needed } },
+        {
+          $project: {
+            secondaryCover: 1,
+            title: 1,
+            tag: 1,
+            activeMembers: 1,
+            label: 1,
+          },
+        },
+      ]);
+
+      finalCommunities = [...finalCommunities, ...fallbackCommunities];
+    }
+
+    return res.status(StatusCodes.OK).json({ communities: finalCommunities });
+  } catch (error) {
+    console.error("Error in getCommunitiesForFeed:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
 module.exports = {
   createCommunity,
   deleteCommunity,
@@ -3463,4 +3546,5 @@ module.exports = {
   getCommunitiesRecommendation,
   fetchMultipleCommunitiesFromIds,
   searchCommunitiesWithRegex,
+  getCommunitiesForFeed,
 };
