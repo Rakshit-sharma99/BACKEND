@@ -602,6 +602,7 @@ const getBasicUserBio = async (req, res) => {
       level: 1,
       ip: 1,
       memoryList: 1,
+      universeMetaData: 1
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -663,6 +664,7 @@ const getBasicUserBio = async (req, res) => {
       ip: user.ip,
       memoriesCount,
       memoryList: (user?.memoryList || []).length,
+      universeMetaData: user.universeMetaData
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
