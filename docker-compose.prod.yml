@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  nginx:
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/prod/conf.d:/etc/nginx/conf.d:ro
+      - /home/ubuntu/certbot-data/www:/var/www/certbot
+      - /home/ubuntu/certbot-data/conf:/etc/letsencrypt

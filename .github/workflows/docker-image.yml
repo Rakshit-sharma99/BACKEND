@@ -45,13 +45,13 @@ jobs:
       - name: Stop existing containers
         run: |
           echo "=== Stopping existing stack ==="
-          docker compose down || true
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml down || true
 
       - name: Build and Deploy
         run: |
           set -e
           echo "=== Building & Deploying ==="
-          docker compose up -d --build
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
       - name: Verify deployment
         run: |
