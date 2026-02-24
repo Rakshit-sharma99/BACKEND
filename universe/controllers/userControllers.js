@@ -19,6 +19,7 @@ const {
   fetchSearchedEvents,
   fetchSearchedCards,
   getMemoryCount,
+  fetchAllowedDomains,
 } = require("./interServiceCalls");
 require("dotenv").config();
 
@@ -1100,6 +1101,80 @@ const verifyEmail = async (req, res) => {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .send("Something went wrong");
+  }
+};
+
+const verifyProfessionalEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    // Basic email format validation
+    const emailRegex =
+      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid email format",
+      });
+    }
+
+    const domain = email.split("@")[1].toLowerCase();
+
+    // Fetch allowed domains from multiverse service
+    const universeId = req.user.uid;
+    if (!universeId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "User is not associated with any universe",
+      });
+    }
+
+    const allowedDomains = await fetchAllowedDomains(universeId);
+
+    if (!allowedDomains || allowedDomains.length === 0) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "No allowed domains configured for this universe",
+      });
+    }
+
+    // Check if the email domain is in the allowed list
+    const normalizedAllowed = allowedDomains.map((d) => d.toLowerCase());
+    if (!normalizedAllowed.includes(domain)) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: `Email domain "${domain}" is not allowed for this universe. Allowed domains: ${normalizedAllowed.join(", ")}`,
+      });
+    }
+
+    // Update user's professional email and mark as verified
+    await User.updateOne(
+      { _id: mongoose.Types.ObjectId(req.user.id) },
+      {
+        $set: {
+          professionalEmail: email,
+          emailVerified: true,
+        },
+      },
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Professional email verified successfully",
+    });
+  } catch (error) {
+    console.error("Error verifying professional email:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
 };
 
@@ -2425,4 +2500,5 @@ module.exports = {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
+  verifyProfessionalEmail,
 };

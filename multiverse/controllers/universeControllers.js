@@ -27,6 +27,7 @@ const createUniverse = async (req, res) => {
       event,
       communitiesRecommendation,
       lifecycle,
+      allowedDomains,
     } = req.body;
 
     // Check duplicate callSign
@@ -57,6 +58,7 @@ const createUniverse = async (req, res) => {
       event,
       communitiesRecommendation,
       lifecycle,
+      allowedDomains,
     });
 
     return res.status(201).json({
@@ -104,6 +106,7 @@ const editUniverse = async (req, res) => {
       event,
       communitiesRecommendation,
       lifecycle,
+      allowedDomains,
     } = req.body;
 
     const universe = await Universe.findById(id);
@@ -146,6 +149,7 @@ const editUniverse = async (req, res) => {
     universe.communitiesRecommendation =
       communitiesRecommendation ?? universe.communitiesRecommendation;
     universe.lifecycle = lifecycle ?? universe.lifecycle;
+    universe.allowedDomains = allowedDomains ?? universe.allowedDomains;
 
     const updatedUniverse = await universe.save();
 
@@ -320,10 +324,48 @@ const getPopularUniverses = async (req, res) => {
   }
 };
 
+const getAllowedDomains = async (req, res) => {
+  try {
+    const { universeId } = req.query;
+
+    if (!universeId) {
+      return res.status(400).json({
+        success: false,
+        message: "universeId is required",
+      });
+    }
+
+    const universe = await Universe.findById(universeId, {
+      allowedDomains: 1,
+    }).lean();
+
+    if (!universe) {
+      return res.status(404).json({
+        success: false,
+        message: "Universe not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      allowedDomains: universe.allowedDomains || [],
+    });
+  } catch (err) {
+    console.error("Get Allowed Domains Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch allowed domains",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   createUniverse,
   editUniverse,
   getAllUniverses,
   searchUniverse,
   getPopularUniverses,
+  getAllowedDomains,
 };

@@ -112,6 +112,11 @@ const UniverseSchema = new mongoose.Schema(
 
     communitiesRecommendation: [CommunityRecommendationSchema],
     lifecycle: LifecycleSchema,
+
+    allowedDomains: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

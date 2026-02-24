@@ -137,7 +137,7 @@ const fetchEventData = async (query) => {
   try {
     const { id, ids, fields } = query;
 
-   const isArrayProjection =
+    const isArrayProjection =
       Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
@@ -166,7 +166,7 @@ const fetchEventData = async (query) => {
     );
     return eventData.data.data;
   } catch (error) {
-    console.log("Error fetching event data:",error);
+    console.log("Error fetching event data:", error);
   }
 };
 
@@ -276,9 +276,9 @@ const fetchSearchedCards = async (query) => {
   }
 };
 
-const getMemoryCount = async(query) => {
-  try{
-    if(!query){
+const getMemoryCount = async (query) => {
+  try {
+    if (!query) {
       return 0;
     }
 
@@ -290,14 +290,14 @@ const getMemoryCount = async(query) => {
     );
 
     return res.data.data;
-  }catch(err){
-    console.log("Error getting memory count:",err);
+  } catch (err) {
+    console.log("Error getting memory count:", err);
     return 0;
   }
 }
 
 const fetchTicketFieldsByQuery = async (query) => {
-   try {
+  try {
     const { searchBy, fields, single } = payload;
 
     if (
@@ -332,7 +332,7 @@ const fetchFeaturedEvent = async (query) => {
   try {
     const { fields } = query;
 
-   const isArrayProjection =
+    const isArrayProjection =
       Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
@@ -353,7 +353,30 @@ const fetchFeaturedEvent = async (query) => {
     );
     return eventData.data.data;
   } catch (error) {
-    console.log("Error fetching featured event data:",error);
+    console.log("Error fetching featured event data:", error);
+  }
+};
+
+const fetchAllowedDomains = async (universeId) => {
+  try {
+    if (!universeId) return [];
+
+    const config = generateServiceToken();
+
+    const params = new URLSearchParams({ universeId });
+
+    const url = `http://multiverse:5020/multiverse/api/v1/universe/getAllowedDomains?${params.toString()}`;
+
+    const response = await axios.get(url, config);
+
+    if (response.data && response.data.success) {
+      return response.data.allowedDomains;
+    }
+
+    return [];
+  } catch (error) {
+    console.error("fetchAllowedDomains error:", error.message);
+    return [];
   }
 };
 
@@ -370,5 +393,6 @@ module.exports = {
   fetchSearchedCards,
   getMemoryCount,
   fetchTicketFieldsByQuery,
-  fetchFeaturedEvent
+  fetchFeaturedEvent,
+  fetchAllowedDomains,
 };
