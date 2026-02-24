@@ -143,6 +143,11 @@ const contentSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  bookmarkCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   vector: [Number], // Assuming vector is an array of floats
   uid: {
     type: String,

@@ -53,6 +53,9 @@ const {
   getUsersByFields,
   getPostableSpaces,
   searchPostableSpaces,
+  bookmarkContent,
+  unbookmarkContent,
+  getBookmarks,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -107,5 +110,8 @@ router.post("/fetchBulkUsers", fetchBulkUsers);
 router.post("/getUsersByFields", getUsersByFields);
 router.get("/getPostableSpaces", getPostableSpaces);
 router.get("/searchPostableSpaces", searchPostableSpaces);
+router.post("/bookmarkContent", bookmarkContent);
+router.post("/unbookmarkContent", unbookmarkContent);
+router.get("/getBookmarks", getBookmarks);
 
 module.exports = router;

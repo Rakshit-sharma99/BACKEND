@@ -5,6 +5,8 @@ const bcrypt = require("bcryptjs");
 const Community = require("../models/community");
 const Club = require("../models/club");
 const Quest = require("../models/quest");
+const Bookmark = require("../models/bookmark");
+const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
   sendMail,
   scheduleNotification,
@@ -2247,6 +2249,119 @@ const searchPostableSpaces = async (req, res) => {
   }
 };
 
+// ==================== BOOKMARK CONTROLLERS ====================
+
+const bookmarkContent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contentId, contentType = "content" } = req.body;
+
+    if (!contentId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "contentId is required." });
+    }
+
+    // Upsert — idempotent, no duplicate error
+    await Bookmark.findOneAndUpdate(
+      { userId, contentId },
+      { userId, contentId, contentType, savedAt: new Date() },
+      { upsert: true, new: true },
+    );
+
+    // Count total bookmarks for this content and update via Kafka
+    const bookmarkCount = await Bookmark.countDocuments({ contentId });
+
+    await sendKafkaMessage("UPDATE_CONTENT", "content", {
+      contentId: contentId.toString(),
+      updatedFields: { bookmarkCount },
+    });
+
+    return res.status(StatusCodes.OK).json({
+      message: "Content bookmarked successfully.",
+      bookmarkCount,
+    });
+  } catch (error) {
+    console.error("Error in bookmarkContent:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while bookmarking." });
+  }
+};
+
+const unbookmarkContent = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { contentId } = req.body;
+
+    if (!contentId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "contentId is required." });
+    }
+
+    const deleted = await Bookmark.findOneAndDelete({ userId, contentId });
+
+    if (!deleted) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Bookmark not found." });
+    }
+
+    // Recount and update via Kafka
+    const bookmarkCount = await Bookmark.countDocuments({ contentId });
+
+    await sendKafkaMessage("UPDATE_CONTENT", "content", {
+      contentId: contentId.toString(),
+      updatedFields: { bookmarkCount },
+    });
+
+    return res.status(StatusCodes.OK).json({
+      message: "Bookmark removed successfully.",
+      bookmarkCount,
+    });
+  } catch (error) {
+    console.error("Error in unbookmarkContent:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while removing bookmark." });
+  }
+};
+
+const getBookmarks = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { cursor, limit = 10 } = req.query;
+    const parsedLimit = Math.min(parseInt(limit) || 10, 50);
+
+    const query = { userId };
+    if (cursor) {
+      query.savedAt = { $lt: new Date(cursor) };
+    }
+
+    const bookmarks = await Bookmark.find(query)
+      .sort({ savedAt: -1 })
+      .limit(parsedLimit)
+      .lean();
+
+    const nextCursor =
+      bookmarks.length === parsedLimit
+        ? bookmarks[bookmarks.length - 1].savedAt.toISOString()
+        : null;
+
+    return res.status(StatusCodes.OK).json({
+      bookmarks,
+      nextCursor,
+      count: bookmarks.length,
+    });
+  } catch (error) {
+    console.error("Error in getBookmarks:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while fetching bookmarks." });
+  }
+};
+
 module.exports = {
   getUser,
   updateUser,
@@ -2301,4 +2416,7 @@ module.exports = {
   getUsersByFields,
   getPostableSpaces,
   searchPostableSpaces,
+  bookmarkContent,
+  unbookmarkContent,
+  getBookmarks,
 };
