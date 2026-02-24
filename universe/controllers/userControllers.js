@@ -604,7 +604,11 @@ const getBasicUserBio = async (req, res) => {
       level: 1,
       ip: 1,
       memoryList: 1,
-      universeMetaData: 1
+      universeMetaData: 1,
+      gender: 1,
+      emailVerified: 1,
+      cards: 1
+
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -668,6 +672,9 @@ const getBasicUserBio = async (req, res) => {
       memoryList: (user?.memoryList || []).length,
       universeMetaData: user.universeMetaData,
       fullName: user.fullName,
+      gender: user.gender,
+      emailVerified: user.emailVerified,
+      cards: user.cards,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
@@ -1130,6 +1137,7 @@ const sendProfessionalEmailOTP = async (req, res) => {
 
     // Fetch allowed domains from multiverse service
     const universeId = req.user.uid;
+    console.log("req user", req.user);
     if (!universeId) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
