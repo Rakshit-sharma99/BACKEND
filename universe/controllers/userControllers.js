@@ -21,6 +21,7 @@ const {
   getMemoryCount,
   fetchAllowedDomains,
 } = require("./interServiceCalls");
+const { redis } = require("../app");
 require("dotenv").config();
 
 const securePassword = async (password) => {
@@ -1104,7 +1105,8 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-const verifyProfessionalEmail = async (req, res) => {
+// ── Step 1: Send OTP to professional email after domain validation ──
+const sendProfessionalEmailOTP = async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -1116,8 +1118,7 @@ const verifyProfessionalEmail = async (req, res) => {
     }
 
     // Basic email format validation
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
@@ -1154,9 +1155,127 @@ const verifyProfessionalEmail = async (req, res) => {
       });
     }
 
-    // Update user's professional email and mark as verified
+    const userId = req.user.id;
+
+    // Rate limit: 60-second cooldown between OTP requests
+    const cooldownKey = `otp:${userId}:cooldown`;
+    const isCooldown = await redis.get(cooldownKey);
+    if (isCooldown) {
+      return res.status(429).json({
+        success: false,
+        message: "Please wait 60 seconds before requesting another OTP",
+      });
+    }
+
+    // Generate 6-digit OTP and hash it
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    const otpHash = await bcrypt.hash(String(otp), 10);
+
+    // Store in Redis with 10-minute TTL
+    const hashKey = `otp:${userId}:hash`;
+    const emailKey = `otp:${userId}:email`;
+    const attemptsKey = `otp:${userId}:attempts`;
+
+    await redis.set(hashKey, otpHash, "EX", 600);
+    await redis.set(emailKey, email, "EX", 600);
+    await redis.set(attemptsKey, 0, "EX", 600);
+    await redis.set(cooldownKey, "1", "EX", 60);
+
+    // Send OTP via email (AWS SES)
+    const intro = [
+      "Greetings from Macbease.",
+      "To verify your professional email, please enter the following OTP.",
+      `Your OTP is: ${otp}`,
+      "This OTP is valid for 10 minutes.",
+    ];
+
+    const outro =
+      "If you did not request this verification, please ignore this email. Contact us at support@macbease.com for help.";
+
+    const { ses, params } = await sendMail(
+      "there",
+      intro,
+      outro,
+      "Professional Email Verification - OTP",
+      email,
+    );
+
+    await ses.sendEmail(params).promise();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "OTP sent to your email. It is valid for 10 minutes.",
+    });
+  } catch (error) {
+    console.error("Error sending professional email OTP:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+// ── Step 2: Verify OTP and save professional email ──
+const verifyProfessionalEmailOTP = async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email and OTP are required",
+      });
+    }
+
+    const userId = req.user.id;
+    const hashKey = `otp:${userId}:hash`;
+    const emailKey = `otp:${userId}:email`;
+    const attemptsKey = `otp:${userId}:attempts`;
+
+    // Check if OTP exists (not expired)
+    const storedHash = await redis.get(hashKey);
+    if (!storedHash) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "OTP has expired. Please request a new one.",
+      });
+    }
+
+    // Check attempt limit (max 5)
+    const attempts = parseInt(await redis.get(attemptsKey)) || 0;
+    if (attempts >= 5) {
+      // Delete all OTP keys to force re-request
+      await redis.del(hashKey, emailKey, attemptsKey);
+      return res.status(429).json({
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      });
+    }
+
+    // Verify that email matches the one used when sending OTP
+    const storedEmail = await redis.get(emailKey);
+    if (storedEmail !== email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email does not match the one the OTP was sent to",
+      });
+    }
+
+    // Compare OTP against stored hash
+    const isMatch = await bcrypt.compare(String(otp), storedHash);
+    if (!isMatch) {
+      // Increment attempts
+      await redis.incr(attemptsKey);
+      const remaining = 4 - attempts;
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: `Invalid OTP. ${remaining > 0 ? remaining + " attempts remaining." : "This was your last attempt."}`,
+      });
+    }
+
+    // OTP verified — save professional email and mark verified
     await User.updateOne(
-      { _id: mongoose.Types.ObjectId(req.user.id) },
+      { _id: mongoose.Types.ObjectId(userId) },
       {
         $set: {
           professionalEmail: email,
@@ -1165,12 +1284,15 @@ const verifyProfessionalEmail = async (req, res) => {
       },
     );
 
+    // Clean up Redis keys
+    await redis.del(hashKey, emailKey, attemptsKey, `otp:${userId}:cooldown`);
+
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Professional email verified successfully",
     });
   } catch (error) {
-    console.error("Error verifying professional email:", error);
+    console.error("Error verifying professional email OTP:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Something went wrong",
@@ -2500,5 +2622,6 @@ module.exports = {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
-  verifyProfessionalEmail,
+  sendProfessionalEmailOTP,
+  verifyProfessionalEmailOTP,
 };

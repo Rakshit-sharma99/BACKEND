@@ -56,7 +56,8 @@ const {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
-  verifyProfessionalEmail,
+  sendProfessionalEmailOTP,
+  verifyProfessionalEmailOTP,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -114,6 +115,7 @@ router.get("/searchPostableSpaces", searchPostableSpaces);
 router.post("/bookmarkContent", bookmarkContent);
 router.post("/unbookmarkContent", unbookmarkContent);
 router.get("/getBookmarks", getBookmarks);
-router.post("/verifyProfessionalEmail", verifyProfessionalEmail);
+router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
+router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
 
 module.exports = router;
