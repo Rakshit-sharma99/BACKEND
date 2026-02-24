@@ -7,3 +7,9 @@ services:
       - ./deploy/nginx/prod/conf.d:/etc/nginx/conf.d:ro
       - /home/ubuntu/certbot-data/www:/var/www/certbot
       - /home/ubuntu/certbot-data/conf:/etc/letsencrypt
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - /home/ubuntu/certbot-data/www:/var/www/certbot
+      - /home/ubuntu/certbot-data/conf:/etc/letsencrypt

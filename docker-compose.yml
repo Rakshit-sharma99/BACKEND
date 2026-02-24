@@ -423,17 +423,9 @@ services:
     volumes:
       - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/nginx/dev/conf.d:/etc/nginx/conf.d:ro
-      - /home/ubuntu/certbot-data/www:/var/www/certbot
-      - /home/ubuntu/certbot-data/conf:/etc/letsencrypt
     networks:
       - app-network
     restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot
-    volumes:
-      - /home/ubuntu/certbot-data/www:/var/www/certbot
-      - /home/ubuntu/certbot-data/conf:/etc/letsencrypt
 
 volumes:
   kafka-data:
