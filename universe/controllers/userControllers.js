@@ -664,7 +664,8 @@ const getBasicUserBio = async (req, res) => {
       ip: user.ip,
       memoriesCount,
       memoryList: (user?.memoryList || []).length,
-      universeMetaData: user.universeMetaData
+      universeMetaData: user.universeMetaData,
+      fullName: user.fullName,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
