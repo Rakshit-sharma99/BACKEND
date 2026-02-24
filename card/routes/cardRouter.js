@@ -19,10 +19,12 @@ const {
   getSearchedCards,
   insertNewFields,
   getCardForLanding,
+  editCard,
 } = require("../controllers/cardController");
 
 router.post("/createCard", createCard);
 router.post("/deleteCard", deleteCard);
+router.post("/editCard", editCard);
 router.post("/likeACard", likeACard);
 router.post("/unlikeACard", unlikeACard);
 router.get("/getLikedCards", getLikedCards);

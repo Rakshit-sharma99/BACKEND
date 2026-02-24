@@ -23,7 +23,7 @@ const {
 //Controller 1
 const createCard = async (req, res) => {
   try {
-    const { value, tags, universeMetaData, title } = req.body;
+    const { value, tags, universeMetaData, title, entityTag } = req.body;
 
     if (!value || typeof value !== "string") {
       return res
@@ -65,7 +65,8 @@ const createCard = async (req, res) => {
       userMetaData: userInfo,
       uid: req.user.uid,
       universeMetaData,
-      title
+      title,
+      entityTag
     });
 
     await sendKafkaMessage("ADD_CARD", "universe", {
@@ -301,15 +302,10 @@ const getCardsOfUser = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).send("Invalid userId format.");
     }
 
-    const userMetaData = await fetchUserData({
-      id: userId,
-      fields: ["universeMetaData"],
-    });
-
     const user = await fetchNativeUserData({
       id: userId,
       fields: ["cards", "clubs", "communitiesPartOf", "role", "badges"],
-      callSign: userMetaData.universeMetaData.callSign,
+      callSign: "universe",
     });
 
     if (!user) {
@@ -984,8 +980,84 @@ const getCardForLanding = async (req, res) => {
   }
 };
 
+//Controller 14
+const editCard = async (req, res) => {
+  try {
+    const { cardId, value, tags, title, entityTag } = req.body;
+
+    if (!cardId || !mongoose.Types.ObjectId.isValid(cardId)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "Invalid or missing cardId.",
+      });
+    }
+
+    const card = await Card.findById(cardId);
+
+    if (!card) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        error: "Card not found.",
+      });
+    }
+
+    if (card.creator.toString() !== req.user.id) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        error: "You are not authorized to edit this card.",
+      });
+    }
+
+    let isModified = false;
+
+    if (value !== undefined) {
+      if (typeof value !== "string") {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Card value must be a string." });
+      }
+      card.value = value;
+      isModified = true;
+    }
+
+    if (title !== undefined) {
+      if (typeof title !== "string") {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Title must be a string." });
+      }
+      card.title = title;
+      isModified = true;
+    }
+
+    if (tags !== undefined) {
+      if (!Array.isArray(tags)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Tags should be an array." });
+      }
+      card.tags = lemmatize(tags);
+      isModified = true;
+    }
+
+    if (entityTag !== undefined) {
+      if (!Array.isArray(entityTag)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Entity tag should be an array." });
+      }
+      card.entityTag = entityTag;
+      isModified = true;
+    }
+
+    if (isModified) {
+      await card.save();
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Card updated successfully",
+      cardId: card._id,
+    });
+  } catch (error) {
+    console.error("❌ Error editing card:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Something went wrong while editing the card.",
+    });
+  }
+};
+
 module.exports = {
   createCard,
+  editCard,
   deleteCard,
   likeACard,
   unlikeACard,
