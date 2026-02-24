@@ -8,6 +8,11 @@ const cardSchema = new mongoose.Schema(
       trim: true,
     },
 
+    title: {
+      type: String,
+      trim: true,
+    },
+
     creator: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

@@ -23,7 +23,7 @@ const {
 //Controller 1
 const createCard = async (req, res) => {
   try {
-    const { value, tags, universeMetaData } = req.body;
+    const { value, tags, universeMetaData, title } = req.body;
 
     if (!value || typeof value !== "string") {
       return res
@@ -65,6 +65,7 @@ const createCard = async (req, res) => {
       userMetaData: userInfo,
       uid: req.user.uid,
       universeMetaData,
+      title
     });
 
     await sendKafkaMessage("ADD_CARD", "universe", {
