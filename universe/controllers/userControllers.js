@@ -73,6 +73,7 @@ const getUserBio = async (req, res) => {
       notifications: 1,
       shortCuts: 1,
       incompleteFields: 1,
+      universeMetaData: 1
     });
     if (!user) {
       return res
@@ -98,6 +99,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
+      universeMetaData
     } = user;
 
     return res.status(StatusCodes.OK).json({
@@ -119,6 +121,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
+      universeMetaData
     });
   } catch (err) {
     console.error(err);
