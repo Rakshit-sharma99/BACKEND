@@ -8,7 +8,7 @@ const {
   getMonthlyMediaPaginated,
   getLatestTwoImages,
 } = require("./memoryControllersUtility/utility");
-const { fetchNativeUserData, fetchClubData, getUserMetaMap, fetchMacbeaseContentByField } = require("./interServiceCall");
+const { fetchNativeUserData, fetchClubData, getUserMetaMap } = require("./interServiceCall");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 
 /**
@@ -919,19 +919,6 @@ const fetchMemoryCollections = async (req, res) => {
       "course"
     ]);
 
-    //fetching macbease contributions
-    let macbeaseContributions = [];
-    if (user.role === "Creator") {
-      macbeaseContributions = await fetchMacbeaseContentByField(
-        {
-          "searchBy": {
-            "contentType": "image",
-            "idOfSender": userId
-          },
-          "limit": 2,
-        })
-    }
-
     //fetching template folders
     const folderResult = generateFolderCover
       ? await fetchTemplateCover({ userId })
@@ -951,7 +938,6 @@ const fetchMemoryCollections = async (req, res) => {
       memoryList: memoryUsers.slice(0, 6),
       folders: folderResult,
       certificates,
-      macbeaseContributions,
     });
   } catch (error) {
     console.error("Error fetching collections:", error);
