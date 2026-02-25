@@ -3,7 +3,6 @@ const Community = require("../models/community");
 const Admin = require("../models/admin");
 const User = require("../models/user");
 const Club = require("../models/club");
-const Bag = require("../models/bag");
 const schedule = require("node-schedule");
 const { mongoose } = require("mongoose");
 const { io, redis } = require("../app");

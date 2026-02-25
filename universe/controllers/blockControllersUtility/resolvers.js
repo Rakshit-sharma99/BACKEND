@@ -1,5 +1,4 @@
 const Club = require("../../models/club");
-const Event = require("../../models/event");
 const Community = require("../../models/community");
 const User = require("../../models/user");
 const mongoose = require("mongoose");

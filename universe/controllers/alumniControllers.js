@@ -1,19 +1,19 @@
 const { StatusCodes } = require("http-status-codes");
 const User = require("../models/user");
-const Org = require("../models/org");
 const { networks, alumniListData } = require("../demoData");
 
 //Controller 1->fetch org networks
 const getOrganizations = async (req, res) => {
   try {
-    const orgs = await Org.find({})
-      .populate("working", "_id course image interests name pushToken")
-      .limit(6)
-      .lean();
+    // TODO: Remove this after demo
+    // const orgs = await Org.find({})
+    //   .populate("working", "_id course image interests name pushToken")
+    //   .limit(6)
+    //   .lean();
     if (req.user.id === "657b907df18136e2f692397b") {
       return res.status(StatusCodes.OK).json(networks);
     }
-    return res.status(StatusCodes.OK).json(orgs);
+    return res.status(StatusCodes.OK).json([]);
   } catch (error) {
     console.error(error);
     return res

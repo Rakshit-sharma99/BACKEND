@@ -2,9 +2,6 @@ const { StatusCodes } = require("http-status-codes");
 const { validationResult } = require("express-validator");
 const User = require("../models/user");
 const Session = require("../models/session");
-const Community = require("../models/community");
-const Club = require("../models/club");
-const Org = require("../models/org");
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -46,7 +43,6 @@ const createOrg = async (orgMetaData, userId) => {
           orgName: orgMetaData.name,
         };
         const org = await fetchOrgData(org_query);
-        // const org = await Org.findOne({ orgName: orgMetaData.name });
         const user = await User.findById(userId, { orgId: 1 });
         if (org) {
           sendKafkaMessage("ADD_USERTO_ORG", "org", {

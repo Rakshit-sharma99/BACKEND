@@ -42,38 +42,17 @@ const userAuthRouter = require("./routes/userAuthRouter");
 const userRouter = require("./routes/userRouter");
 const frontendRouter = require("./routes/frontendRouter");
 const adminAuthRouter = require("./routes/adminAuthRouter");
-const eventRouter = require("./routes/eventRouter");
 const clubRouter = require("./routes/clubRouter");
-const propsRouter = require("./routes/propsRouters");
-const cardRouter = require("./routes/cardRouter");
-const bagRouter = require("./routes/bagRouter");
 const communityRouter = require("./routes/communityRouter");
-const contentRouter = require("./routes/contentRouter");
-const tileRouter = require("./routes/tileRouter");
 const paymentRouter = require("./routes/paymentRouter");
 const chatRouter = require("./routes/chatRouter");
-const macbeaseContentRouter = require("./routes/macbeaseContentRouter");
 const shortCutRouter = require("./routes/shortCutRouter");
 const letterRouter = require("./routes/letterRouter");
-const invitationRouter = require("./routes/invitationRouter");
-const ticketRouter = require("./routes/ticketRouter");
-const badgeRouter = require("./routes/badgeRouter");
 const contentModerationRouter = require("./routes/contentModerationRouter");
-const resourceRouter = require("./routes/resourceRouter");
-const projectRouter = require("./routes/projectRouter");
-const itineraryRouter = require("./routes/itineraryRouter");
 const alumniRouter = require("./routes/alumniRouter");
-const offerRouter = require("./routes/offerRouter");
-const questRouter = require("./routes/questRouter");
-const joinLinkRouter = require("./routes/joinLinkRouter");
 const rateLimit = require("express-rate-limit");
-const overlayRouter = require("./routes/overlayRouter");
-const couponRouter = require("./routes/couponRouter");
-const memoryRouter = require("./routes/memoryRouter");
 const awardRouter = require("./routes/awardRouter");
 const blockRouter = require("./routes/blockRouter");
-// const eventRegisterRouter = require("./routes/eventRegisterRouter");
-const unsortedRouter = require("./routes/unsortedRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
 
@@ -118,46 +97,20 @@ app.use("/universe/api/v1/admin", adminAuthRouter);
 app.use("/universe/api/v1/payment", authenticate, paymentRouter);
 app.use("/universe/api/v1/user", authenticate, userRouter);
 app.use("/universe/api/v1/frontend", authenticate, frontendRouter);
-app.use("/universe/api/v1/event", authenticate, eventRouter);
 app.use("/universe/api/v1/club", authenticate, clubRouter);
-app.use("/universe/api/v1/props", authenticate, propsRouter);
-app.use("/universe/api/v1/card", authenticate, cardRouter);
-app.use("/universe/api/v1/bag", authenticate, bagRouter);
 app.use("/universe/api/v1/community", authenticate, communityRouter);
-app.use("/universe/api/v1/content", authenticate, contentRouter);
-app.use("/universe/api/v1/tile", authenticate, tileRouter);
 app.use("/universe/api/v1/chat", authenticate, chatRouter);
-app.use(
-  "/universe/api/v1/macbeaseContent",
-  authenticate,
-  macbeaseContentRouter,
-);
 app.use("/universe/api/v1/shortCuts", authenticate, shortCutRouter);
 app.use("/universe/api/v1/letter", authenticate, letterRouter);
-app.use("/universe/api/v1/invitation", authenticate, invitationRouter);
-app.use("/universe/api/v1/ticket", authenticate, ticketRouter);
-app.use("/universe/api/v1/badge", authenticate, badgeRouter);
 app.use(
   "/universe/api/v1/contentModeration",
   authenticate,
   contentModerationRouter,
 );
-app.use("/universe/api/v1/resource", authenticate, resourceRouter);
-app.use("/universe/api/v1/project", authenticate, projectRouter);
-app.use("/universe/api/v1/itinerary", authenticate, itineraryRouter);
 app.use("/universe/api/v1/alumni", authenticate, alumniRouter);
-app.use("/universe/api/v1/offer", authenticate, offerRouter);
-app.use("/universe/api/v1/quest", authenticate, questRouter);
-app.use("/universe/api/v1/joinLink", authenticate, joinLinkRouter);
-app.use("/universe/api/v1/overlay", authenticate, overlayRouter);
-app.use("/universe/api/v1/coupon", authenticate, couponRouter);
-app.use("/universe/api/v1/memory", authenticate, memoryRouter);
 app.use("/universe/api/v1/award", authenticate, awardRouter);
 app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
-// app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
-
-app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });

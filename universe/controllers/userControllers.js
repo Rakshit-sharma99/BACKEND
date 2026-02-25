@@ -4,7 +4,6 @@ const Admin = require("../models/admin");
 const bcrypt = require("bcryptjs");
 const Community = require("../models/community");
 const Club = require("../models/club");
-const Quest = require("../models/quest");
 const Bookmark = require("../models/bookmark");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -12,9 +11,9 @@ const {
   scheduleNotification,
   scheduleNotification2,
   updateUserIP,
+  lemmatize
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
-const { lemmatize } = require("./commonControllers");
 const {
   fetchSearchedEvents,
   fetchSearchedCards,
@@ -1478,11 +1477,12 @@ const changeIp = async (req, res) => {
 
     const user = await User.findById(userId, { ip: 1 }).lean();
 
-    if (questId) {
-      await Quest.findByIdAndUpdate(questId, {
-        $push: { completedBy: mongoose.Types.ObjectId(userId) },
-      });
-    }
+    // TODO: Add quest completion logic in quest service
+    // if (questId) {
+    //   await Quest.findByIdAndUpdate(questId, {
+    //     $push: { completedBy: mongoose.Types.ObjectId(userId) },
+    //   });
+    // }
 
     return res
       .status(StatusCodes.OK)

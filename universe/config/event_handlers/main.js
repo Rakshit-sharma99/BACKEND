@@ -4,7 +4,6 @@ const { comment_content } = require('./comment_content');
 const { unlike_content } = require('./unlike_content');
 const { clear_feed } = require('./clear_feed');
 const { add_card } = require('./card_event_handlers/add_card');
-const { update_card_feed } = require('./card_event_handlers/update_card_feed');
 const { delete_card } = require('./card_event_handlers/delete_card');
 const { like_card } = require('./card_event_handlers/like_card');
 const { unlike_card } = require('./card_event_handlers/unlike_card');
@@ -26,30 +25,6 @@ const {
 const {
   like_content_secondary_action,
 } = require("./like_content_secondary_action");
-const {
-  content_addedto_project,
-} = require("./macbeaseContent_event_handlers/content_addedto_project");
-const {
-  update_macbeasecontent_contribution,
-} = require("./macbeaseContent_event_handlers/update_macbeasecontent_contriibution");
-const {
-  person_tag_macbease,
-} = require("./macbeaseContent_event_handlers/person_tag_macbease");
-const {
-  like_content_macbease,
-} = require("./macbeaseContent_event_handlers/like_content_macbease");
-const {
-  like_content_macbease_secondary_action,
-} = require("./macbeaseContent_event_handlers/like_content_macbease_secondary_action");
-const {
-  comment_content_macbease,
-} = require("./macbeaseContent_event_handlers/comment_content_macbease");
-const {
-  unlike_content_macbease,
-} = require("./macbeaseContent_event_handlers/unlike_content_macbease");
-const {
-  delete_content_macbease,
-} = require("./macbeaseContent_event_handlers/delete_content_macbease");
 const { create_offer } = require("./offer_event_handlers/create_offer");
 const { update_user_ip } = require("./offer_event_handlers/update_user_ip");
 const {
@@ -91,7 +66,6 @@ const handlers = {
   [`${prefix}_unlike_content`]: unlike_content,
   [`${prefix}_clear_feed`]: clear_feed,
   [`${prefix}_add_card`]: add_card,
-  [`${prefix}_update_card_feed`]: update_card_feed,
   [`${prefix}_delete_card`]: delete_card,
   [`${prefix}_like_card`]: like_card,
   [`${prefix}_like_card_secondary_action`]: like_card_secondary_action,
@@ -100,16 +74,6 @@ const handlers = {
   [`${prefix}_resource_review_secondary_action`]:
     resource_review_secondary_action,
   [`${prefix}_delete_resource`]: delete_resource,
-  [`${prefix}_content_addedto_project`]: content_addedto_project,
-  [`${prefix}_update_macbeasecontent_contriibution`]:
-    update_macbeasecontent_contribution,
-  [`${prefix}_person_tag_macbease`]: person_tag_macbease,
-  [`${prefix}_like_content_macbease`]: like_content_macbease,
-  [`${prefix}_like_content_macbease_secondary_action`]:
-    like_content_macbease_secondary_action,
-  [`${prefix}_comment_content_macbease`]: comment_content_macbease,
-  [`${prefix}_unlike_content_macbease`]: unlike_content_macbease,
-  [`${prefix}_delete_content_macbease`]: delete_content_macbease,
   [`${prefix}_create_offer`]: create_offer,
   [`${prefix}_update_user_ip`]: update_user_ip,
   [`${prefix}_create_invitation`]: create_invitation,

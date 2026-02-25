@@ -1,12 +1,8 @@
 const { StatusCodes } = require("http-status-codes");
 const Club = require("../models/club");
-const Event = require("../models/event");
 const User = require("../models/user");
 const Admin = require("../models/admin");
 const Community = require("../models/community");
-const MacbeaseContent = require("../models/macbeaseContent");
-const Invitation = require("../models/invitation");
-const Itinerary = require("../models/itinerary");
 const Award = require("../models/award");
 const schedule = require("node-schedule");
 const {
@@ -26,6 +22,7 @@ const {
   fetchContent,
   fetchMultipleContents,
   searchContentsFromIds,
+  fetchEventData,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -867,7 +864,7 @@ const removeEvent = async (req, res) => {
     club.upcomingEvent = await Promise.all(
       club.upcomingEvent.map(async (eventPoint) => {
         if (eventPoint.id === eventId && eventPoint.eventId) {
-          const concernedEvent = await Event.findById(eventPoint.eventId);
+          const concernedEvent = await fetchEventData({ id: eventPoint.eventId, fields: ["status"] })
           if (
             concernedEvent &&
             (concernedEvent.status === "featured" ||
@@ -876,7 +873,8 @@ const removeEvent = async (req, res) => {
             cantDelete = true;
             return eventPoint; // Keep the event
           }
-          await Event.findByIdAndDelete(eventPoint.eventId);
+          // TODO: Delete event from event service
+          // await Event.findByIdAndDelete(eventPoint.eventId);
           return null; // Remove event
         }
         return eventPoint;
