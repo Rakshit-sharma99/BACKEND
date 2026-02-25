@@ -71,20 +71,6 @@ services:
       - app-network
     restart: unless-stopped
 
-  resource:
-    build:
-      context: ./resource
-      dockerfile: Dockerfile
-    image: spargens/resource
-    env_file:
-      - ./env/resource/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
   event:
     build:
       context: ./event
@@ -127,20 +113,6 @@ services:
       - app-network
     restart: unless-stopped
 
-  macbeaseContent:
-    build:
-      context: ./macbease_content
-      dockerfile: Dockerfile
-    image: spargens/macbease-content
-    env_file:
-      - ./env/macbease_content/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
   offer:
     build:
       context: ./offer
@@ -176,20 +148,6 @@ services:
     image: spargens/invitation
     env_file:
       - ./env/invitation/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  project:
-    build:
-      context: ./project
-      dockerfile: Dockerfile
-    image: spargens/project
-    env_file:
-      - ./env/project/.env
     depends_on:
       - kafka
       - redis
