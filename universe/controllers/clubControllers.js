@@ -12,7 +12,6 @@ const {
   updateDynamicIsland,
   scheduleNotification2,
   generateUri,
-  fetchMacbeaseContentFromIds,
   fetchInvitationById,
   fetchItineraryFromIds,
 } = require("../controllers/utils");
@@ -2030,45 +2029,6 @@ const getAllClub = async (req, res) => {
   }
 };
 
-//Controller 43
-const getAllLikedPins = async (req, res) => {
-  const { key, mode, batch, batchSize, id } = req.query;
-  const skip = (batch - 1) * batchSize;
-  const limit = parseInt(batchSize);
-  try {
-    let likedContents = await User.findById(id || req.user.id, {
-      likedContents: 1,
-      taggedContents: 1,
-      _id: 0,
-    });
-    if (!likedContents)
-      return res.status(StatusCodes.OK).json({ likedSocialPins: [] });
-    likedContents =
-      mode === "liked"
-        ? likedContents.likedContents.reverse()
-        : likedContents.taggedContents.reverse();
-    const selectedBatch = likedContents.slice(skip, skip + limit);
-    const macbeaseIds = selectedBatch
-      .filter((item) => item.type === "macbease" && key === "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const contentIds = selectedBatch
-      .filter((item) => item.type !== "macbease" || key !== "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const [macbeaseData, contentData] = await Promise.all([
-      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
-      fetchMultipleContents({ ids: contentIds }),
-    ]);
-    const data = [...macbeaseData, ...contentData].sort(
-      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
-    );
-    return res.status(StatusCodes.OK).json({ likedSocialPins: data });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Error fetching liked pins.");
-  }
-};
 
 //Controller 44
 const getSimilarGroups = async (req, res) => {
@@ -4181,7 +4141,6 @@ module.exports = {
   getCreatorId,
   getStatus,
   getFastNativeFeed,
-  getAllLikedPins,
   getSimilarGroups,
   getEveryoneOfClub,
   getPushTokenChunk,

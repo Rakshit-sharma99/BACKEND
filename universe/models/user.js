@@ -460,13 +460,6 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
-    macbeaseContentContribution: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "MacbeaseContent",
-      },
-    ],
-
     shortCuts: [shortcutSchema],
 
     ticketsBought: [

@@ -2,7 +2,7 @@ const { StatusCodes } = require('http-status-codes');
 const Admin = require('../models/admin');
 const User = require('../models/user');
 const Community = require('../models/community');
-const { sendMail, fetchContentFromIds, fetchMacbeaseContentFromIds } = require('../controllers/utils');
+const { sendMail, fetchContentFromIds } = require('../controllers/utils');
 const { sendKafkaMessage } = require('../config/utils/sendKafkaMessage');
 
 const submitForReview = async (req, res) => {
@@ -99,40 +99,6 @@ const submitForReview = async (req, res) => {
         admin.unreadNotice = [noticeForAdmin, ...admin.unreadNotice];
         sender.unreadNotice = [noticeForUser, ...sender.unreadNotice];
       }
-    } else if (type === 'macbease') {
-      let content = await fetchMacbeaseContentFromIds({ ids: [cid] });
-      await sendKafkaMessage("UPDATE_MACBEASE_CONTENT", "macbeaseContent", {
-        contentId: cid,
-        updatedFields: {
-          underReview: true
-        }
-      });
-      const noticeForUser = {
-        value: `Post is under review. We will keep you posted about actions we take.`,
-        img1: sender.image,
-        img2: content.url,
-        expandType: 'Macbease',
-        expandData: {
-          ...content._doc,
-        },
-        key: 'tag',
-        time: new Date(),
-        uid: `${new Date()}/${admin._id}/${req.user.id}`,
-      };
-      const noticeForAdmin = {
-        value: `Content marked for review.`,
-        img1: sender.image,
-        img2: content.url,
-        expandType: 'Macbease',
-        expandData: {
-          ...content._doc,
-        },
-        key: 'tag',
-        time: new Date(),
-        uid: `${new Date()}/${admin._id}/${req.user.id}`,
-      };
-      admin.unreadNotice = [noticeForAdmin, ...admin.unreadNotice];
-      sender.unreadNotice = [noticeForUser, ...sender.unreadNotice];
     }
     admin.save();
     sender.save();
@@ -175,15 +141,12 @@ const readContentForModeration = async (req, res) => {
       idToTypeMap[dataPoint.cid] = dataPoint;
       if (dataPoint.type === 'normal') {
         normalIds.push(dataPoint.cid);
-      } else if (dataPoint.type === 'macbease') {
-        macbeaseIds.push(dataPoint.cid);
       }
     }
 
     // Fetch content in batch
-    const [normalContentList, macbeaseContentList] = await Promise.all([
-      fetchContentFromIds({ contentIds: normalIds }),
-      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
+    const [normalContentList] = await Promise.all([
+      fetchContentFromIds({ contentIds: normalIds })
     ]);
 
     // Convert to map for faster access
@@ -192,10 +155,6 @@ const readContentForModeration = async (req, res) => {
       normalContentMap[item._id.toString()] = item;
     }
 
-    const macbeaseContentMap = {};
-    for (const item of macbeaseContentList || []) {
-      macbeaseContentMap[item._id.toString()] = item;
-    }
 
     // Build final result
     const finalData = reviewContent.map(dataPoint => {
@@ -204,8 +163,6 @@ const readContentForModeration = async (req, res) => {
 
       if (dataPoint.type === 'normal') {
         content = normalContentMap[cid];
-      } else if (dataPoint.type === 'macbease') {
-        content = macbeaseContentMap[cid];
       }
 
       if (content) {
@@ -238,13 +195,6 @@ const discardReviewClaim = async (req, res) => {
             underReview: false
           }
         })
-      } else if (type === 'macbease') {
-        await sendKafkaMessage("UPDATE_MACBEASE_CONTENT", "macbeaseContent", {
-          contentId: cid,
-          updatedFields: {
-            underReview: false
-          }
-        });
       }
       let admin = await Admin.findById(req.user.id, { reviewContent: 1 });
       let reviewList = admin.reviewContent;
@@ -366,15 +316,6 @@ const addDiscretion = async (req, res) => {
           blur
         }
       })
-    } else if (type === 'macbease') {
-      await sendKafkaMessage("UPDATE_MACBEASE_CONTENT", "macbeaseContent", {
-        contentId: cid,
-        updatedFields: {
-          underReview: false,
-          discretion,
-          blur
-        }
-      });
     }
 
     // Update admin review list

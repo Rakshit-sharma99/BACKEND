@@ -594,7 +594,6 @@ const getBasicUserBio = async (req, res) => {
       deactivated: 1,
       communitiesPartOf: 1,
       tunedIn_By: 1,
-      macbeaseContentContribution: 1,
       creatorPost: 1,
       profession: 1,
       interests: 1,
@@ -648,7 +647,6 @@ const getBasicUserBio = async (req, res) => {
       batch: user.passoutYear,
       role: user.role,
       creatorPost: user.creatorPost,
-      posts: user.macbeaseContentContribution.length,
       tunedIn_By: user.tunedIn_By ? user.tunedIn_By.length : 0,
       tunerGraphics,
       organisationData: [

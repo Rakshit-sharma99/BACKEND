@@ -41,7 +41,6 @@ const {
   getCreatorId,
   getStatus,
   getFastNativeFeed,
-  getAllLikedPins,
   getSimilarGroups,
   getEveryoneOfClub,
   getPushTokenChunk,
@@ -118,7 +117,6 @@ router.get("/isMainAdmin", isMainAdmin);
 router.get("/getCreatorId", getCreatorId);
 router.get("/getStatus", getStatus);
 router.get("/getFastNativeFeed", getFastNativeFeed);
-router.get("/getAllLikedPins", getAllLikedPins);
 router.get("/getSimilarGroups", getSimilarGroups);
 router.get("/getEveryoneOfClub", getEveryoneOfClub);
 router.get("/getPushTokenChunk", getPushTokenChunk);

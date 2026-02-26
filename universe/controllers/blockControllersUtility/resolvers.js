@@ -352,9 +352,6 @@ module.exports = {
 
       {
         $addFields: {
-          macbeaseCount: {
-            $size: { $ifNull: ["$macbeaseContentContribution", []] },
-          },
           communityCount: {
             $size: { $ifNull: ["$communityContribution", []] },
           },
