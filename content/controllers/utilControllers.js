@@ -363,6 +363,22 @@ const fetchRandomCardsForFeed = async () => {
   }
 };
 
+const checkUserBookmarks = async ({ userId, contentIds }) => {
+  try {
+    const config = generateServiceToken();
+    const body = { userId, contentIds };
+    const bookmarksResponse = await axios.post(
+      `http://universe:5050/universe/api/v1/user/checkBookmarks`,
+      body,
+      config
+    );
+    return bookmarksResponse.data.bookmarkedIds || [];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
 module.exports = {
   generateServiceToken,
   fetchUserData,
@@ -381,4 +397,5 @@ module.exports = {
   fetchMacbeaseContentFromIds,
   fetchCardsFromIds,
   fetchRandomCardsForFeed,
+  checkUserBookmarks,
 };

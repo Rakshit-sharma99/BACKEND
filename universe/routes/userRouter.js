@@ -56,6 +56,7 @@ const {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
+  checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
 } = require("../controllers/userControllers");
@@ -115,6 +116,7 @@ router.get("/searchPostableSpaces", searchPostableSpaces);
 router.post("/bookmarkContent", bookmarkContent);
 router.post("/unbookmarkContent", unbookmarkContent);
 router.get("/getBookmarks", getBookmarks);
+router.post("/checkBookmarks", checkBookmarks);
 router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
 router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
 

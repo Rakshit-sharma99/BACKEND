@@ -2573,6 +2573,44 @@ const getBookmarks = async (req, res) => {
   }
 };
 
+const checkBookmarks = async (req, res) => {
+  try {
+    const userId = req.user?.id || req.body.userId;
+    const { contentIds } = req.body;
+
+    if (!Array.isArray(contentIds) || contentIds.length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "contentIds array is required." });
+    }
+
+    const objectIds = contentIds
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null,
+      )
+      .filter(Boolean);
+
+    const bookmarks = await Bookmark.find(
+      {
+        userId,
+        contentId: { $in: objectIds },
+      },
+      { contentId: 1 },
+    ).lean();
+
+    const bookmarkedIds = bookmarks.map((b) => b.contentId.toString());
+
+    return res.status(StatusCodes.OK).json({ bookmarkedIds });
+  } catch (error) {
+    console.error("Error in checkBookmarks:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while checking bookmarks." });
+  }
+};
+
 module.exports = {
   getUser,
   updateUser,
@@ -2630,6 +2668,7 @@ module.exports = {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
+  checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
 };

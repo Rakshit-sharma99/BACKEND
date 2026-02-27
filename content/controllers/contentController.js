@@ -16,6 +16,7 @@ const {
   fetchRandomCardsForFeed,
   fetchClubsRecommendations,
   fetchCommunitiesRecommendations,
+  checkUserBookmarks,
 } = require("./utilControllers");
 const Content = require("../models/content");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -1156,9 +1157,11 @@ const getContentForLanding = async (req, res) => {
           feedType: "followed",
           commentsNum: { $size: "$comments" },
           comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
         },
       },
-      { $project: { vector: 0 } },
+      { $project: { vector: 0, likes: 0 } },
     ]);
 
     // B. Suggested Content (Interests)
@@ -1180,9 +1183,11 @@ const getContentForLanding = async (req, res) => {
               feedType: "suggested",
               commentsNum: { $size: "$comments" },
               comments: { $slice: ["$comments", 6] },
+              likeCount: { $size: { $ifNull: ["$likes", []] } },
+              isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
             },
           },
-          { $project: { vector: 0 } },
+          { $project: { vector: 0, likes: 0 } },
         ])
         : Promise.resolve([]);
 
@@ -1218,9 +1223,11 @@ const getContentForLanding = async (req, res) => {
             feedType: "suggested", // Mark as suggested so UI handles it gracefully
             commentsNum: { $size: "$comments" },
             comments: { $slice: ["$comments", 6] },
+            likeCount: { $size: { $ifNull: ["$likes", []] } },
+            isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
           },
         },
-        { $project: { vector: 0 } },
+        { $project: { vector: 0, likes: 0 } },
         { $limit: needed }
       ]);
 
@@ -1232,6 +1239,19 @@ const getContentForLanding = async (req, res) => {
     // Trim to limit
     finalFeed = finalFeed.slice(0, parsedLimit);
 
+    // Fetch bookmarks
+    let finalFeedWithBookmarks = finalFeed;
+    if (finalFeed.length > 0) {
+      const contentIds = finalFeed.map((c) => c._id.toString());
+      const bookmarkedIdsArray = await checkUserBookmarks({ userId, contentIds });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalFeedWithBookmarks = finalFeed.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
     // 5. Update Seen List in Redis
     if (finalFeed.length > 0) {
       const newIds = finalFeed.map((c) => c._id.toString());
@@ -1242,12 +1262,12 @@ const getContentForLanding = async (req, res) => {
     }
 
     const nextCursor =
-      finalFeed.length > 0
-        ? finalFeed[finalFeed.length - 1].timeStamp
+      finalFeedWithBookmarks.length > 0
+        ? finalFeedWithBookmarks[finalFeedWithBookmarks.length - 1].timeStamp
         : null;
 
     const responsePayload = {
-      data: finalFeed,
+      data: finalFeedWithBookmarks,
       nextCursor,
     };
 
