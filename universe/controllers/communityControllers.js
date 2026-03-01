@@ -25,6 +25,7 @@ const {
   searchCardsFromTags,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
+const CommunitySnapshot = require("../models/communitySnapshot");
 
 //Controller 1
 const createCommunity = async (req, res) => {
@@ -3479,6 +3480,157 @@ const getCommunitiesForFeed = async (req, res) => {
   }
 };
 
+
+const getCommunityGrowthStats = async (req, res) => {
+  try {
+    const periodParam = req.query.period || "30d";
+    const limit = parseInt(req.query.limit) || 10;
+
+    // Parse period string to days
+    const periodMap = { "7d": 7, "30d": 30, "90d": 90 };
+    const days = periodMap[periodParam] || 30;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+
+    const pastDate = new Date(now);
+    pastDate.setDate(pastDate.getDate() - days);
+
+    // Fetch all communities with metadata
+    const communities = await Community.find(
+      {},
+      {
+        title: 1,
+        members: 1,
+        activeMembers: 1,
+        "universeMetaData.logoKey": 1,
+        "universeMetaData.name": 1,
+      }
+    ).lean();
+
+    if (!communities || communities.length === 0) {
+      return res.status(StatusCodes.OK).json({
+        membershipData: [],
+        topGrowth: [],
+      });
+    }
+
+    const communityIds = communities.map((c) => c._id);
+
+    // Fetch the most recent snapshot and the snapshot closest to pastDate for each community
+    const [latestSnapshots, pastSnapshots] = await Promise.all([
+      CommunitySnapshot.aggregate([
+        { $match: { communityId: { $in: communityIds } } },
+        { $sort: { snapshotDate: -1 } },
+        {
+          $group: {
+            _id: "$communityId",
+            memberCount: { $first: "$memberCount" },
+            snapshotDate: { $first: "$snapshotDate" },
+          },
+        },
+      ]),
+      CommunitySnapshot.aggregate([
+        {
+          $match: {
+            communityId: { $in: communityIds },
+            snapshotDate: { $lte: pastDate },
+          },
+        },
+        { $sort: { snapshotDate: -1 } },
+        {
+          $group: {
+            _id: "$communityId",
+            memberCount: { $first: "$memberCount" },
+            snapshotDate: { $first: "$snapshotDate" },
+          },
+        },
+      ]),
+    ]);
+
+    // Build lookup maps
+    const latestMap = {};
+    latestSnapshots.forEach((s) => {
+      latestMap[s._id.toString()] = s.memberCount;
+    });
+
+    const pastMap = {};
+    pastSnapshots.forEach((s) => {
+      pastMap[s._id.toString()] = s.memberCount;
+    });
+
+    // Build community data with counts and growth
+    const communityData = communities.map((c) => {
+      const id = c._id.toString();
+      // Prefer snapshot count, fallback to live members array length
+      const currentCount =
+        latestMap[id] !== undefined
+          ? latestMap[id]
+          : c.members
+            ? c.members.length
+            : 0;
+      const pastCount = pastMap[id];
+
+      let growthPct = 0;
+      if (pastCount !== undefined && pastCount > 0) {
+        growthPct = ((currentCount - pastCount) / pastCount) * 100;
+      } else if (pastCount === 0 && currentCount > 0) {
+        growthPct = 100; // from 0 to something is 100% growth
+      }
+
+      return {
+        _id: c._id,
+        name: c.title,
+        count: currentCount,
+        growth: growthPct,
+        logoKey: c.universeMetaData?.logoKey || null,
+        universeName: c.universeMetaData?.name || null,
+      };
+    });
+
+    // Sort by member count descending for membershipData
+    const sortedByCount = [...communityData].sort(
+      (a, b) => b.count - a.count
+    );
+
+    const maxCount = sortedByCount.length > 0 ? sortedByCount[0].count : 1;
+
+    const membershipData = sortedByCount.slice(0, limit).map((c) => ({
+      _id: c._id,
+      name: c.name,
+      count: c.count,
+      pct: maxCount > 0 ? parseFloat((c.count / maxCount).toFixed(2)) : 0,
+      logoKey: c.logoKey,
+    }));
+
+    // Sort by growth descending for topGrowth
+    const sortedByGrowth = [...communityData].sort(
+      (a, b) => b.growth - a.growth
+    );
+
+    const topGrowth = sortedByGrowth
+      .slice(0, limit)
+      .filter((c) => c.growth !== 0)
+      .map((c) => ({
+        _id: c._id,
+        name: c.name,
+        growth: `${c.growth >= 0 ? "+" : ""}${c.growth.toFixed(0)}%`,
+        logoKey: c.logoKey,
+      }));
+
+    return res.status(StatusCodes.OK).json({
+      membershipData,
+      topGrowth,
+      period: periodParam,
+    });
+  } catch (error) {
+    console.error("Error fetching community growth stats:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong while fetching growth stats." });
+  }
+};
+
 module.exports = {
   createCommunity,
   deleteCommunity,
@@ -3547,4 +3699,5 @@ module.exports = {
   fetchMultipleCommunitiesFromIds,
   searchCommunitiesWithRegex,
   getCommunitiesForFeed,
+  getCommunityGrowthStats,
 };

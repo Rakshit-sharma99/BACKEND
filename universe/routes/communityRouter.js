@@ -68,7 +68,8 @@ const {
   fetchMultipleCommunitiesFromIds,
   searchCommunitiesWithRegex,
   getCommunitiesRecommendation,
-  getCommunitiesForFeed
+  getCommunitiesForFeed,
+  getCommunityGrowthStats
 } = require("../controllers/communityControllers");
 
 router.post("/createCommunity", createCommunity);
@@ -144,5 +145,6 @@ router.post(
   fetchMultipleCommunitiesFromIds
 );
 router.get("/getCommunitiesForFeed", getCommunitiesForFeed)
+router.get("/getCommunityGrowthStats", getCommunityGrowthStats);
 
 module.exports = router;
