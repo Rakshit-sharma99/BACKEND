@@ -9,7 +9,7 @@ const generateServiceToken = () => {
       role: "internal",
     },
     process.env.ACCESS_TOKEN_SECRET,
-    { expiresIn: "5m" }
+    { expiresIn: "5m" },
   );
   return {
     headers: {
@@ -68,6 +68,10 @@ const fetchMultipleContents = async (query) => {
       !Array.isArray(query.filters)
     ) {
       body.filters = query.filters;
+    }
+
+    if (query.userId) {
+      body.userId = query.userId;
     }
 
     const url = `http://content:5000/content/api/v1/getMultipleContents`;
@@ -137,8 +141,7 @@ const fetchEventData = async (query) => {
   try {
     const { id, ids, fields } = query;
 
-    const isArrayProjection =
-      Array.isArray(fields) && fields.length > 0;
+    const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
       fields &&
@@ -162,7 +165,7 @@ const fetchEventData = async (query) => {
     const eventData = await axios.post(
       "http://event:5060/event/api/v1/getEventFieldsById",
       query,
-      config
+      config,
     );
     return eventData.data.data;
   } catch (error) {
@@ -189,7 +192,7 @@ const fetchPastEvents = async ({
         projection,
         limit,
       },
-      config
+      config,
     );
 
     return response.data.data;
@@ -210,7 +213,7 @@ const fetchEventGallery = async (eventIds) => {
     const response = await axios.post(
       "http://event:5060/event/api/v1/getEventGallery",
       { eventIds },
-      config
+      config,
     );
 
     return response.data.data;
@@ -228,7 +231,7 @@ const fetchCouponById = async (query) => {
     const config = generateServiceToken();
     const couponData = await axios.get(
       `http://coupon:7020/coupon/api/v1/getCouponById?couponId=${query.couponId}&eventId=${query.eventId}&userId=${query.userId}`,
-      config
+      config,
     );
     return couponData.data.coupons;
   } catch (error) {
@@ -246,7 +249,7 @@ const fetchSearchedEvents = async (query) => {
 
     const response = await axios.get(
       `http://event:5060/event/api/v1/getSearchedEvents?query=${query}`,
-      config
+      config,
     );
 
     return response.data.data;
@@ -266,7 +269,7 @@ const fetchSearchedCards = async (query) => {
 
     const response = await axios.get(
       `http://card:5030/card/api/v1/getSearchedCards?query=${query}`,
-      config
+      config,
     );
 
     return response.data.data;
@@ -286,7 +289,7 @@ const getMemoryCount = async (query) => {
 
     const res = await axios.get(
       `http://memory:7030/memory/api/v1/getMemoryCount?userId=${query}`,
-      config
+      config,
     );
 
     return res.data.data;
@@ -294,7 +297,7 @@ const getMemoryCount = async (query) => {
     console.log("Error getting memory count:", err);
     return 0;
   }
-}
+};
 
 const fetchTicketFieldsByQuery = async (query) => {
   try {
@@ -318,12 +321,15 @@ const fetchTicketFieldsByQuery = async (query) => {
         fields,
         single,
       },
-      config
+      config,
     );
 
     return response.data.data;
   } catch (error) {
-    console.error("fetchTicketFieldsByQuery error:", error.response?.data || error.message);
+    console.error(
+      "fetchTicketFieldsByQuery error:",
+      error.response?.data || error.message,
+    );
     return null;
   }
 };
@@ -332,8 +338,7 @@ const fetchFeaturedEvent = async (query) => {
   try {
     const { fields } = query;
 
-    const isArrayProjection =
-      Array.isArray(fields) && fields.length > 0;
+    const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
       fields &&
@@ -349,7 +354,7 @@ const fetchFeaturedEvent = async (query) => {
     const eventData = await axios.post(
       "http://event:5060/event/api/v1/getFeaturedEvents",
       query,
-      config
+      config,
     );
     return eventData.data.data;
   } catch (error) {
