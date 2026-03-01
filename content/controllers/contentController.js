@@ -966,14 +966,14 @@ const getEngagementData = async (req, res) => {
     const [contentData, macbeaseContentData, cardsData] = await Promise.all([
       contentIds.length
         ? Content.find({ _id: { $in: contentIds } })
-          .select("likes comments")
-          .lean()
+            .select("likes comments")
+            .lean()
         : [],
       macbeaseContentIds.length
         ? fetchMacbeaseContentFromIds({
-          ids: macbeaseContentIds,
-          select: "likes comments",
-        })
+            ids: macbeaseContentIds,
+            select: "likes comments",
+          })
         : [],
       cardIds.length
         ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
@@ -1126,14 +1126,22 @@ const getContentForLanding = async (req, res) => {
     ]);
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
-    const seenIds = (seenIdsRaw || []).map((id) =>
-      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null
-    ).filter(Boolean);
+    const seenIds = (seenIdsRaw || [])
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null,
+      )
+      .filter(Boolean);
 
-    const communityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
+    const communityIds = (user.communitiesPartOf || []).map(
+      (c) => c.communityId,
+    );
     const clubIds = (user.clubs || []).map((c) => c.clubId);
     const belongsToIds = [...communityIds, ...clubIds];
     const interestTags = user.interests || [];
@@ -1168,27 +1176,27 @@ const getContentForLanding = async (req, res) => {
     const suggestedQuery =
       interestTags.length > 0
         ? Content.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              _id: { $nin: seenIds },
-              timeStamp: { $lt: parsedCursor },
-              contentType: { $in: ["image", "video"] },
+            {
+              $match: {
+                tags: { $in: interestTags },
+                _id: { $nin: seenIds },
+                timeStamp: { $lt: parsedCursor },
+                contentType: { $in: ["image", "video"] },
+              },
             },
-          },
-          { $sort: { timeStamp: -1 } },
-          { $limit: parsedLimit },
-          {
-            $addFields: {
-              feedType: "suggested",
-              commentsNum: { $size: "$comments" },
-              comments: { $slice: ["$comments", 6] },
-              likeCount: { $size: { $ifNull: ["$likes", []] } },
-              isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+            { $sort: { timeStamp: -1 } },
+            { $limit: parsedLimit },
+            {
+              $addFields: {
+                feedType: "suggested",
+                commentsNum: { $size: "$comments" },
+                comments: { $slice: ["$comments", 6] },
+                likeCount: { $size: { $ifNull: ["$likes", []] } },
+                isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+              },
             },
-          },
-          { $project: { vector: 0, likes: 0 } },
-        ])
+            { $project: { vector: 0, likes: 0 } },
+          ])
         : Promise.resolve([]);
 
     // Execute Initial Queries
@@ -1199,10 +1207,14 @@ const getContentForLanding = async (req, res) => {
 
     // Merge & Deduplicate (in case overlap between followed/suggested)
     let combined = [...followedContent, ...suggestedContent];
-    const uniqueCombined = Array.from(new Map(combined.map(item => [item._id.toString(), item])).values());
+    const uniqueCombined = Array.from(
+      new Map(combined.map((item) => [item._id.toString(), item])).values(),
+    );
 
     // Sort by Time
-    uniqueCombined.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    uniqueCombined.sort(
+      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
+    );
 
     // 4. Fallback Mechanism
     // If we don't have enough content, fetch popular/random content
@@ -1212,11 +1224,17 @@ const getContentForLanding = async (req, res) => {
       const needed = parsedLimit - finalFeed.length;
 
       // IDs to exclude in fallback (Seen + Just Fetched)
-      const currentFetchedIds = finalFeed.map(c => c._id);
+      const currentFetchedIds = finalFeed.map((c) => c._id);
       const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
 
       const fallbackContent = await Content.aggregate([
-        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor }, contentType: { $in: ["image", "video"] } } },
+        {
+          $match: {
+            _id: { $nin: excludeIdsForFallback },
+            timeStamp: { $lt: parsedCursor },
+            contentType: { $in: ["image", "video"] },
+          },
+        },
         { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
         {
           $addFields: {
@@ -1228,7 +1246,7 @@ const getContentForLanding = async (req, res) => {
           },
         },
         { $project: { vector: 0, likes: 0 } },
-        { $limit: needed }
+        { $limit: needed },
       ]);
 
       finalFeed = [...finalFeed, ...fallbackContent];
@@ -1243,7 +1261,10 @@ const getContentForLanding = async (req, res) => {
     let finalFeedWithBookmarks = finalFeed;
     if (finalFeed.length > 0) {
       const contentIds = finalFeed.map((c) => c._id.toString());
-      const bookmarkedIdsArray = await checkUserBookmarks({ userId, contentIds });
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId,
+        contentIds,
+      });
       const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
 
       finalFeedWithBookmarks = finalFeed.map((item) => ({
@@ -1273,7 +1294,11 @@ const getContentForLanding = async (req, res) => {
 
     // Update Short-term Cache
     if (!cursor) {
-      await redis.setex(`landing_feed:${userId}`, 60, JSON.stringify(responsePayload));
+      await redis.setex(
+        `landing_feed:${userId}`,
+        60,
+        JSON.stringify(responsePayload),
+      );
     }
 
     return res.status(StatusCodes.OK).json(responsePayload);
@@ -1288,7 +1313,7 @@ const getContentForLanding = async (req, res) => {
 //Controller 21
 const getMultipleContents = async (req, res) => {
   try {
-    const { ids, select, filters = {} } = req.body;
+    const { ids, select, filters = {}, userId } = req.body;
 
     // 1. Validate presence and type of IDs
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -1317,7 +1342,7 @@ const getMultipleContents = async (req, res) => {
 
       projectStage._id = 1;
     } else {
-      projectStage = { vector: 0 };
+      projectStage = { vector: 0, likes: 0 };
     }
 
     // 4. Build match condition with optional filters
@@ -1333,6 +1358,10 @@ const getMultipleContents = async (req, res) => {
         $addFields: {
           commentsNum: { $size: "$comments" },
           comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: userId
+            ? { $in: [userId, { $ifNull: ["$likes", []] }] }
+            : false,
         },
       },
       {
@@ -1343,7 +1372,22 @@ const getMultipleContents = async (req, res) => {
       },
     ]);
 
-    return res.status(200).json(contents);
+    let finalContents = contents;
+    if (userId && contents.length > 0) {
+      const contentIds = contents.map((c) => c._id.toString());
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId,
+        contentIds,
+      });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalContents = contents.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
+    return res.status(200).json(finalContents);
   } catch (error) {
     console.error("Error fetching multiple contents:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -1524,6 +1568,79 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+//Controller 23
+const getUserCommunityPosts = async (req, res) => {
+  try {
+    const { userId, communityId, cursor, limit } = req.query;
+
+    if (!userId || !communityId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and communityId are required." });
+    }
+
+    const parsedLimit = parseInt(limit) || 10;
+    const parsedCursor = cursor ? new Date(cursor) : new Date();
+
+    const pipeline = [
+      {
+        $match: {
+          idOfSender: userId,
+          belongsTo: communityId,
+          timeStamp: { $lt: parsedCursor },
+          contentType: { $in: ["image", "video", "text"] },
+        },
+      },
+      { $sort: { timeStamp: -1 } },
+      { $limit: parsedLimit },
+      {
+        $addFields: {
+          commentsNum: { $size: "$comments" },
+          comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: {
+            $in: [req.user ? req.user.id : userId, { $ifNull: ["$likes", []] }],
+          },
+        },
+      },
+      { $project: { vector: 0, likes: 0 } },
+    ];
+
+    const contents = await Content.aggregate(pipeline);
+
+    let finalFeedWithBookmarks = contents;
+    if (contents.length > 0) {
+      const contentIds = contents.map((c) => c._id.toString());
+      const requesterId = req.user ? req.user.id : userId;
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId: requesterId,
+        contentIds,
+      });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalFeedWithBookmarks = contents.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
+    const nextCursor =
+      finalFeedWithBookmarks.length > 0
+        ? finalFeedWithBookmarks[finalFeedWithBookmarks.length - 1].timeStamp
+        : null;
+
+    return res.status(StatusCodes.OK).json({
+      data: finalFeedWithBookmarks,
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Error in getUserCommunityPosts:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1551,4 +1668,5 @@ module.exports = {
   uploadMiddleware: upload.single("file"),
   uploadToS3,
   insertNewFields,
+  getUserCommunityPosts,
 };

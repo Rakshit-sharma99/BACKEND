@@ -1863,6 +1863,7 @@ const getFastNativeFeed = async (req, res) => {
 
     let actualContent = await fetchMultipleContents({
       ids: contents,
+      userId: req.user ? req.user.id : undefined,
     });
     actualContent = actualContent.reverse();
 
@@ -1891,7 +1892,10 @@ const getFastNativeFeed = async (req, res) => {
         videos = videos.slice(0, 2);
       }
       const videoIds = videos.map((video) => video.contentId);
-      const snippets = await fetchMultipleContents({ ids: videoIds });
+      const snippets = await fetchMultipleContents({
+        ids: videoIds,
+        userId: req.user ? req.user.id : undefined,
+      });
       if (snippets) {
         processedSnippets = snippets.map((snippet) => ({
           ...snippet,
@@ -3111,10 +3115,10 @@ const getProposalsFromIds = async (req, res) => {
         const fpData = dataMap.get(fp.id);
         return fpData
           ? {
-            ...fp,
-            endorsedBy: fpData.endorsedBy,
-            expiration: fpData.expiration,
-          }
+              ...fp,
+              endorsedBy: fpData.endorsedBy,
+              expiration: fpData.expiration,
+            }
           : null;
       })
       .filter(Boolean); // Remove null values
@@ -3299,9 +3303,9 @@ const getRandomClubs = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-        acc[field.trim()] = 1;
-        return acc;
-      }, {})
+          acc[field.trim()] = 1;
+          return acc;
+        }, {})
       : {};
 
     const clubs = await Club.aggregate([
@@ -3971,8 +3975,8 @@ const getClubsRecommendation = async (req, res) => {
 
     const excludedIds = Array.isArray(nIds)
       ? nIds
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(id))
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id))
       : [];
 
     const pipeline = [];
@@ -3997,7 +4001,7 @@ const getClubsRecommendation = async (req, res) => {
       },
       {
         $sample: { size: 6 },
-      }
+      },
     );
 
     const clubs = await Club.aggregate(pipeline);
@@ -4028,7 +4032,7 @@ const fetchMultipleClubsFromIds = async (req, res) => {
 
     const projection = fields.join(" ");
     const clubs = await Club.find({ _id: { $in: validIds } }).select(
-      projection
+      projection,
     );
 
     return res.status(200).json({ data: clubs });
@@ -4078,7 +4082,9 @@ const getClubsForFeed = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
     const interestTags = user.interests || [];
@@ -4088,22 +4094,22 @@ const getClubsForFeed = async (req, res) => {
     const suggestedClubs =
       interestTags.length > 0
         ? await Club.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              _id: { $nin: joinedClubIds },
+            {
+              $match: {
+                tags: { $in: interestTags },
+                _id: { $nin: joinedClubIds },
+              },
             },
-          },
-          { $sample: { size: limit } },
-          {
-            $project: {
-              name: 1,
-              secondaryImg: 1,
-              tags: 1,
-              motto: 1,
+            { $sample: { size: limit } },
+            {
+              $project: {
+                name: 1,
+                secondaryImg: 1,
+                tags: 1,
+                motto: 1,
+              },
             },
-          },
-        ])
+          ])
         : [];
 
     let finalClubs = [...suggestedClubs];
