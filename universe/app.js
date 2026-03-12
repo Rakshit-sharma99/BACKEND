@@ -255,7 +255,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}.`);
+      console.log(`✅ Server is listening to port ${port}!`);
     });
   } catch (error) {
     console.log(error);

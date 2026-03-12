@@ -17,6 +17,9 @@ const assetSchema = new mongoose.Schema(
     tag: {
       type: String,
     },
+    subTag: {
+      type: String,
+    },
     availability: {
       type: String,
       enum: ["free", "paid"],
@@ -36,6 +39,18 @@ const assetSchema = new mongoose.Schema(
     contributorId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+    payloadConfig: {
+      requiresPayload: {
+        type: Boolean,
+        default: false,
+      },
+      allowedPayloadTypes: [
+        {
+          type: String,
+          enum: ["audio", "text", "drawing", "video", "book", "movie", "none"],
+        },
+      ],
     },
   },
   {

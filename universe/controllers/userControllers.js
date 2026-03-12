@@ -53,7 +53,7 @@ const searchUserByName = async (req, res) => {
 
 //Controller 2
 const getUserBio = async (req, res) => {
-  console.log("user bio")
+  console.log("user bio");
   try {
     const user = await User.findById(req.user.id, {
       course: 1,
@@ -75,7 +75,7 @@ const getUserBio = async (req, res) => {
       notifications: 1,
       shortCuts: 1,
       incompleteFields: 1,
-      universeMetaData: 1
+      universeMetaData: 1,
     });
     if (!user) {
       return res
@@ -101,7 +101,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
-      universeMetaData
+      universeMetaData,
     } = user;
 
     return res.status(StatusCodes.OK).json({
@@ -123,7 +123,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
-      universeMetaData
+      universeMetaData,
     });
   } catch (err) {
     console.error(err);
@@ -607,8 +607,7 @@ const getBasicUserBio = async (req, res) => {
       universeMetaData: 1,
       gender: 1,
       emailVerified: 1,
-      cards: 1
-
+      cards: 1,
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
