@@ -59,6 +59,10 @@ const {
   checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
+  saveUserAsset,
+  editUserAsset,
+  deleteUserAsset,
+  getUserAssets,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -119,5 +123,9 @@ router.get("/getBookmarks", getBookmarks);
 router.post("/checkBookmarks", checkBookmarks);
 router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
 router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
+router.post("/saveUserAsset", saveUserAsset);
+router.post("/editUserAsset", editUserAsset);
+router.post("/deleteUserAsset", deleteUserAsset);
+router.get("/getUserAssets", getUserAssets);
 
 module.exports = router;

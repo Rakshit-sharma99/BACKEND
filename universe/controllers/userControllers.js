@@ -1452,7 +1452,7 @@ const changeIp = async (req, res) => {
 
     // Validate required fields
     if (ip === undefined || ip === null || !description) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
+      return res.status(Sta0tusCodes.BAD_REQUEST).json({
         message:
           "Incomplete data provided. Both 'ip' and 'description' are required.",
       });
@@ -2610,7 +2610,151 @@ const checkBookmarks = async (req, res) => {
   }
 };
 
+const saveUserAsset = async (req, res) => {
+  try {
+    const asset = req.body.asset || req.body;
+    const userId = req.user.id;
+
+    if (!asset || !asset.assetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $push: { vicinityAsset: asset } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset saved successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error saving user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while saving the asset." });
+  }
+};
+
+const editUserAsset = async (req, res) => {
+  try {
+    const { assetId, updates } = req.body;
+    const userId = req.user.id;
+
+    if (!assetId || !updates) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    // Build $set query for the specific fields matching in the updates object
+    const setQuery = {};
+    for (const key in updates) {
+      setQuery[`vicinityAsset.$.${key}`] = updates[key];
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId, "vicinityAsset.assetId": assetId },
+      { $set: setQuery },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset or User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset updated successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error editing user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while editing the asset." });
+  }
+};
+
+const deleteUserAsset = async (req, res) => {
+  try {
+    const { assetId } = req.body;
+    const userId = req.user.id;
+
+    if (!assetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { vicinityAsset: { assetId: assetId } } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset deleted successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error deleting user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while deleting the asset." });
+  }
+};
+
+const getUserAssets = async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing userId query parameter." });
+    }
+
+    const user = await User.findById(userId, { vicinityAsset: 1 }).lean();
+
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      vicinityAsset: user.vicinityAsset || [],
+    });
+  } catch (error) {
+    console.error("Error fetching user assets:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while fetching the assets." });
+  }
+};
+
 module.exports = {
+  getUserAssets,
+  saveUserAsset,
+  editUserAsset,
+  deleteUserAsset,
   getUser,
   updateUser,
   deleteUser,
