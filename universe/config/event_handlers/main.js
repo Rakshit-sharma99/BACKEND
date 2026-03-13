@@ -55,6 +55,7 @@ const { update_user_memory_notice } = require('./memory_event_handlers/update_us
 const { update_user_pinned_memory } = require('./memory_event_handlers/update_user_pinned_memory');
 const { user_overlay_operation } = require('./overlay_event_handlers/user_overlay_operation');
 const { add_ticket_to_user } = require('./ticket_event_handlers/add_ticket_to_user');
+const { credit_ticket_sale } = require("./wallet_event_handlers/credit_ticket_sale");
 
 const prefix = process.env.KAFKA_CLIENT_ID;
 
@@ -95,7 +96,8 @@ const handlers = {
   [`${prefix}_update_user_memory_notice`]: update_user_memory_notice,
   [`${prefix}_update_user_pinned_memory`]: update_user_pinned_memory,
   [`${prefix}_user_overlay_operation`]: user_overlay_operation,
-  [`${prefix}_add_ticket_to_user`]: add_ticket_to_user
+  [`${prefix}_add_ticket_to_user`]: add_ticket_to_user,
+  [`${prefix}_credit_ticket_sale`]: credit_ticket_sale,
 };
 
 module.exports = { handlers };

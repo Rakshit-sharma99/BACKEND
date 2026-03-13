@@ -45,6 +45,7 @@ const adminAuthRouter = require("./routes/adminAuthRouter");
 const clubRouter = require("./routes/clubRouter");
 const communityRouter = require("./routes/communityRouter");
 const paymentRouter = require("./routes/paymentRouter");
+const walletRouter = require("./routes/walletRouter");
 const chatRouter = require("./routes/chatRouter");
 const shortCutRouter = require("./routes/shortCutRouter");
 const letterRouter = require("./routes/letterRouter");
@@ -95,6 +96,7 @@ app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
 app.use("/universe/api/v1/auth/user", userAuthRouter);
 app.use("/universe/api/v1/admin", adminAuthRouter);
 app.use("/universe/api/v1/payment", authenticate, paymentRouter);
+app.use("/universe/api/v1/wallet", authenticate, walletRouter);
 app.use("/universe/api/v1/user", authenticate, userRouter);
 app.use("/universe/api/v1/frontend", authenticate, frontendRouter);
 app.use("/universe/api/v1/club", authenticate, clubRouter);
