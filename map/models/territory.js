@@ -125,6 +125,12 @@ const territorySchema = new mongoose.Schema(
     },
 
     spatial: spatialSchema,
+
+    source: {
+      type: String,
+      enum: ["semantic", "facet"],
+      default: "semantic",
+    },
   },
   {
     timestamps: true,
