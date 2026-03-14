@@ -20,6 +20,7 @@ const {
   fetchSearchedCards,
   getMemoryCount,
   fetchAllowedDomains,
+  fetchMultipleAssets,
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
@@ -360,14 +361,11 @@ const advanceSearch = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const { profession } = req.query;
-    console.log("profession", profession);
     // Build query dynamically
     const query = {};
     if (profession && profession !== "All") {
       query.profession = profession;
     }
-
-    console.log("query", query);
 
     const users = await User.find(query, {
       name: 1,
@@ -2647,9 +2645,56 @@ const saveUserAsset = async (req, res) => {
 
 const editUserAsset = async (req, res) => {
   try {
-    const { assetId, updates } = req.body;
+    const { assetId, updates, assets } = req.body;
     const userId = req.user.id;
 
+    if (assets && Array.isArray(assets)) {
+      if (assets.length === 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Assets array cannot be empty." });
+      }
+
+      // Build $set query and arrayFilters for multiple updates
+      const setQuery = {};
+      const arrayFilters = [];
+
+      assets.forEach((item, index) => {
+        const identifier = `elem${index}`;
+        if (item.assetId && item.updates) {
+          for (const key in item.updates) {
+            setQuery[`vicinityAsset.$[${identifier}].${key}`] =
+              item.updates[key];
+          }
+          arrayFilters.push({ [`${identifier}.assetId`]: item.assetId });
+        }
+      });
+
+      if (Object.keys(setQuery).length === 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "No valid updates provided in assets array." });
+      }
+
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: userId },
+        { $set: setQuery },
+        { arrayFilters, new: true },
+      );
+
+      if (!updatedUser) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ error: "User not found." });
+      }
+
+      return res.status(StatusCodes.OK).json({
+        message: "Assets updated successfully.",
+        vicinityAsset: updatedUser.vicinityAsset,
+      });
+    }
+
+    // Single update logic (legacy/fallback)
     if (!assetId || !updates) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -2739,8 +2784,35 @@ const getUserAssets = async (req, res) => {
         .json({ error: "User not found." });
     }
 
+    const vicinityAssets = user.vicinityAsset || [];
+
+    if (vicinityAssets.length === 0) {
+      return res.status(StatusCodes.OK).json({ vicinityAsset: [] });
+    }
+
+    const assetIds = vicinityAssets.map((asset) => asset.assetId);
+
+    // Fetch full asset data from the map service
+    const fetchedAssets = await fetchMultipleAssets({ ids: assetIds });
+
+    // Merge user schema properties (x, z, dx, dy, payload) with full asset definition
+    const populatedAssets = vicinityAssets
+      .map((vcAsset) => {
+        const fullAsset = fetchedAssets.find(
+          (fa) => String(fa._id) === String(vcAsset.assetId),
+        );
+        if (fullAsset) {
+          return {
+            ...fullAsset, // the actual asset properties (name, url, etc)
+            ...vcAsset, // the user vicinity specific positioning
+          };
+        }
+        return null; // Handle if asset got deleted entirely from the map db
+      })
+      .filter(Boolean);
+
     return res.status(StatusCodes.OK).json({
-      vicinityAsset: user.vicinityAsset || [],
+      vicinityAsset: populatedAssets,
     });
   } catch (error) {
     console.error("Error fetching user assets:", error);

@@ -729,6 +729,30 @@ const getDetailsOfTerritory = async (req, res) => {
   }
 };
 
+const deleteAllTerritories = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    await Territory.deleteMany({});
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "All territories deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting all territories:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while deleting territories.",
+      error: error.message,
+    });
+  }
+};
+
 // ─────────────────────────────
 // Exports
 // ─────────────────────────────
@@ -736,4 +760,5 @@ module.exports = {
   clusterSemanticNodes,
   getAllTerritories,
   getDetailsOfTerritory,
+  deleteAllTerritories,
 };

@@ -747,11 +747,42 @@ const bulkUpdateTags = async (req, res) => {
   }
 };
 
+/**
+ * Controller to get multiple Assets by their IDs
+ */
+const getMultipleAssets = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Please provide an array of asset ids.",
+      });
+    }
+
+    const assets = await Asset.find({ _id: { $in: ids } });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: assets,
+    });
+  } catch (error) {
+    console.error("Error fetching multiple assets:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching multiple assets.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createAsset,
   editAsset,
   deleteAsset,
   getAssetById,
+  getMultipleAssets,
   getAllAssetsByType,
   searchSongs,
   getSongRecommendations,

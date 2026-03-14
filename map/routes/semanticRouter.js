@@ -12,7 +12,14 @@ const {
   getSemanticNodeBounds,
   assignLocalSpatialCoordinates,
   getNodesForTerritory,
+  deleteNodesByEntityType,
+  getSemanticNodeCounts,
 } = require("../controllers/semanticNodeControllers");
+
+const {
+  createProfileFacetNodes,
+  refreshProfileFacetNodes,
+} = require("../controllers/semanticNodeControllers2");
 
 router.post("/createNodesForClubs", createNodesForClubs);
 router.post("/createNodesForCommunities", createNodesForCommunities);
@@ -24,5 +31,11 @@ router.post("/getSemanticNodesForViewport", getSemanticNodesForViewport);
 router.get("/getSemanticNodeBounds", getSemanticNodeBounds);
 router.post("/assignLocalSpatialCoordinates", assignLocalSpatialCoordinates);
 router.get("/getNodesForTerritory", getNodesForTerritory);
+router.delete("/deleteNodesByEntityType", deleteNodesByEntityType);
+router.get("/getSemanticNodeCounts", getSemanticNodeCounts);
+
+// Profile Facet Routes
+router.post("/createProfileFacetNodes", createProfileFacetNodes);
+router.post("/refreshProfileFacetNodes", refreshProfileFacetNodes);
 
 module.exports = router;

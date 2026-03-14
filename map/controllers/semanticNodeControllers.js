@@ -841,7 +841,107 @@ const getNodesForTerritory = async (req, res) => {
   }
 };
 
+const deleteNodesByEntityType = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    const { entityType } = req.query;
+
+    if (!entityType) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "entityType is required.",
+      });
+    }
+
+    // Deletion
+    const deleteResult = await SemanticNode.deleteMany({ entityType });
+
+    // Aggregation for remaining nodes
+    const remainingBreakdown = await SemanticNode.aggregate([
+      {
+        $group: {
+          _id: "$entityType",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          entityType: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ]);
+
+    const totalRemaining = remainingBreakdown.reduce(
+      (acc, curr) => acc + curr.count,
+      0,
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Deleted ${deleteResult.deletedCount} nodes of type '${entityType}'.`,
+      deletedCount: deleteResult.deletedCount,
+      totalRemaining,
+      remainingBreakdown,
+    });
+  } catch (error) {
+    console.error("Error in deleteNodesByEntityType:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while deleting semantic nodes.",
+      error: error.message,
+    });
+  }
+};
+const getSemanticNodeCounts = async (req, res) => {
+  try {
+    const counts = await SemanticNode.aggregate([
+      {
+        $group: {
+          _id: "$entityType",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          entityType: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ]);
+
+    const totalNodes = counts.reduce((acc, curr) => acc + curr.count, 0);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      totalNodes,
+      counts,
+    });
+  } catch (error) {
+    console.error("Error in getSemanticNodeCounts:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching semantic node counts.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
+  getSemanticNodeCounts,
+  deleteNodesByEntityType,
   createNodesForClubs,
   createNodesForCommunities,
   embedAllNodes,

@@ -118,70 +118,62 @@ const fetchNativeClubData = async (query) => {
 };
 
 const fetchTicketsByIds = async (query) => {
-  try {
-    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
-      return;
-    }
-    const config = generateServiceToken();
-    const ticketData = await axios.post(
-      `http://ticket:6000/ticket/api/v1/getTicketsbyIds`,
-      query,
-      config
-    );
-    return ticketData.data.tickets;
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-const fetchDetailedTicketsByIds = async (query) => {
-  try {
-    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
-      return;
-    }
-    const config = generateServiceToken();
-    const ticketData = await axios.post(
-      `http://ticket:6000/ticket/api/v1/getDetailedTickets`,
-      query,
-      config
-    );
-    return ticketData.data.tickets;
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-const fetchTicketTypesCount = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getTicketsbyIds`;
   try {
     if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
       return [];
     }
     const config = generateServiceToken();
-    const ticketData = await axios.post(
-      `http://ticket:6000/ticket/api/v1/getTicketTypesCount`,
-      query,
-      config
-    );
-    return ticketData.data.ticketCounts;
+    const ticketData = await axios.post(url, query, config);
+    return ticketData.data.tickets || [];
   } catch (error) {
-    console.log(error);
+    console.error(`❌ Error in fetchTicketsByIds (${url}):`, error.message);
+    return [];
+  }
+};
+
+const fetchDetailedTicketsByIds = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getDetailedTickets`;
+  try {
+    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
+      return [];
+    }
+    const config = generateServiceToken();
+    const ticketData = await axios.post(url, query, config);
+    return ticketData.data.tickets || [];
+  } catch (error) {
+    console.error(`❌ Error in fetchDetailedTicketsByIds (${url}):`, error.message);
+    return [];
+  }
+};
+
+const fetchTicketTypesCount = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getTicketTypesCount`;
+  try {
+    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
+      return [];
+    }
+    const config = generateServiceToken();
+    const ticketData = await axios.post(url, query, config);
+    return ticketData.data.ticketCounts || [];
+  } catch (error) {
+    console.error(`❌ Error in fetchTicketTypesCount (${url}):`, error.message);
+    return [];
   }
 };
 
 const fetchTicketFieldsById = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getTicketFieldsById`;
   try {
     if (!query.ticketId || !Array.isArray(query.fields)) {
-      return;
+      return null;
     }
     const config = generateServiceToken();
-    const ticketData = await axios.post(
-      `http://ticket:6000/ticket/api/v1/getTicketFieldsById`,
-      query,
-      config
-    );
+    const ticketData = await axios.post(url, query, config);
     return ticketData.data.data;
   } catch (error) {
-    console.log(error);
+    console.error(`❌ Error in fetchTicketFieldsById (${url}):`, error.message);
+    return null;
   }
 };
 

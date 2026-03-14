@@ -47,7 +47,7 @@ const fetchContent = async (query) => {
 
 const fetchMultipleContents = async (query) => {
   try {
-    if (!Array.isArray(query.ids) || query.ids.length === 0) return;
+    if (!Array.isArray(query.ids) || query.ids.length === 0) return [];
 
     const config = generateServiceToken();
 
@@ -81,6 +81,24 @@ const fetchMultipleContents = async (query) => {
     return contentData.data;
   } catch (error) {
     console.error("Error in fetchMultipleContents:", error.message);
+    return [];
+  }
+};
+
+const fetchMultipleAssets = async (query) => {
+  try {
+    if (!Array.isArray(query.ids) || query.ids.length === 0) return [];
+
+    const config = generateServiceToken();
+    const body = { ids: query.ids };
+
+    const url = `http://map:7050/map/api/v1/asset/getMultipleAssets`;
+    const assetData = await axios.post(url, body, config);
+
+    return assetData.data.data;
+  } catch (error) {
+    console.error("Error in fetchMultipleAssets:", error.message);
+    return [];
   }
 };
 
@@ -388,6 +406,7 @@ const fetchAllowedDomains = async (universeId) => {
 module.exports = {
   fetchContent,
   fetchMultipleContents,
+  fetchMultipleAssets,
   searchContentsFromIds,
   searchCardsFromTags,
   fetchEventData,

@@ -1865,6 +1865,11 @@ const getFastNativeFeed = async (req, res) => {
       ids: contents,
       userId: req.user ? req.user.id : undefined,
     });
+
+    if (!actualContent) {
+      actualContent = [];
+    }
+
     actualContent = actualContent.reverse();
 
     // Map to maintain order and insert `commentsNum`
