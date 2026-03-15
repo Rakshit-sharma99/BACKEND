@@ -72,7 +72,7 @@ function cosineSimilarity(a, b) {
 async function getRepresentativeTextsForClusters(
   territoryCandidates,
   allNodes,
-  topK = MAX_REPRESENTATIVE_TEXTS
+  topK = MAX_REPRESENTATIVE_TEXTS,
 ) {
   // Index semantic nodes for fast lookup
   const nodeById = new Map();
@@ -109,13 +109,16 @@ async function getRepresentativeTextsForClusters(
 
     // Fetch domain documents
     const [clubs, communities] = await Promise.all([
-        fetchClubById({ids:clubIds,fields:["name","motto","tags"]}),
-        fetchCommunityById({ids:communityIds,fields:["title","label","tag"]})
+      fetchClubById({ ids: clubIds, fields: ["name", "motto", "tags"] }),
+      fetchCommunityById({
+        ids: communityIds,
+        fields: ["title", "label", "tag"],
+      }),
     ]);
 
     const clubById = new Map(clubs.map((c) => [c._id.toString(), c]));
     const communityById = new Map(
-      communities.map((c) => [c._id.toString(), c])
+      communities.map((c) => [c._id.toString(), c]),
     );
 
     // Build representative text payload
@@ -184,7 +187,7 @@ function extractJSON(text) {
 async function nameTerritoryWithLLM(
   representativeTexts,
   existingNames = [],
-  forbiddenWords = []
+  forbiddenWords = [],
 ) {
   const examples = representativeTexts
     .slice(0, MAX_REPRESENTATIVE_TEXTS)
@@ -199,7 +202,7 @@ async function nameTerritoryWithLLM(
   const forbiddenWordsBlock =
     forbiddenWords.length > 0
       ? `Avoid using these words or close variants:\n- ${forbiddenWords.join(
-          "\n- "
+          "\n- ",
         )}`
       : "";
 
@@ -270,14 +273,14 @@ function normalizeImportances(territories) {
 async function computeTerritoryImportanceFromNodes(nodeIds) {
   const nodes = await SemanticNode.find(
     { _id: { $in: nodeIds } },
-    { embedding: 0 }
+    { embedding: 0 },
   ).lean();
 
   const nodeCount = nodes.length;
 
   const totalImportance = nodes.reduce(
     (sum, n) => sum + (n.position?.importance || 0),
-    0
+    0,
   );
 
   const avgImportance = nodeCount > 0 ? totalImportance / nodeCount : 0;
@@ -313,9 +316,9 @@ function extractForbiddenWords(names) {
         name
           .toLowerCase()
           .split(/\s+/)
-          .filter((w) => w.length > 3 && !STOPWORDS.has(w))
-      )
-    )
+          .filter((w) => w.length > 3 && !STOPWORDS.has(w)),
+      ),
+    ),
   );
 }
 
@@ -527,13 +530,13 @@ const clusterSemanticNodes = async (req, res) => {
       territoryCandidates.map((t) => ({
         clusterId: t.clusterId,
         size: t.size,
-      }))
+      })),
     );
 
     // ---- Representative Texts ----
     const enrichedTerritories = await getRepresentativeTextsForClusters(
       territoryCandidates,
-      nodes
+      nodes,
     );
 
     // ---- LLM Naming ----
@@ -546,7 +549,7 @@ const clusterSemanticNodes = async (req, res) => {
       const label = await nameTerritoryWithLLM(
         territory.representativeTexts,
         usedNames,
-        forbiddenWords
+        forbiddenWords,
       );
 
       usedNames.push(label.name);
@@ -564,14 +567,14 @@ const clusterSemanticNodes = async (req, res) => {
     const rawRatedTerritories = await Promise.all(
       labeledTerritories.map(async (territory) => {
         const rawScore = await computeTerritoryImportanceFromNodes(
-          territory.memberNodeIds
+          territory.memberNodeIds,
         );
 
         return {
           ...territory,
           rawImportance: rawScore,
         };
-      })
+      }),
     );
     const ratedTerritories = normalizeImportances(rawRatedTerritories);
 
@@ -651,8 +654,9 @@ const getAllTerritories = async (req, res) => {
       {
         centroidEmbedding: 0,
         memberNodeIds: 0,
+        representativeTexts: 0,
         __v: 0,
-      }
+      },
     ).lean();
 
     return res.status(200).json({
@@ -709,7 +713,7 @@ const getDetailsOfTerritory = async (req, res) => {
       {
         embedding: 0,
         __v: 0,
-      }
+      },
     ).lean();
 
     return res.status(200).json({
