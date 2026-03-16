@@ -939,6 +939,51 @@ const getSemanticNodeCounts = async (req, res) => {
   }
 };
 
+/**
+ * Temporary controller to backfill uid for all semantic nodes
+ */
+const backfillSemanticNodeUid = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    const { uid } = req.body;
+
+    if (!uid) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "uid is required in the request body",
+      });
+    }
+
+    const result = await SemanticNode.updateMany(
+      {},
+      {
+        $set: {
+          uid: uid,
+        },
+      }
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Successfully updated ${result.modifiedCount} semantic nodes.`,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error backfilling semantic node data:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while backfilling semantic nodes.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getSemanticNodeCounts,
   deleteNodesByEntityType,
@@ -952,4 +997,5 @@ module.exports = {
   getSemanticNodeBounds,
   assignLocalSpatialCoordinates,
   getNodesForTerritory,
+  backfillSemanticNodeUid,
 };

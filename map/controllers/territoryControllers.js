@@ -757,6 +757,157 @@ const deleteAllTerritories = async (req, res) => {
   }
 };
 
+const searchTerritories = async (req, res) => {
+  try {
+    const { interests, q, limit = 5 } = req.query;
+
+    let queryArgs = [];
+    if (interests) {
+      const interestsArr = interests.split(",").map((i) => i.trim());
+      interestsArr.forEach((interest) => {
+        const regex = new RegExp(interest, "i");
+        queryArgs.push({ name: regex });
+        queryArgs.push({ description: regex });
+        queryArgs.push({ tags: regex });
+        queryArgs.push({ aliases: regex });
+      });
+    }
+    if (q) {
+      const regex = new RegExp(q, "i");
+      queryArgs.push({ name: regex });
+      queryArgs.push({ description: regex });
+      queryArgs.push({ tags: regex });
+      queryArgs.push({ aliases: regex });
+    }
+
+    let filter = {};
+    if (queryArgs.length > 0) {
+      filter = { $or: queryArgs };
+    }
+
+    const territories = await Territory.find(filter, {
+      centroidEmbedding: 0,
+      memberNodeIds: 0,
+      representativeTexts: 0,
+    })
+      .sort({ importanceScore: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    return res.status(200).json(territories);
+  } catch (error) {
+    console.error("Error searching territories:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to search territories",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Find territory and position for a given node id
+ */
+const getNodeTerritoryAndPosition = async (req, res) => {
+  try {
+    const { nodeId } = req.query;
+
+    if (!nodeId) {
+      return res.status(400).json({
+        success: false,
+        message: "nodeId is required",
+      });
+    }
+
+    // 1. Find the node to get its position
+    const node = await SemanticNode.findById(nodeId).lean();
+
+    if (!node) {
+      return res.status(404).json({
+        success: false,
+        message: "Node not found",
+      });
+    }
+
+    // 2. Find the territory that contains this node
+    const territory = await Territory.findOne({
+      memberNodeIds: String(nodeId),
+    }).lean();
+
+    return res.status(200).json({
+      success: true,
+      uid: territory.uid,
+      universeMetaData: territory.universeMetaData,
+      node: {
+        id: node._id,
+        entityType: node.entityType,
+        position: node.position,
+      },
+      territory: territory
+        ? {
+            id: territory._id,
+            name: territory.name,
+            clusterId: territory.clusterId,
+            spatial: territory.spatial,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Error finding territory and position for node:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to find territory and position for node",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Temporary controller to backfill uid and universeMetaData for all territories
+ */
+const backfillTerritoryUidAndUniverse = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    const { uid, universeMetaData } = req.body;
+
+    if (!uid || !universeMetaData) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "uid and universeMetaData are required in the request body",
+      });
+    }
+
+    const result = await Territory.updateMany(
+      {},
+      {
+        $set: {
+          uid: uid,
+          universeMetaData: universeMetaData,
+        },
+      },
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Successfully updated ${result.modifiedCount} territories.`,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error backfilling territory data:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while backfilling territories.",
+      error: error.message,
+    });
+  }
+};
+
 // ─────────────────────────────
 // Exports
 // ─────────────────────────────
@@ -765,4 +916,7 @@ module.exports = {
   getAllTerritories,
   getDetailsOfTerritory,
   deleteAllTerritories,
+  searchTerritories,
+  getNodeTerritoryAndPosition,
+  backfillTerritoryUidAndUniverse,
 };

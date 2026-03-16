@@ -12,6 +12,7 @@
 const { StatusCodes } = require("http-status-codes");
 const OpenAI = require("openai");
 const SemanticNode = require("../models/semanticNode");
+const Territory = require("../models/territory");
 const Asset = require("../models/asset");
 const { fetchAllClubs, fetchAllCommunities } = require("./utilControllers");
 
@@ -582,10 +583,251 @@ const refreshProfileFacetNodes = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════
+// Controller: Vector Search Profile Facet Nodes
+// ═══════════════════════════════════════
+/**
+ * Vector search through profile facet nodes.
+ * Clubs the resulting facets together by parentEntityId.
+ */
+const vectorSearchProfileFacets = async (req, res) => {
+  try {
+    const { query, limit = 20, useFallback = false } = req.body;
+
+    if (!query) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "query is required for vector search.",
+      });
+    }
+
+    // Bypass Atlas Vector Search entirely if requested for debugging
+    if (useFallback) {
+      throw new Error("vectorSearch bypass requested via useFallback");
+    }
+
+    let queryEmbedding;
+    try {
+      queryEmbedding = await embedText(query);
+    } catch (err) {
+      return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+        message: "Failed to generate embedding for the query.",
+        error: err.message,
+      });
+    }
+
+    const pipeline = [
+      {
+        $vectorSearch: {
+          index: "vector_index",
+          path: "embedding",
+          queryVector: queryEmbedding,
+          numCandidates: limit * 10,
+          limit: Number(limit) * 3, // over-fetch to group
+          filter: { entityType: "profile_facet" },
+        },
+      },
+      {
+        $group: {
+          _id: "$parentEntityId",
+          facets: {
+            $push: {
+              nodeId: "$_id",
+              facetId: "$facetId",
+              text: "$text",
+              meta: "$meta",
+              score: { $meta: "vectorSearchScore" },
+            },
+          },
+          highestScore: { $max: { $meta: "vectorSearchScore" } },
+        },
+      },
+      { $sort: { highestScore: -1 } },
+      { $limit: Number(limit) },
+    ];
+
+    const results = await SemanticNode.aggregate(pipeline);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      count: results.length,
+      data: results,
+    });
+  } catch (error) {
+    console.error("[ProfileFacet] Vector Search error:", error);
+
+    // Fallback manual cosine sim
+    if (error.message.includes("vectorSearch") || req.body.useFallback) {
+      try {
+        const queryEmbedding = await embedText(req.body.query);
+        const nodes = await SemanticNode.find({ entityType: "profile_facet" }).lean();
+
+        const cosineSimilarity = (a, b) => {
+          let dot = 0, normA = 0, normB = 0;
+          for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; normA += a[i] * a[i]; normB += b[i] * b[i]; }
+          return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+        };
+
+        const scored = nodes.map(node => ({
+          ...node,
+          score: node.embedding ? cosineSimilarity(node.embedding, queryEmbedding) : 0
+        })).sort((a, b) => b.score - a.score).slice(0, Number(req.body.limit || 20) * 3);
+
+        const grouped = scored.reduce((acc, node) => {
+          const parent = String(node.parentEntityId);
+          if (!acc[parent]) acc[parent] = { _id: parent, facets: [], highestScore: 0 };
+          
+          acc[parent].facets.push({
+            nodeId: node._id,
+            facetId: node.facetId,
+            text: node.text,
+            meta: node.meta,
+            score: node.score,
+          });
+          
+          if (node.score > acc[parent].highestScore) acc[parent].highestScore = node.score;
+          return acc;
+        }, {});
+
+        const finalResults = Object.values(grouped)
+          .sort((a, b) => b.highestScore - a.highestScore)
+          .slice(0, Number(req.body.limit || 20));
+
+        return res.status(StatusCodes.OK).json({
+          success: true,
+          count: finalResults.length,
+          data: finalResults,
+          fallback: true
+        });
+
+      } catch (fallbackError) {
+        console.error("[ProfileFacet] Fallback Search error:", fallbackError);
+      }
+    }
+
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred during vector search.",
+      error: error.message,
+    });
+  }
+};
+
+// ═══════════════════════════════════════
+// Controller: Meta Search Profile Facet Nodes
+// ═══════════════════════════════════════
+/**
+ * Text/Regex search through profile facet nodes meta fields.
+ * Clubs the resulting facets together by parentEntityId.
+ */
+const metaSearchProfileFacets = async (req, res) => {
+  try {
+    const { metaQuery, limit = 20 } = req.body;
+
+    if (!metaQuery) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "metaQuery is required for meta search.",
+      });
+    }
+
+    const regexMatch = new RegExp(metaQuery, "i");
+
+    const pipeline = [
+      {
+        $match: {
+          entityType: "profile_facet",
+          $or: [
+            { "meta.name": { $regex: regexMatch } },
+            { "meta.facetLabel": { $regex: regexMatch } },
+            { text: { $regex: regexMatch } },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: "$parentEntityId",
+          facets: {
+            $push: {
+              nodeId: "$_id",
+              facetId: "$facetId",
+              text: "$text",
+              meta: "$meta",
+            },
+          },
+        },
+      },
+      { $limit: Number(limit) },
+    ];
+
+    const results = await SemanticNode.aggregate(pipeline);
+
+    // Collect all node IDs across all grouped facets
+    const allNodeIds = [];
+    results.forEach((group) => {
+      group.facets.forEach((facet) => {
+        allNodeIds.push(String(facet.nodeId));
+      });
+    });
+
+    // Find all territories that contain any of these facets
+    const territories = await Territory.find({
+      memberNodeIds: { $in: allNodeIds },
+    })
+      .select("memberNodeIds uid universeMetaData")
+      .lean();
+
+    // Build a map of nodeId -> territory data for fast lookup
+    const nodeToTerritoryMap = {};
+    territories.forEach((territory) => {
+      territory.memberNodeIds.forEach((memberId) => {
+        if (allNodeIds.includes(memberId)) {
+          nodeToTerritoryMap[memberId] = {
+            territoryId: territory._id,
+            uid: territory.uid,
+            universeMetaData: territory.universeMetaData,
+          };
+        }
+      });
+    });
+
+    // Attach territory data to the results
+    const enrichedResults = results.map((group) => {
+      return {
+        ...group,
+        facets: group.facets.map((facet) => {
+          const tData = nodeToTerritoryMap[String(facet.nodeId)] || {};
+          return {
+            ...facet,
+            territoryId: tData.territoryId || null,
+            uid: tData.uid || null,
+            universeMetaData: tData.universeMetaData || null,
+          };
+        }),
+      };
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      count: enrichedResults.length,
+      data: enrichedResults,
+    });
+  } catch (error) {
+    console.error("[ProfileFacet] Meta Search error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred during meta search.",
+      error: error.message,
+    });
+  }
+};
+
 // ───────────────────────────────────────
 // Exports
 // ───────────────────────────────────────
 module.exports = {
   createProfileFacetNodes,
   refreshProfileFacetNodes,
+  vectorSearchProfileFacets,
+  metaSearchProfileFacets,
 };

@@ -33,7 +33,7 @@ const EVENT_URL = process.env.EVENT_URL || "http://event:5060/event/api/v1";
 const UNIVERSE_URL =
   process.env.UNIVERSE_URL || "http://universe:5050/universe/api/v1";
 const MULTIVERSE_URL =
-  process.env.MULTIVERSE_URL || "http://multiverse:5070/multiverse/api/v1";
+  process.env.MULTIVERSE_URL || "http://multiverse:5020/multiverse/api/v1";
 const IPLS_URL = process.env.IPLS_URL || "http://ipls:5080/ipls/api/v1";
 
 // ────────────────────────────────────────────────
@@ -45,7 +45,7 @@ const IPLS_URL = process.env.IPLS_URL || "http://ipls:5080/ipls/api/v1";
  */
 async function search_territories({ interests }, user) {
   try {
-    const res = await axios.get(`${MAP_URL}/searchTerritories`, {
+    const res = await axios.get(`${MAP_URL}/territory/searchTerritories`, {
       params: { interests: interests.join(","), uid: user.uid },
       headers: internalHeaders(),
     });
@@ -181,6 +181,62 @@ async function send_message({ recipientIds, message }, user) {
   }
 }
 
+/**
+ * Get top universes by popularity.
+ */
+async function top_universes({ limit = 5 }, user) {
+  try {
+    const res = await axios.get(
+      `${MULTIVERSE_URL}/universe/getPopularUniverses`,
+      {
+        params: { limit },
+        headers: internalHeaders(),
+      },
+    );
+    console.log(res.data);
+    return res.data;
+  } catch (err) {
+    console.error("top_universes error:", err.message);
+    return { error: true, message: "Could not fetch top universes right now." };
+  }
+}
+
+/**
+ * Search universes by query string.
+ */
+async function search_universe({ q }, user) {
+  try {
+    const res = await axios.get(`${MULTIVERSE_URL}/universe/searchUniverse`, {
+      params: { q },
+      headers: internalHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("search_universe error:", err.message);
+    return { error: true, message: "Could not search universes right now." };
+  }
+}
+
+/**
+ * Search user nodes on the map by name.
+ */
+async function search_nodes_by_name({ name }, user) {
+  try {
+    const res = await axios.post(
+      `${MAP_URL}/nodes/metaSearchProfileFacets`,
+      { metaQuery: name, limit: 10 },
+      { headers: internalHeaders() },
+    );
+    return res.data;
+  } catch (err) {
+    console.error("search_nodes_by_name error:", err.message);
+    return {
+      error: true,
+      message: "Could not search nodes by name right now.",
+    };
+  }
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -193,6 +249,9 @@ const TOOL_HANDLERS = {
   search_alumni,
   compute_similarity,
   send_message,
+  top_universes,
+  search_universe,
+  search_nodes_by_name,
 };
 
 /**

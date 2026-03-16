@@ -11,7 +11,9 @@
  * 7. Close the SSE connection
  */
 
-const { createChat } = require("../llm/geminiClient");
+// Toggle between Gemini and OpenAI by commenting/uncommenting the appropriate line below:
+// const { createChat } = require("../llm/geminiClient");
+const { createChat } = require("../llm/openaiClient");
 const { executeTool } = require("../handlers/toolHandlers");
 const {
   getOrCreateSession,
@@ -69,7 +71,7 @@ const chat = async (req, res) => {
 
       // Check for function calls
       const functionCalls = candidate.content?.parts?.filter(
-        (p) => p.functionCall
+        (p) => p.functionCall,
       );
 
       if (functionCalls && functionCalls.length > 0) {
@@ -123,6 +125,7 @@ const chat = async (req, res) => {
 
     // ── Send clickable buttons if any ──
     if (cards.length > 0) {
+      console.log(`Sending ${cards.length} buttons to frontend:`);
       sendSSE("buttons", { buttons: cards });
     }
 
@@ -147,7 +150,7 @@ const chat = async (req, res) => {
  */
 function extractButtons(toolName, rawResult) {
   // Normalise input – some endpoints return an array directly,
-  // others wrap it inside { data: [] } or { results: [] }.
+  // others wrap it inside { data: [] } or { results: [] } or { territories: [] }.
   const items = Array.isArray(rawResult)
     ? rawResult
     : rawResult.data
@@ -156,16 +159,21 @@ function extractButtons(toolName, rawResult) {
         : [rawResult.data]
       : rawResult.results
         ? rawResult.results
-        : [];
+        : rawResult.territories
+          ? rawResult.territories
+          : [];
 
   if (items.length === 0) return [];
+
+  console.log(items);
 
   const extractors = {
     search_clubs: (item) => ({
       id: item._id || item.id,
       type: "club",
       label: item.name,
-      subtitle: item.motto || (item.tags && item.tags.slice(0, 3).join(", ")) || "",
+      subtitle:
+        item.motto || (item.tags && item.tags.slice(0, 3).join(", ")) || "",
       image: item.secondaryImg || null,
       meta: {
         membersCount: item.membersCount,
@@ -173,14 +181,22 @@ function extractButtons(toolName, rawResult) {
       },
     }),
 
-    search_territories: (item) => ({
-      id: item._id || item.id,
-      type: "territory",
-      label: item.name || item.title,
-      subtitle: item.description || "",
-      image: item.image || null,
-      meta: {},
-    }),
+    search_territories: (item, index) => {
+      // Strip heavy spatial/geometry data to keep SSE payload small
+      const {
+        spatial,
+        centroidEmbedding,
+        memberNodeIds,
+        representativeTexts,
+        ...lightTerritory
+      } = item;
+      console.log("lightTerritory", lightTerritory);
+      return {
+        id: item._id || item.id,
+        type: "territory",
+        label: item.name || item.title,
+      };
+    },
 
     get_upcoming_events: (item) => ({
       id: item._id || item.id,
@@ -211,9 +227,50 @@ function extractButtons(toolName, rawResult) {
       image: item.image || item.img || null,
       meta: { company: item.company },
     }),
+    search_universe: (item) => ({
+      id: item._id || item.id || item.uid,
+      type: "universe",
+      label: item.name,
+      subtitle: item.callSign || item.location || "",
+      image: item.logoKey || null,
+      meta: { rank: item.rank },
+      lat: item.lat,
+      lng: item.lng,
+      action: {
+        mode: "navigate",
+        navigateTo: "mapLanding",
+        params: {
+          selectedUniverse: item,
+        },
+      },
+    }),
+
+    search_nodes_by_name: (item) => {
+      const firstFacet = item.facets && item.facets[0];
+      const meta = (firstFacet && firstFacet.meta) || {};
+      return {
+        id: item._id, // parentEntityId which is the userId
+        type: "profile",
+        label: meta.name || "User",
+        subtitle: meta.facetLabel || "Found on map",
+        image: meta.image || null,
+        meta: {},
+        action: {
+          mode: "navigate",
+          navigateTo: "universeTerritoryMap",
+          params: {
+            selectedNodeId: firstFacet ? firstFacet.nodeId : null,
+            universe: firstFacet?.universeMetaData,
+            uid: firstFacet?.uid,
+          },
+        },
+      };
+    },
   };
 
   const extractor = extractors[toolName];
+
+  console.log(extractor);
 
   // Fallback: pass items through with a generic shape
   if (!extractor) {

@@ -133,6 +133,50 @@ const tools = [
           required: ["recipientIds", "message"],
         },
       },
+      {
+        name: "search_universe",
+        description:
+          "Search for a universe on the platform by its name, call sign, or location.",
+        parameters: {
+          type: "object",
+          properties: {
+            q: {
+              type: "string",
+              description: "The search query (e.g. name, location, or acronym).",
+            },
+          },
+          required: ["q"],
+        },
+      },
+      {
+        name: "top_universes",
+        description:
+          "Get the top universes on the platform ranked by popularity or activity.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: {
+              type: "number",
+              description: "Maximum number of universes to return. Default 5.",
+            },
+          },
+        },
+      },
+      {
+        name: "search_nodes_by_name",
+        description:
+          "Search for users by name on the semantic map. Returns user profiles mapping to nodes.",
+        parameters: {
+          type: "object",
+          properties: {
+            name: {
+              type: "string",
+              description: "The name of the user to search for on the map.",
+            },
+          },
+          required: ["name"],
+        },
+      },
     ],
   },
 ];

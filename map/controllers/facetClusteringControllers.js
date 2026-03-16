@@ -586,9 +586,177 @@ const clusterFacetsIntoTerritories = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════
+// Controller: Assign Facet Spatial Coordinates
+// ═══════════════════════════════════════
+/**
+ * After clusterFacetsIntoTerritories has run, this controller:
+ * 1. For each facet territory, fetches member nodes (with embeddings + centroid)
+ * 2. Scores each node by cosine similarity to the territory centroid
+ * 3. Places nodes using golden-angle spiral: higher similarity → closer to center
+ * 4. Resolves collisions so nodes don't overlap
+ * 5. Converts to world-space and bulk-writes position to the DB
+ */
+const assignFacetSpatialCoordinates = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    console.log("[FacetSpatial] Fetching facet territories...");
+
+    // Fetch all facet territories (need centroid for similarity scoring)
+    const territories = await Territory.find({ source: "facet" })
+      .select("+centroidEmbedding") // centroidEmbedding is select:false by default
+      .lean();
+
+    if (!territories.length) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "No facet territories found. Run clusterFacetsIntoTerritories first.",
+      });
+    }
+
+    let totalProcessed = 0;
+
+    for (const territory of territories) {
+      const { memberNodeIds, spatial, centroidEmbedding } = territory;
+
+      if (!memberNodeIds?.length || !spatial) continue;
+
+      // Fetch member nodes with embeddings
+      const nodes = await SemanticNode.find({
+        _id: { $in: memberNodeIds },
+      }).lean();
+
+      if (!nodes.length) continue;
+
+      // ── Score each node by cosine similarity to centroid ──
+      const scored = nodes.map((node) => {
+        const sim =
+          node.embedding && centroidEmbedding
+            ? cosineSimilarity(node.embedding, centroidEmbedding)
+            : 0;
+        return { node, similarity: sim };
+      });
+
+      // Sort by similarity descending (most similar first → placed closer to center)
+      scored.sort((a, b) => b.similarity - a.similarity);
+
+      // ── Normalize similarity scores to [0, 1] ──
+      const sims = scored.map((s) => s.similarity);
+      const simMin = Math.min(...sims);
+      const simMax = Math.max(...sims);
+      const simRange = simMax - simMin || 1;
+
+      const maxR = spatial.radius * 0.85;
+      const NODE_VISUAL_RADIUS = 10;
+
+      // Create 3-5 random "continents" (sub-centers) to create uneven density
+      const numAnchors = 3 + Math.floor(Math.random() * 3);
+      const anchors = Array.from({ length: numAnchors }, () => Math.random() * Math.PI * 2);
+
+      const bodies = scored.map(({ node, similarity }) => {
+        const normSim = (similarity - simMin) / simRange; // 1 = most similar
+
+        // Similarity biases toward center
+        const bandLow = (1 - normSim) * maxR * 0.3;
+        const bandHigh = maxR * (0.4 + (1 - normSim) * 0.6);
+        const r = bandLow + Math.random() * (bandHigh - bandLow);
+
+        // Pick a random anchor to cluster around
+        const baseAngle = anchors[Math.floor(Math.random() * anchors.length)];
+        
+        // Add Gaussian-like noise to cluster around the anchor (leaves empty spaces between)
+        // Sum of 3 uniform distributions approximates Gaussian
+        const noise = (Math.random() + Math.random() + Math.random() - 1.5) * 1.5; 
+        const angle = baseAngle + noise;
+
+        return {
+          nodeId: node._id,
+          x: Math.cos(angle) * r,
+          y: Math.sin(angle) * r,
+          r: NODE_VISUAL_RADIUS,
+        };
+      });
+
+      // ── Collision resolution ──
+      const padding = 4;
+      for (let iter = 0; iter < 60; iter++) {
+        for (let i = 0; i < bodies.length; i++) {
+          for (let j = i + 1; j < bodies.length; j++) {
+            const A = bodies[i];
+            const B = bodies[j];
+
+            const dx = B.x - A.x;
+            const dy = B.y - A.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 0.0001;
+            const minDist = A.r + B.r + padding;
+
+            if (dist < minDist) {
+              const overlap = (minDist - dist) / 2;
+              const nx = dx / dist;
+              const ny = dy / dist;
+
+              A.x -= nx * overlap;
+              A.y -= ny * overlap;
+              B.x += nx * overlap;
+              B.y += ny * overlap;
+            }
+          }
+        }
+      }
+
+      // ── Convert to world space + bulk write ──
+      const cx = spatial.center.cx;
+      const cy = spatial.center.cy;
+
+      const bulkOps = bodies.map((body) => ({
+        updateOne: {
+          filter: { _id: body.nodeId },
+          update: {
+            $set: {
+              "position.x": cx + body.x,
+              "position.y": cy + body.y,
+              "position.zMin": spatial.zMin || 0,
+              "position.zMax": spatial.zMax || 0.8,
+            },
+          },
+        },
+      }));
+
+      if (bulkOps.length) {
+        await SemanticNode.bulkWrite(bulkOps);
+      }
+
+      totalProcessed += bodies.length;
+
+      console.log(
+        `[FacetSpatial] Territory "${territory.name}": placed ${bodies.length} nodes`,
+      );
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Facet spatial coordinates assigned successfully.",
+      territoriesProcessed: territories.length,
+      nodesProcessed: totalProcessed,
+    });
+  } catch (error) {
+    console.error("[FacetSpatial] Error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while assigning facet spatial coordinates.",
+      error: error.message,
+    });
+  }
+};
+
 // ─────────────────────────────
 // Exports
 // ─────────────────────────────
 module.exports = {
   clusterFacetsIntoTerritories,
+  assignFacetSpatialCoordinates,
 };

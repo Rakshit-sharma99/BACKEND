@@ -5,6 +5,12 @@ const semanticNodeSchema = new mongoose.Schema(
     entityId: mongoose.Types.ObjectId,
     parentEntityId: mongoose.Types.ObjectId, // For multi-facet nodes (e.g. profile -> facets)
 
+    uid: {
+      type: String,
+      index: true,
+      required: true,
+    },
+
     entityType: {
       type: String,
       enum: ["club", "community", "profile", "event", "profile_facet"],
@@ -59,7 +65,7 @@ const semanticNodeSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("SemanticNode", semanticNodeSchema);
