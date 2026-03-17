@@ -81,8 +81,6 @@ const walletTransactionSchema = new mongoose.Schema(
     razorpayPaymentId: {
       type: String,
       default: null,
-      unique: true,
-      sparse: true,
     },
     relatedEntityId: {
       type: String,
