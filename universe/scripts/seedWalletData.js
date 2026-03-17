@@ -47,7 +47,7 @@ function buildTransactions(walletId, clubId) {
   const badgeAwardId = new mongoose.Types.ObjectId().toString();
   const certAwardId = new mongoose.Types.ObjectId().toString();
 
-  return [
+  const txns = [
     // ── TICKET_SALE credits (simulating multiple purchases for 2 events) ──
     ...Array.from({ length: 8 }, (_, i) => ({
       walletId,
@@ -58,8 +58,7 @@ function buildTransactions(walletId, clubId) {
       amountPaise: 25000 + i * 500, // ₹250 – ₹285 range
       currency: "INR",
       sourceType: "RAZORPAY_PAYMENT",
-      sourceId: `pay_mock_ticket_${i}`,
-      razorpayPaymentId: `pay_mock_ticket_${i}`,
+      sourceId: `pay_mock_ticket_${uid()}_${i}`,
       relatedEntityId: i < 5 ? eventId1 : eventId2,
       idempotencyKey: `idem_ticket_${uid()}`,
       metadata: {
@@ -87,8 +86,7 @@ function buildTransactions(walletId, clubId) {
       amountPaise: 75000, // ₹750
       currency: "INR",
       sourceType: "RAZORPAY_PAYMENT",
-      sourceId: "pay_mock_merch_1",
-      razorpayPaymentId: "pay_mock_merch_1",
+      sourceId: `pay_mock_merch_${uid()}`,
       relatedEntityId: uid(),
       idempotencyKey: `idem_merch_${uid()}`,
       metadata: { label: "Merchandise – Club T-Shirt Bundle", quantity: 5 },
@@ -253,6 +251,7 @@ function buildTransactions(walletId, clubId) {
       updatedAt: daysAgo(2),
     },
   ];
+  return txns.map(t => ({...t, razorpayPaymentId: t.razorpayPaymentId || `pay_mock_dummy_${uid()}` }));
 }
 
 // ─── Main ──────────────────────────────────────────────────────
@@ -293,7 +292,7 @@ async function main() {
       accountHolderName: "Test Club Account",
       maskedAccountNumber: "********1234",
       ifscCode: "SBIN0001234",
-      encryptedPayload: null, // skipping encryption for mock data
+      encryptedPayload: "MOCK_ENCRYPTED_PAYLOAD_FOR_TESTING", // non-null so withdrawal guard passes
       lastUpdatedBy: MOCK_ACTOR_ID.toString(),
       lastUpdatedAt: daysAgo(20),
     },
