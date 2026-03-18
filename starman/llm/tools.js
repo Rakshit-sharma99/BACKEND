@@ -177,6 +177,146 @@ const tools = [
           required: ["name"],
         },
       },
+      {
+        name: "navigate_to_node",
+        description:
+          "Navigate the map to focus on a specific node. Use this when the user wants to see, explore, or zoom into a node that was returned by a previous search (e.g. search_nodes_by_name). Pass the nodeId from the earlier search result.",
+        parameters: {
+          type: "object",
+          properties: {
+            nodeId: {
+              type: "string",
+              description:
+                "The ID of the semantic node to navigate to (from a previous search result).",
+            },
+          },
+          required: ["nodeId"],
+        },
+      },
+      {
+        name: "app_navigate",
+        description:
+          "Navigate the user to any screen in the app. Use the screen names from your NAVIGATION knowledge. For simple screens (no params), just pass the screen name. For screens needing params (like club or community), also pass a query string so the system can resolve the right entity.",
+        parameters: {
+          type: "object",
+          properties: {
+            screen: {
+              type: "string",
+              description:
+                "The screen name to navigate to (e.g. 'explore', 'club', 'chat', 'memoryList')",
+            },
+            query: {
+              type: "string",
+              description:
+                "Optional search query to resolve params. For example, 'coding' to find a coding club the user is in.",
+            },
+          },
+          required: ["screen"],
+        },
+      },
+      {
+        name: "app_action",
+        description:
+          "Perform a client-side app action such as opening/closing the sidebar, toggling dark/light mode, or logging out. Use this when the user asks to change a UI setting or perform an account action.",
+        parameters: {
+          type: "object",
+          properties: {
+            action: {
+              type: "string",
+              description:
+                "The action to perform. One of: 'toggle_sidebar', 'toggle_theme', 'logout'",
+            },
+          },
+          required: ["action"],
+        },
+      },
+      {
+        name: "search_my_tickets",
+        description:
+          "Search for tickets the current user has bought. Use this to check if the user has a ticket for a specific event, count total tickets, find active or upcoming tickets, etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            eventName: {
+              type: "string",
+              description:
+                "Optional event name to search for (fuzzy match). E.g. 'Movie Night' or 'Sunburn'",
+            },
+            status: {
+              type: "string",
+              description:
+                "Optional ticket status filter. One of: 'active', 'redeemed', 'refunded', 'expired'",
+            },
+            upcoming: {
+              type: "boolean",
+              description:
+                "If true, only return tickets for events that haven't happened yet",
+            },
+          },
+        },
+      },
+      {
+        name: "search_content_qa",
+        description:
+          "Search through all club and community posts to answer a knowledge or factual question. Use this when the user asks a question that might be answered by content posted in clubs or communities (e.g. 'Did Ishan Kishan visit LPU?', 'What is Edu-Rev?', 'When is next holiday?'). Returns matching posts from which you should synthesize a concise answer.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "The user's question or search query to find relevant posts",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "web_search_fallback",
+        description:
+          "Search the internet for an answer when no relevant content was found in campus posts. Only use this AFTER search_content_qa returned no results. Returns an answer from the internet.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description: "The question to search the internet for",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "post_question_to_community",
+        description:
+          "Post a question on behalf of the user in the most relevant community. Use this only when the user explicitly confirms they want their question posted after no answer was found.",
+        parameters: {
+          type: "object",
+          properties: {
+            question: {
+              type: "string",
+              description: "The question text to post in the community",
+            },
+          },
+          required: ["question"],
+        },
+      },
+      {
+        name: "search_communities",
+        description:
+          "Search for relevant communities by name, tags, or topic. Use this when the user asks to find communities related to a topic, wants to join a community, or needs to browse available communities. Returns matching communities with their details.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "Search query — a topic, interest, or community name to search for, e.g. 'cricket', 'coding', 'photography club'",
+            },
+          },
+          required: ["query"],
+        },
+      },
     ],
   },
 ];

@@ -3,7 +3,6 @@
  */
 
 const { OpenAI } = require("openai");
-const SYSTEM_PROMPT = require("./systemPrompt");
 const tools = require("./tools");
 
 const openai = new OpenAI({
@@ -23,9 +22,9 @@ const openaiTools = tools[0].functionDeclarations.map((fn) => ({
 /**
  * Creates an OpenAI chat session that mimics Gemini's streaming interface
  */
-function createChat(history = []) {
+function createChat(history = [], systemPrompt = "") {
   // Store the conversation messages for this specific instance
-  let messages = [{ role: "system", content: SYSTEM_PROMPT }];
+  let messages = [{ role: "system", content: systemPrompt }];
 
   // Convert Gemini history format to OpenAI format
   // Gemini history item: { role: "user" | "model", parts: [{ text: "..." }] }

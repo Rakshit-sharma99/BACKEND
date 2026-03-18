@@ -1627,6 +1627,175 @@ const getUserCommunityPosts = async (req, res) => {
   }
 };
 
+/**
+ * Hybrid search for Starman Q&A — combines vector search (semantic)
+ * with regex text search to find relevant posts for a user question.
+ */
+const searchContentQA = async (req, res) => {
+  try {
+    const { query, uid } = req.body;
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Query is required.", found: false });
+    }
+
+    // 1. Generate embedding for semantic search
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query.trim(),
+      encoding_format: "float",
+    });
+
+    const embeddingVector = embeddingResponse?.data?.[0]?.embedding;
+
+    // 2. Run vector search + text search in parallel
+    // Extract meaningful keywords (strip stop words) for text search
+    const STOP_WORDS = new Set([
+      "did", "does", "do", "is", "are", "was", "were", "will", "would",
+      "can", "could", "should", "has", "have", "had", "been", "being",
+      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+      "for", "of", "with", "by", "from", "it", "its", "this", "that",
+      "what", "when", "where", "who", "how", "why", "which",
+      "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
+      "about", "any", "tell", "know", "find", "show", "get",
+      "visit", "visited", "come", "came", "going", "go", "went",
+      "next", "last", "new", "like", "also", "just", "very",
+    ]);
+
+    const keywords = query
+      .trim()
+      .replace(/[?!.,;:'"()]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !STOP_WORDS.has(w.toLowerCase()));
+
+    // Build aggregation that scores posts by how many keywords they match
+    const minMatches = keywords.length > 1 ? 2 : 1;
+
+    const keywordMatchFields = keywords.map((kw, i) => ({
+      [`_kw${i}`]: {
+        $cond: [
+          {
+            $regexMatch: {
+              input: { $concat: [{ $ifNull: ["$text", ""] }, " ", { $ifNull: ["$title", ""] }] },
+              regex: kw,
+              options: "i",
+            },
+          },
+          1,
+          0,
+        ],
+      },
+    }));
+
+    const scoreExpr =
+      keywords.length > 0
+        ? { $add: keywords.map((_, i) => `$_kw${i}`) }
+        : { $literal: 0 };
+
+    const textSearchPipeline =
+      keywords.length > 0
+        ? Content.aggregate([
+            {
+              $match: {
+                $or: keywords.map((kw) => ({
+                  $or: [
+                    { text: { $regex: new RegExp(kw, "i") } },
+                    { title: { $regex: new RegExp(kw, "i") } },
+                  ],
+                })),
+              },
+            },
+            { $addFields: Object.assign({}, ...keywordMatchFields) },
+            { $addFields: { _kwScore: scoreExpr } },
+            { $match: { _kwScore: { $gte: minMatches } } },
+            { $sort: { _kwScore: -1 } },
+            { $limit: 10 },
+            { $project: { vector: 0, comments: 0, ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])) } },
+          ])
+        : Content.find({ text: { $regex: new RegExp(query.trim(), "i") } }, { vector: 0, comments: 0 })
+            .limit(10)
+            .lean();
+
+    const [vectorResults, textResults] = await Promise.all([
+      // Semantic / vector search
+      embeddingVector && Array.isArray(embeddingVector)
+        ? Content.aggregate([
+            {
+              $vectorSearch: {
+                queryVector: embeddingVector,
+                path: "vector",
+                numCandidates: 200,
+                limit: 10,
+                index: "vector_index",
+              },
+            },
+            {
+              $addFields: {
+                searchScore: { $meta: "vectorSearchScore" },
+                commentsNum: { $size: "$comments" },
+              },
+            },
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+              },
+            },
+          ])
+        : Promise.resolve([]),
+
+      // Text / keyword search — ranked by keyword match count
+      textSearchPipeline,
+    ]);
+
+    // 3. Merge and deduplicate — text matches first (exact), then vector (semantic)
+    const seen = new Set();
+    const merged = [];
+
+    // Text results first (exact keyword matches, always relevant)
+    for (const doc of textResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id)) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "text" });
+      }
+    }
+    // Then vector results (only if score is high enough to be truly relevant)
+    for (const doc of vectorResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id) && (doc.searchScore || 0) >= 0.75) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "vector" });
+      }
+    }
+
+    // 4. Trim to top 3 most relevant — return full docs for expandPost navigation
+    const results = merged.slice(0, 3).map((doc) => {
+      const cleaned = { ...doc };
+      delete cleaned.vector;
+      delete cleaned._source;
+      delete cleaned._kwScore;
+      // Add commentsNum convenience field
+      if (!cleaned.commentsNum && cleaned.comments) {
+        cleaned.commentsNum = cleaned.comments.length;
+      }
+      return cleaned;
+    });
+
+    return res.status(StatusCodes.OK).json({
+      results,
+      found: results.length > 0,
+    });
+  } catch (error) {
+    console.error("searchContentQA error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong.", found: false });
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1655,4 +1824,5 @@ module.exports = {
   uploadToS3,
   insertNewFields,
   getUserCommunityPosts,
+  searchContentQA,
 };

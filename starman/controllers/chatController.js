@@ -15,6 +15,7 @@
 // const { createChat } = require("../llm/geminiClient");
 const { createChat } = require("../llm/openaiClient");
 const { executeTool } = require("../handlers/toolHandlers");
+const buildSystemPrompt = require("../llm/systemPrompt");
 const {
   getOrCreateSession,
   updateHistory,
@@ -24,7 +25,7 @@ const {
 /**
  * POST /starman/api/v1/chat
  *
- * Body: { message: string, sessionId?: string }
+ * Body: { message: string, sessionId?: string, navContext?: object }
  * Response: SSE stream
  *
  * SSE event types:
@@ -34,7 +35,7 @@ const {
  *   error   – { message }
  */
 const chat = async (req, res) => {
-  const { message, sessionId } = req.body;
+  const { message, sessionId, navContext } = req.body;
   const user = req.user; // from JWT middleware: { id, uid, callSign, role }
 
   if (!message || !message.trim()) {
@@ -56,7 +57,8 @@ const chat = async (req, res) => {
   try {
     // ── Session ──
     const session = getOrCreateSession(sessionId, user.id);
-    const chat = createChat(session.history);
+    const systemPrompt = buildSystemPrompt(navContext || {});
+    const chat = createChat(session.history, systemPrompt);
 
     // ── Send message to Gemini (streaming) ──
     let result = await chat.sendMessageStream(message);
@@ -151,6 +153,7 @@ const chat = async (req, res) => {
 function extractButtons(toolName, rawResult) {
   // Normalise input – some endpoints return an array directly,
   // others wrap it inside { data: [] } or { results: [] } or { territories: [] }.
+  // Single-object responses (e.g. navigate_to_node) get wrapped as [rawResult].
   const items = Array.isArray(rawResult)
     ? rawResult
     : rawResult.data
@@ -161,7 +164,11 @@ function extractButtons(toolName, rawResult) {
         ? rawResult.results
         : rawResult.territories
           ? rawResult.territories
-          : [];
+          : rawResult.tickets
+            ? rawResult.tickets
+            : rawResult.success
+              ? [rawResult]
+              : [];
 
   if (items.length === 0) return [];
 
@@ -250,7 +257,7 @@ function extractButtons(toolName, rawResult) {
       const meta = (firstFacet && firstFacet.meta) || {};
       return {
         id: item._id, // parentEntityId which is the userId
-        type: "profile",
+        type: "click-navigation",
         label: meta.name || "User",
         subtitle: meta.facetLabel || "Found on map",
         image: meta.image || null,
@@ -266,6 +273,158 @@ function extractButtons(toolName, rawResult) {
         },
       };
     },
+
+    navigate_to_node: (item) => ({
+      id: item.node?.id || null,
+      type: "auto-navigation",
+      label: "Navigate to node",
+      subtitle: item.territory?.name || "On the map",
+      image: null,
+      meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: "universeTerritoryMap",
+        params: {
+          selectedNodeId: item.node?.id || null,
+          universe: item.universeMetaData || null,
+          uid: item.uid || null,
+        },
+      },
+    }),
+
+    app_navigate: (item) => ({
+      id: null,
+      type: "auto-navigation",
+      label: item.screen,
+      subtitle: item.tab || "",
+      image: null,
+      meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: item.screen,
+        tab: item.tab || null,
+        params: item.params || {},
+      },
+    }),
+
+    app_action: (item) => ({
+      id: null,
+      type: "app-action",
+      label: item.action,
+      subtitle: "",
+      image: null,
+      meta: {},
+      action: {
+        mode: "app_action",
+        actionName: item.action,
+      },
+    }),
+
+    search_my_tickets: (item) => ({
+      id: item.ticketId || null,
+      type: "ticket",
+      label: item.eventName || "Ticket",
+      subtitle: [
+        item.ticketType,
+        item.ticketStatus,
+        item.eventDate ? new Date(item.eventDate).toLocaleDateString() : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: item.eventImage || null,
+      meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: "yourTickets",
+        tab: "Home",
+        params: {
+          belongsTo: item.belongsTo,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          eventDate: item.eventDate,
+          eventEndDate: item.eventEndDate,
+          name: item.eventName,
+          place: item.eventPlace,
+          url: item.eventUrl,
+          ticketData: item,
+        },
+      },
+    }),
+
+    search_content_qa: (item) => ({
+      id: item._id || item.id || null,
+      type: "source-post",
+      label:
+        item.title || (item.text ? item.text.substring(0, 60) + "…" : "Post"),
+      subtitle: [
+        item.params?.clubTitle || item.params?.communityTitle || "",
+        item.timeStamp ? new Date(item.timeStamp).toLocaleDateString() : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image:
+        item.url ||
+        item.params?.clubCover ||
+        item.params?.communityCover ||
+        null,
+      meta: {
+        text: item.text,
+        contentType: item.contentType,
+        commentsNum: item.commentsNum || (item.comments || []).length,
+        likeCount: (item.likes || []).length,
+      },
+      action: {
+        mode: "navigate",
+        navigateTo: "expandPost",
+        tab: "Home",
+        params: { data: item },
+      },
+    }),
+
+    post_question_to_community: (item) => ({
+      id: item.communityId || null,
+      type: "click-navigation",
+      label: item.communityName || "Community",
+      subtitle: "Your question was posted here",
+      image: null,
+      meta: { postId: item.postId },
+      action: {
+        mode: "navigate",
+        navigateTo: "community",
+        params: {
+          id: item.communityId,
+          name: item.communityName,
+        },
+      },
+    }),
+
+    search_communities: (item) => ({
+      id: item._id || item.id || null,
+      type: "click-navigation",
+      label: item.title || "Community",
+      subtitle: [
+        item.label || "",
+        item.membersCount ? `${item.membersCount} members` : "",
+        ...(item.tag || []).slice(0, 3),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: item.secondaryCover || null,
+      meta: {
+        tags: item.tag,
+        membersCount: item.membersCount,
+        activeMembers: item.activeMembers,
+      },
+      action: {
+        mode: "navigate",
+        navigateTo: "community",
+        params: {
+          id: item._id || item.id,
+          name: item.title,
+          secondary: item.secondaryCover,
+        },
+      },
+    }),
   };
 
   const extractor = extractors[toolName];

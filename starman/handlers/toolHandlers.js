@@ -25,6 +25,19 @@ function internalHeaders() {
   return { Authorization: `Bearer ${getInternalToken()}` };
 }
 
+// Creates a token that looks like a real user — needed for controllers that read req.user.id
+function getUserToken(user) {
+  return jwt.sign(
+    { id: user.id || user._id, role: user.role || "user" },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: "5m" },
+  );
+}
+
+function userHeaders(user) {
+  return { Authorization: `Bearer ${getUserToken(user)}` };
+}
+
 // ────────────────────────────────────────────────
 // Service base URLs (from environment)
 // ────────────────────────────────────────────────
@@ -35,6 +48,10 @@ const UNIVERSE_URL =
 const MULTIVERSE_URL =
   process.env.MULTIVERSE_URL || "http://multiverse:5020/multiverse/api/v1";
 const IPLS_URL = process.env.IPLS_URL || "http://ipls:5080/ipls/api/v1";
+const TICKET_URL =
+  process.env.TICKET_URL || "http://ticket:6000/ticket/api/v1";
+const CONTENT_URL =
+  process.env.CONTENT_URL || "http://content:5000/content/api/v1";
 
 // ────────────────────────────────────────────────
 // Tool Handlers
@@ -237,6 +254,357 @@ async function search_nodes_by_name({ name }, user) {
   }
 }
 
+/**
+ * Navigate the map to focus on a specific node.
+ * Fetches the node's position and territory data.
+ */
+async function navigate_to_node({ nodeId }) {
+  try {
+    const res = await axios.get(
+      `${MAP_URL}/territory/getNodeTerritoryAndPosition`,
+      {
+        params: { nodeId },
+        headers: internalHeaders(),
+      },
+    );
+    return res.data;
+  } catch (err) {
+    console.error("navigate_to_node error:", err.message);
+    return {
+      error: true,
+      message: "Could not navigate to node right now.",
+    };
+  }
+}
+
+/**
+ * Universal app navigation — resolves params and returns a navigation payload.
+ */
+async function app_navigate({ screen, query }, user) {
+  const { ROUTE_REGISTRY } = require("../llm/routeRegistry");
+
+  const route = ROUTE_REGISTRY[screen];
+  if (!route) {
+    return {
+      error: true,
+      message: `Unknown screen: "${screen}". I can't navigate there.`,
+    };
+  }
+
+  // If the screen has no required params, navigate directly
+  if (!route.params.length) {
+    return {
+      success: true,
+      screen,
+      tab: route.tab,
+      params: {},
+    };
+  }
+
+  // Resolvers for screens that need params
+  const resolvers = {
+    club: async () => {
+      if (!query) return null;
+      const res = await axios.get(`${UNIVERSE_URL}/club/searchClubs`, {
+        params: { query, uid: user.uid },
+        headers: internalHeaders(),
+      });
+      const clubs = res.data;
+      const club = Array.isArray(clubs) && clubs.length > 0 ? clubs[0] : null;
+      if (!club) return null;
+      return {
+        id: club._id || club.id,
+        name: club.name,
+        secondaryImg: club.secondaryImg || null,
+      };
+    },
+
+    community: async () => {
+      if (!query) return null;
+      const res = await axios.get(
+        `${UNIVERSE_URL}/community/searchCommunities`,
+        {
+          params: { query, uid: user.uid },
+          headers: internalHeaders(),
+        },
+      );
+      const communities = res.data;
+      const community =
+        Array.isArray(communities) && communities.length > 0
+          ? communities[0]
+          : null;
+      if (!community) return null;
+      return {
+        id: community._id || community.id,
+        name: community.name || community.title,
+        secondaryImg:
+          community.secondaryCover || community.secondaryImg || null,
+      };
+    },
+  };
+
+  const resolver = resolvers[screen];
+  if (resolver) {
+    const resolved = await resolver();
+    if (!resolved) {
+      return {
+        error: true,
+        message: `Couldn't find a matching ${screen} for "${query}".`,
+      };
+    }
+    return {
+      success: true,
+      screen,
+      tab: route.tab,
+      params: resolved,
+    };
+  }
+
+  // Fallback for screens with params but no resolver yet
+  return {
+    success: true,
+    screen,
+    tab: route.tab,
+    params: {},
+  };
+}
+
+/**
+ * Perform a client-side app action (toggle sidebar, theme, logout, etc.).
+ * No backend call needed — just returns a payload the frontend will act on.
+ */
+async function app_action({ action }) {
+  const VALID_ACTIONS = ["toggle_sidebar", "toggle_theme", "logout"];
+  if (!VALID_ACTIONS.includes(action)) {
+    return { error: true, message: `Unknown action: "${action}"` };
+  }
+  return { success: true, action };
+}
+
+/**
+ * Search for tickets bought by the current user.
+ * Supports optional filters: eventName, status, upcoming.
+ */
+async function search_my_tickets({ eventName, status, upcoming }, user) {
+  try {
+    const params = { userId: user.id };
+    if (eventName) params.eventName = eventName;
+    if (status) params.status = status;
+    if (upcoming) params.upcoming = "true";
+
+    const res = await axios.get(`${TICKET_URL}/searchMyTickets`, {
+      params,
+      headers: internalHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("search_my_tickets error:", err.message);
+    return { error: true, message: "Could not search tickets right now." };
+  }
+}
+
+/**
+ * Search content posts (clubs/communities) for a knowledge question.
+ * Calls the Content service's hybrid vector + text search endpoint.
+ */
+async function search_content_qa({ query }, user) {
+  try {
+    const res = await axios.post(
+      `${CONTENT_URL}/searchContentQA`,
+      { query, uid: user.uid },
+      { headers: internalHeaders() },
+    );
+    return res.data;
+  } catch (err) {
+    console.error("search_content_qa error:", err.message);
+    return {
+      error: true,
+      found: false,
+      message: "Could not search content right now.",
+    };
+  }
+}
+
+/**
+ * Fallback: search the internet via a separate LLM call when no
+ * campus content matched the user's question.
+ */
+async function web_search_fallback({ query }) {
+  try {
+    const { OpenAI } = require("openai");
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a helpful assistant. Answer the user's question concisely based on your knowledge. Indicate that this answer is from general knowledge, not from campus-specific sources.",
+        },
+        { role: "user", content: query },
+      ],
+      max_tokens: 500,
+    });
+
+    const answer = completion?.choices?.[0]?.message?.content || "";
+    return {
+      answer,
+      source: "internet",
+      found: answer.length > 0,
+      askToCommunity: true,
+    };
+  } catch (err) {
+    console.error("web_search_fallback error:", err.message);
+    return {
+      error: true,
+      found: false,
+      message: "Could not search the internet right now.",
+    };
+  }
+}
+
+/**
+ * Post a question in the most relevant community on the user's behalf.
+ * 1. Searches for a relevant community
+ * 2. Creates a text post in that community
+ */
+async function post_question_to_community({ question }, user) {
+  try {
+    // 1. Find relevant community by keyword-ranked search
+    const searchRes = await axios.get(
+      `${UNIVERSE_URL}/community/searchCommunities`,
+      {
+        params: { query: question, uid: user.uid },
+        headers: internalHeaders(),
+      },
+    );
+
+    const communities = searchRes.data;
+    let community =
+      Array.isArray(communities) && communities.length > 0
+        ? communities[0]
+        : null;
+
+    // 2. If no relevant community found, fall back to MacbeaseNEWS
+    if (!community) {
+      console.log("🔍 No relevant community found — falling back to MacbeaseNEWS");
+      const fallbackRes = await axios.get(
+        `${UNIVERSE_URL}/community/searchCommunities`,
+        {
+          params: { query: "MacbeaseNEWS" },
+          headers: internalHeaders(),
+        },
+      );
+      const fallbackList = fallbackRes.data;
+      community =
+        Array.isArray(fallbackList) && fallbackList.length > 0
+          ? fallbackList[0]
+          : null;
+    }
+
+    if (!community) {
+      return {
+        error: true,
+        message: "Could not find a community to post your question in.",
+      };
+    }
+
+    // 3. Auto-join the user to the community so the post call succeeds
+    try {
+      await axios.post(
+        `${UNIVERSE_URL}/community/joinAsMember`,
+        { communityId: community._id || community.id },
+        { headers: userHeaders(user) },
+      );
+      console.log(`✅ User joined community ${community.title}`);
+    } catch (joinErr) {
+      // Ignore — user may already be a member
+      console.log(`ℹ️ Join community skipped: ${joinErr?.response?.data || joinErr.message}`);
+    }
+
+    // 4. Create the content document
+    const postRes = await axios.post(
+      `${CONTENT_URL}/createContent`,
+      {
+        contentType: "text",
+        sendBy: "userCommunity",
+        url: "",           // must exist — frontend's getUrls() crashes on null url
+        text: question,
+        title: question,
+        belongsTo: community._id || community.id,
+        peopleTagged: [],
+        universeMetaData: community.universeMetaData || {},
+        tags: [],
+      },
+      { headers: userHeaders(user) },
+    );
+
+    const contentId = postRes.data?.contentId || null;
+    console.log(`📝 Content created: ${contentId}, registering in community feed...`);
+
+    // 5. Register the content in the community's feed array (makes it visible)
+    if (contentId) {
+      await axios.post(
+        `${UNIVERSE_URL}/community/post`,
+        {
+          contentId,
+          communityId: community._id || community.id,
+          contentType: "text",
+        },
+        { headers: userHeaders(user) },
+      );
+    }
+
+    return {
+      success: true,
+      communityName: community.title || community.name || "MacbeaseNEWS",
+      communityId: community._id || community.id,
+      postId: contentId,
+    };
+  } catch (err) {
+    console.error("post_question_to_community error:", err.message);
+    return {
+      error: true,
+      message: "Could not post the question right now.",
+    };
+  }
+}
+
+/**
+ * Search communities by topic/name/tags.
+ */
+async function search_communities({ query }, user) {
+  try {
+    const res = await axios.get(
+      `${UNIVERSE_URL}/community/searchCommunities`,
+      {
+        params: { query },
+        headers: internalHeaders(),
+      },
+    );
+
+    // The endpoint returns an array of communities
+    const communities = (Array.isArray(res.data) ? res.data : []).slice(0, 5);
+
+    return {
+      results: communities.map((c) => ({
+        _id: c._id,
+        title: c.title,
+        tag: c.tag || [],
+        label: c.label || "",
+        secondaryCover: c.secondaryCover || null,
+        membersCount: c.membersCount || 0,
+        activeMembers: c.activeMembers || 0,
+      })),
+      found: communities.length > 0,
+    };
+  } catch (err) {
+    console.error("search_communities error:", err.message);
+    return { error: true, message: "Could not search communities right now." };
+  }
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -252,6 +620,14 @@ const TOOL_HANDLERS = {
   top_universes,
   search_universe,
   search_nodes_by_name,
+  navigate_to_node,
+  app_navigate,
+  app_action,
+  search_my_tickets,
+  search_content_qa,
+  web_search_fallback,
+  post_question_to_community,
+  search_communities,
 };
 
 /**

@@ -18,6 +18,18 @@ const {
   fetchBags,
 } = require("./utils");
 const JoinLink = require("../models/joinLink");
+
+const STOP_WORDS = new Set([
+  "did", "does", "do", "is", "are", "was", "were", "will", "would",
+  "can", "could", "should", "has", "have", "had", "been", "being",
+  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+  "for", "of", "with", "by", "from", "it", "its", "this", "that",
+  "what", "when", "where", "who", "how", "why", "which",
+  "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
+  "about", "any", "tell", "know", "find", "show", "get",
+  "visit", "visited", "come", "came", "going", "go", "went",
+  "next", "last", "new", "like", "also", "just", "very",
+]);
 const {
   fetchContent,
   fetchMultipleContents,
@@ -2960,15 +2972,82 @@ const updateVote = async (req, res) => {
 const searchCommunities = async (req, res) => {
   try {
     const { query } = req.query;
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res.status(StatusCodes.OK).json([]);
+    }
+
+    // 1. Extract meaningful keywords
+    const keywords = query
+      .trim()
+      .replace(/[?!.,;:'"()]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !STOP_WORDS.has(w.toLowerCase()));
+
+    if (keywords.length === 0) {
+      // Fallback to simple title/tag match if no keywords (e.g. searching only for stop words)
+      const results = await Community.find({
+        $or: [
+          { title: { $regex: query.trim(), $options: "i" } },
+          { tag: { $regex: query.trim(), $options: "i" } },
+        ],
+      }).limit(10);
+      return res.status(StatusCodes.OK).json(results);
+    }
+
+    // 2. Build scoring aggregation
+    const keywordMatchFields = keywords.map((kw, i) => ({
+      [`_kw${i}`]: {
+        $cond: [
+          {
+            $regexMatch: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$title", ""] },
+                  " ",
+                  { $ifNull: ["$label", ""] },
+                  " ",
+                  {
+                    $reduce: {
+                      input: { $ifNull: ["$tag", []] },
+                      initialValue: "",
+                      in: { $concat: ["$$value", " ", "$$this"] },
+                    },
+                  },
+                ],
+              },
+              regex: kw,
+              options: "i",
+            },
+          },
+          1,
+          0,
+        ],
+      },
+    }));
+
+    const scoreExpr = { $add: keywords.map((_, i) => `$_kw${i}`) };
+
     const community = await Community.aggregate([
       {
         $match: {
-          $or: [
-            { title: { $regex: query, $options: "i" } },
-            { tag: { $regex: query, $options: "i" } },
-          ],
+          $or: keywords.map((kw) => ({
+            $or: [
+              { title: { $regex: kw, $options: "i" } },
+              { tag: { $regex: kw, $options: "i" } },
+              { label: { $regex: kw, $options: "i" } },
+            ],
+          })),
         },
       },
+      // Calculate scores
+      { $addFields: Object.assign({}, ...keywordMatchFields) },
+      { $addFields: { _kwScore: scoreExpr } },
+      // Filter out low relevance (optional, but keeps results clean)
+      { $match: { _kwScore: { $gt: 0 } } },
+      // Sort by score
+      { $sort: { _kwScore: -1, activeMembers: -1 } },
+      { $limit: 20 },
       {
         $project: {
           secondaryCover: 1,
@@ -2976,10 +3055,16 @@ const searchCommunities = async (req, res) => {
           activeMembers: 1,
           title: 1,
           tag: 1,
-          membersCount: { $size: "$members" },
-          top5Members: { $slice: ["$members", 5] },
+          _kwScore: 1,
+          membersCount: { $size: { $ifNull: ["$members", []] } },
+          top5Members: { $slice: [{ $ifNull: ["$members", []] }, 5] },
           founderId: { $toObjectId: "$creatorId" },
-          isMember: { $in: [mongoose.Types.ObjectId(req.user.id), "$members"] },
+          isMember: {
+            $in: [
+              mongoose.Types.ObjectId(req?.user?.id),
+              { $ifNull: ["$members", []] },
+            ],
+          },
         },
       },
       {
@@ -3005,6 +3090,7 @@ const searchCommunities = async (req, res) => {
           activeMembers: 1,
           title: 1,
           tag: 1,
+          _kwScore: 1,
           membersCount: 1,
           isMember: 1,
           top5Profiles: {
@@ -3516,7 +3602,6 @@ const getCommunitiesForFeed = async (req, res) => {
   }
 };
 
-
 const getCommunityGrowthStats = async (req, res) => {
   try {
     const periodParam = req.query.period || "30d";
@@ -3541,7 +3626,7 @@ const getCommunityGrowthStats = async (req, res) => {
         activeMembers: 1,
         "universeMetaData.logoKey": 1,
         "universeMetaData.name": 1,
-      }
+      },
     ).lean();
 
     if (!communities || communities.length === 0) {
@@ -3625,9 +3710,7 @@ const getCommunityGrowthStats = async (req, res) => {
     });
 
     // Sort by member count descending for membershipData
-    const sortedByCount = [...communityData].sort(
-      (a, b) => b.count - a.count
-    );
+    const sortedByCount = [...communityData].sort((a, b) => b.count - a.count);
 
     const maxCount = sortedByCount.length > 0 ? sortedByCount[0].count : 1;
 
@@ -3641,7 +3724,7 @@ const getCommunityGrowthStats = async (req, res) => {
 
     // Sort by growth descending for topGrowth
     const sortedByGrowth = [...communityData].sort(
-      (a, b) => b.growth - a.growth
+      (a, b) => b.growth - a.growth,
     );
 
     const topGrowth = sortedByGrowth

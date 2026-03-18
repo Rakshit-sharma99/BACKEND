@@ -7,7 +7,6 @@ const {
   HarmCategory,
   HarmBlockThreshold,
 } = require("@google/generative-ai");
-const SYSTEM_PROMPT = require("./systemPrompt");
 const tools = require("./tools");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -34,10 +33,10 @@ const safetySettings = [
 /**
  * Creates a Gemini chat session for a given conversation history.
  */
-function createChat(history = []) {
+function createChat(history = [], systemPrompt = "") {
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash",
-    systemInstruction: SYSTEM_PROMPT,
+    systemInstruction: systemPrompt,
     safetySettings,
     tools,
   });
