@@ -200,3 +200,10 @@ spec:
                 name: map
                 port:
                   number: 7050
+          - path: /starman
+            pathType: Prefix
+            backend:
+              service:
+                name: starman
+                port:
+                  number: 7060

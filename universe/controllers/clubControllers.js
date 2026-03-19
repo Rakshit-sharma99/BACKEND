@@ -3164,7 +3164,11 @@ const checkClubExists = async (req, res) => {
 
 const searchClubs = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, uid } = req.query;
+    
+    // Determine the user ID to use for membership checks
+    const currentUserId = req.user ? req.user.id : uid;
+    
     const clubs = await Club.aggregate([
       {
         $match: {
@@ -3184,9 +3188,9 @@ const searchClubs = async (req, res) => {
           membersCount: { $size: "$members" },
           top5Members: { $slice: ["$members", 5] },
           founderId: { $toObjectId: "$mainAdmin" },
-          isCore: { $in: [req.user.id, "$team.id"] },
-          isAdmin: { $in: [req.user.id, "$adminId"] },
-          isMember: { $in: [req.user.id, "$members"] },
+          isCore: currentUserId ? { $in: [currentUserId, "$team.id"] } : { $literal: false },
+          isAdmin: currentUserId ? { $in: [currentUserId, "$adminId"] } : { $literal: false },
+          isMember: currentUserId ? { $in: [currentUserId, "$members"] } : { $literal: false },
         },
       },
       {

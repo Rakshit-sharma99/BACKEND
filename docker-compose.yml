@@ -365,6 +365,20 @@ services:
       - app-network
     restart: unless-stopped
 
+  starman:
+    build:
+      context: ./starman
+      dockerfile: Dockerfile
+    image: spargens/starman
+    env_file:
+      - ./env/starman/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:latest
     container_name: multiverse-backend-kafka-1
