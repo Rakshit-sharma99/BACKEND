@@ -217,6 +217,30 @@ function extractButtons(toolName, rawResult) {
       },
     }),
 
+    search_events: (item) => ({
+      id: item._id || item.id,
+      type: "event",
+      label: item.name || item.title,
+      subtitle: [
+        item.place,
+        item.eventDate ? new Date(item.eventDate).toLocaleDateString() : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: item.url || null,
+      meta: { date: item.eventDate, venue: item.place },
+      action: {
+        mode: "navigate",
+        navigateTo: "eventExpand",
+        params: {
+          eventData: {
+            name: item.name,
+            eventId: item._id,
+          },
+        },
+      },
+    }),
+
     search_users: (item) => ({
       id: item._id || item.id,
       type: "profile",
@@ -423,6 +447,21 @@ function extractButtons(toolName, rawResult) {
           name: item.title,
           secondary: item.secondaryCover,
         },
+      },
+    }),
+
+    navigate_to_user_territory: (item) => ({
+      id: null,
+      type: "auto-navigation",
+      label: item.screen,
+      subtitle: item.tab || "",
+      image: null,
+      meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: item.screen,
+        tab: item.tab || null,
+        params: item.params || {},
       },
     }),
   };

@@ -142,7 +142,8 @@ const tools = [
           properties: {
             q: {
               type: "string",
-              description: "The search query (e.g. name, location, or acronym).",
+              description:
+                "The search query (e.g. name, location, or acronym).",
             },
           },
           required: ["q"],
@@ -312,6 +313,58 @@ const tools = [
               type: "string",
               description:
                 "Search query — a topic, interest, or community name to search for, e.g. 'cricket', 'coding', 'photography club'",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "navigate_to_user_territory",
+        description:
+          "Navigate to a specific user's 3D territory overlay map. Use this when the user asks to visit, see, or go to another user's territory or profile. You can pass either a userId (if known from previous results) or a name (which will be resolved to a userId).",
+        parameters: {
+          type: "object",
+          properties: {
+            userId: {
+              type: "string",
+              description:
+                "The ID of the user whose territory to navigate to (if already known from a previous search).",
+            },
+            name: {
+              type: "string",
+              description:
+                "The user's name to search for, e.g. 'Amartya'. Used when the userId is not known.",
+            },
+          },
+        },
+      },
+      {
+        name: "get_user_facet_texts",
+        description:
+          "Fetch the semantic profile facet texts for a user. Use this when the user is viewing someone's 3D territory and asks about that person — e.g. 'tell me about this user', 'what does he like', 'does she play basketball', 'what books does he read'. Returns the user's interests and profile facets as text.",
+        parameters: {
+          type: "object",
+          properties: {
+            userId: {
+              type: "string",
+              description:
+                "The userId or name of the user whose facets to fetch. You can pass a known userId or just the user's name.",
+            },
+          },
+          required: ["userId"],
+        },
+      },
+      {
+        name: "search_events",
+        description:
+          "Search for events by topic or interest keywords. Use this to find events related to a specific interest, activity, or goal (e.g. 'startup', 'music', 'aerospace').",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "Comma-separated keywords to search events by, e.g. 'startup,entrepreneurship,pitch'",
             },
           },
           required: ["query"],

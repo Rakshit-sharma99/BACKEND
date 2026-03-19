@@ -81,6 +81,11 @@ const ROUTE_REGISTRY = {
     params: [],
     description: "Your tickets screen — view and manage your tickets",
   },
+  territory3DOverlay: {
+    tab: "Map",
+    params: ["userId"],
+    description: "User's 3D territory overlay — view and manage user's assets",
+  },
 };
 
 /**

@@ -48,8 +48,7 @@ const UNIVERSE_URL =
 const MULTIVERSE_URL =
   process.env.MULTIVERSE_URL || "http://multiverse:5020/multiverse/api/v1";
 const IPLS_URL = process.env.IPLS_URL || "http://ipls:5080/ipls/api/v1";
-const TICKET_URL =
-  process.env.TICKET_URL || "http://ticket:6000/ticket/api/v1";
+const TICKET_URL = process.env.TICKET_URL || "http://ticket:6000/ticket/api/v1";
 const CONTENT_URL =
   process.env.CONTENT_URL || "http://content:5000/content/api/v1";
 
@@ -341,6 +340,23 @@ async function app_navigate({ screen, query }, user) {
           community.secondaryCover || community.secondaryImg || null,
       };
     },
+
+    profile2: async () => {
+      if (!query) return {}; // Open current user's own profile
+      
+      const res = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
+        params: { name: query },
+        headers: internalHeaders(),
+      });
+      const users = res.data;
+      const match = Array.isArray(users) && users.length > 0 ? users[0] : null;
+      if (!match) return null;
+      return {
+        id: match._id || match.id,
+        name: match.name,
+        img: match.image || null,
+      };
+    },
   };
 
   const resolver = resolvers[screen];
@@ -488,7 +504,9 @@ async function post_question_to_community({ question }, user) {
 
     // 2. If no relevant community found, fall back to MacbeaseNEWS
     if (!community) {
-      console.log("🔍 No relevant community found — falling back to MacbeaseNEWS");
+      console.log(
+        "🔍 No relevant community found — falling back to MacbeaseNEWS",
+      );
       const fallbackRes = await axios.get(
         `${UNIVERSE_URL}/community/searchCommunities`,
         {
@@ -520,7 +538,9 @@ async function post_question_to_community({ question }, user) {
       console.log(`✅ User joined community ${community.title}`);
     } catch (joinErr) {
       // Ignore — user may already be a member
-      console.log(`ℹ️ Join community skipped: ${joinErr?.response?.data || joinErr.message}`);
+      console.log(
+        `ℹ️ Join community skipped: ${joinErr?.response?.data || joinErr.message}`,
+      );
     }
 
     // 4. Create the content document
@@ -529,7 +549,7 @@ async function post_question_to_community({ question }, user) {
       {
         contentType: "text",
         sendBy: "userCommunity",
-        url: "",           // must exist — frontend's getUrls() crashes on null url
+        url: "", // must exist — frontend's getUrls() crashes on null url
         text: question,
         title: question,
         belongsTo: community._id || community.id,
@@ -541,7 +561,9 @@ async function post_question_to_community({ question }, user) {
     );
 
     const contentId = postRes.data?.contentId || null;
-    console.log(`📝 Content created: ${contentId}, registering in community feed...`);
+    console.log(
+      `📝 Content created: ${contentId}, registering in community feed...`,
+    );
 
     // 5. Register the content in the community's feed array (makes it visible)
     if (contentId) {
@@ -576,13 +598,10 @@ async function post_question_to_community({ question }, user) {
  */
 async function search_communities({ query }, user) {
   try {
-    const res = await axios.get(
-      `${UNIVERSE_URL}/community/searchCommunities`,
-      {
-        params: { query },
-        headers: internalHeaders(),
-      },
-    );
+    const res = await axios.get(`${UNIVERSE_URL}/community/searchCommunities`, {
+      params: { query },
+      headers: internalHeaders(),
+    });
 
     // The endpoint returns an array of communities
     const communities = (Array.isArray(res.data) ? res.data : []).slice(0, 5);
@@ -602,6 +621,111 @@ async function search_communities({ query }, user) {
   } catch (err) {
     console.error("search_communities error:", err.message);
     return { error: true, message: "Could not search communities right now." };
+  }
+}
+
+/**
+ * Navigate to a user's 3D territory.
+ * Accepts userId directly, or resolves a name → userId.
+ */
+async function navigate_to_user_territory({ userId, name }, user) {
+  try {
+    let resolvedUserId = userId;
+    let resolvedUser = null;
+
+    if (!resolvedUserId && name) {
+      const res = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
+        params: { name },
+        headers: internalHeaders(),
+      });
+      const users = res.data;
+      if (!Array.isArray(users) || users.length === 0) {
+        return {
+          error: true,
+          message: `Could not find a user named "${name}".`,
+        };
+      }
+      resolvedUserId = users[0]._id;
+      resolvedUser = users[0];
+    }
+
+    if (!resolvedUserId) {
+      return { error: true, message: "Please provide a user name or ID." };
+    }
+
+    return {
+      success: true,
+      screen: "territory3DOverlay",
+      tab: "Map",
+      params: {
+        userId: resolvedUserId,
+        member: { name: resolvedUser.name, image: resolvedUser.image },
+      },
+    };
+  } catch (err) {
+    console.error("navigate_to_user_territory error:", err.message);
+    return {
+      error: true,
+      message: "Could not navigate to user territory right now.",
+    };
+  }
+}
+
+/**
+ * Fetch profile facet texts for a user.
+ * Used by Starman to answer questions about the user the viewer is looking at.
+ * Accepts an ObjectId or a user's name.
+ */
+async function get_user_facet_texts({ userId }) {
+  try {
+    let resolvedUserId = userId;
+
+    // Check if it's a valid ObjectId (24 hex chars)
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(resolvedUserId);
+
+    if (!isObjectId) {
+      // It's likely a name, try to resolve it
+      const searchRes = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
+        params: { name: userId },
+        headers: internalHeaders(),
+      });
+      const users = searchRes.data;
+      if (!Array.isArray(users) || users.length === 0) {
+        return {
+          error: true,
+          message: `Could not find a user named "${userId}".`,
+        };
+      }
+      resolvedUserId = users[0]._id;
+    }
+
+    const res = await axios.get(`${MAP_URL}/nodes/getUserFacetTexts`, {
+      params: { parentId: resolvedUserId },
+      headers: internalHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("get_user_facet_texts error:", err.message);
+    return {
+      error: true,
+      message: "Could not fetch user facet texts right now.",
+    };
+  }
+}
+
+/**
+ * Search events by topic/interest keywords.
+ */
+async function search_events({ query }, user) {
+  try {
+    const res = await axios.get(`${EVENT_URL}/searchEvents`, {
+      params: { q: query },
+      headers: internalHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("search_events error:", err.message);
+    return { error: true, message: "Could not search events right now." };
   }
 }
 
@@ -628,6 +752,9 @@ const TOOL_HANDLERS = {
   web_search_fallback,
   post_question_to_community,
   search_communities,
+  navigate_to_user_territory,
+  get_user_facet_texts,
+  search_events,
 };
 
 /**

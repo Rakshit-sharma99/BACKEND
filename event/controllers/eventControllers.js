@@ -1519,7 +1519,7 @@ const checkEventStatus = async (req, res) => {
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
       fields: ["adminId", "mainAdmin"],
-      callSign: event.universeMetaData.callSign,
+      callSign: event?.universeMetaData?.callSign,
     });
 
     if (!club) {

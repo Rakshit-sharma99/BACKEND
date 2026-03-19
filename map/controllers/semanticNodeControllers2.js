@@ -558,6 +558,7 @@ const refreshProfileFacetNodes = async (req, res) => {
       eventDescriptions,
       assetPayloadSummaries,
     );
+    console.log("profileContext", profileContext);
     const facets = await extractFacets(profileContext);
     const created = await createFacetNodes(
       user._id,
@@ -660,23 +661,37 @@ const vectorSearchProfileFacets = async (req, res) => {
     if (error.message.includes("vectorSearch") || req.body.useFallback) {
       try {
         const queryEmbedding = await embedText(req.body.query);
-        const nodes = await SemanticNode.find({ entityType: "profile_facet" }).lean();
+        const nodes = await SemanticNode.find({
+          entityType: "profile_facet",
+        }).lean();
 
         const cosineSimilarity = (a, b) => {
-          let dot = 0, normA = 0, normB = 0;
-          for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; normA += a[i] * a[i]; normB += b[i] * b[i]; }
+          let dot = 0,
+            normA = 0,
+            normB = 0;
+          for (let i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+          }
           return dot / (Math.sqrt(normA) * Math.sqrt(normB));
         };
 
-        const scored = nodes.map(node => ({
-          ...node,
-          score: node.embedding ? cosineSimilarity(node.embedding, queryEmbedding) : 0
-        })).sort((a, b) => b.score - a.score).slice(0, Number(req.body.limit || 20) * 3);
+        const scored = nodes
+          .map((node) => ({
+            ...node,
+            score: node.embedding
+              ? cosineSimilarity(node.embedding, queryEmbedding)
+              : 0,
+          }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, Number(req.body.limit || 20) * 3);
 
         const grouped = scored.reduce((acc, node) => {
           const parent = String(node.parentEntityId);
-          if (!acc[parent]) acc[parent] = { _id: parent, facets: [], highestScore: 0 };
-          
+          if (!acc[parent])
+            acc[parent] = { _id: parent, facets: [], highestScore: 0 };
+
           acc[parent].facets.push({
             nodeId: node._id,
             facetId: node.facetId,
@@ -684,8 +699,9 @@ const vectorSearchProfileFacets = async (req, res) => {
             meta: node.meta,
             score: node.score,
           });
-          
-          if (node.score > acc[parent].highestScore) acc[parent].highestScore = node.score;
+
+          if (node.score > acc[parent].highestScore)
+            acc[parent].highestScore = node.score;
           return acc;
         }, {});
 
@@ -697,9 +713,8 @@ const vectorSearchProfileFacets = async (req, res) => {
           success: true,
           count: finalResults.length,
           data: finalResults,
-          fallback: true
+          fallback: true,
         });
-
       } catch (fallbackError) {
         console.error("[ProfileFacet] Fallback Search error:", fallbackError);
       }
@@ -822,6 +837,49 @@ const metaSearchProfileFacets = async (req, res) => {
   }
 };
 
+// ═══════════════════════════════════════
+// Controller: Get User Facet Texts
+// ═══════════════════════════════════════
+/**
+ * Returns all profile_facet texts for a given parentId (userId).
+ * Used by Starman to answer questions about a user based on their semantic facets.
+ *
+ * Query: ?parentId=<userId>
+ */
+const getUserFacetTexts = async (req, res) => {
+  try {
+    const { parentId } = req.query;
+
+    if (!parentId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "parentId is required.",
+      });
+    }
+
+    const facets = await SemanticNode.find({
+      parentEntityId: parentId,
+      entityType: "profile_facet",
+    })
+      .select("facetId text meta")
+      .lean();
+
+    return res.status(StatusCodes.OK).json(
+      facets.map((f) => ({
+        facetId: f.facetId,
+        text: f.text,
+        meta: f.meta,
+      })),
+    );
+  } catch (error) {
+    console.error("[ProfileFacet] getUserFacetTexts error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching user facet texts.",
+    });
+  }
+};
+
 // ───────────────────────────────────────
 // Exports
 // ───────────────────────────────────────
@@ -830,4 +888,5 @@ module.exports = {
   refreshProfileFacetNodes,
   vectorSearchProfileFacets,
   metaSearchProfileFacets,
+  getUserFacetTexts,
 };

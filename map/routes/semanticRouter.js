@@ -22,6 +22,7 @@ const {
   refreshProfileFacetNodes,
   vectorSearchProfileFacets,
   metaSearchProfileFacets,
+  getUserFacetTexts,
 } = require("../controllers/semanticNodeControllers2");
 
 router.post("/createNodesForClubs", createNodesForClubs);
@@ -43,5 +44,6 @@ router.post("/createProfileFacetNodes", createProfileFacetNodes);
 router.post("/refreshProfileFacetNodes", refreshProfileFacetNodes);
 router.post("/vectorSearchProfileFacets", vectorSearchProfileFacets);
 router.post("/metaSearchProfileFacets", metaSearchProfileFacets);
+router.get("/getUserFacetTexts", getUserFacetTexts);
 
 module.exports = router;

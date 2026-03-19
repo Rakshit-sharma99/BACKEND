@@ -606,6 +606,7 @@ const getBasicUserBio = async (req, res) => {
       gender: 1,
       emailVerified: 1,
       cards: 1,
+      vicinityAsset: 1,
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -2802,9 +2803,15 @@ const getUserAssets = async (req, res) => {
           (fa) => String(fa._id) === String(vcAsset.assetId),
         );
         if (fullAsset) {
+          const { payload, ...rest } = vcAsset;
+          const filteredPayload = payload?.customLabel
+            ? { customLabel: payload.customLabel }
+            : undefined;
+
           return {
             ...fullAsset, // the actual asset properties (name, url, etc)
-            ...vcAsset, // the user vicinity specific positioning
+            ...rest, // the user vicinity specific positioning (excluding payload)
+            ...(filteredPayload && { payload: filteredPayload }),
           };
         }
         return null; // Handle if asset got deleted entirely from the map db
@@ -2822,8 +2829,61 @@ const getUserAssets = async (req, res) => {
   }
 };
 
+const getUserAssetById = async (req, res) => {
+  try {
+    const { userId, vicinityAssetId } = req.query;
+
+    if (!userId || !vicinityAssetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing userId or vicinityAssetId query parameter." });
+    }
+
+    const user = await User.findById(userId, { vicinityAsset: 1 }).lean();
+
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    const vcAsset = (user.vicinityAsset || []).find(
+      (asset) => String(asset._id) === String(vicinityAssetId),
+    );
+
+    if (!vcAsset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset not found in user's vicinity." });
+    }
+
+    // Fetch full asset data from the map service
+    const fetchedAssets = await fetchMultipleAssets({ ids: [vcAsset.assetId] });
+    const fullAsset = fetchedAssets.find(
+      (fa) => String(fa._id) === String(vcAsset.assetId),
+    );
+
+    if (!fullAsset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset not found in map service." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      ...fullAsset,
+      ...vcAsset,
+    });
+  } catch (error) {
+    console.error("Error fetching user asset by id:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while fetching the asset." });
+  }
+};
+
 module.exports = {
   getUserAssets,
+  getUserAssetById,
   saveUserAsset,
   editUserAsset,
   deleteUserAsset,
