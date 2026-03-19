@@ -4,3 +4,4 @@ node_modules/
 logs/
 npm-debug.log
 universe-ts/node_modules
+.agents/

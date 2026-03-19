@@ -14,7 +14,24 @@ require("./config/kafka");
 //routes
 const logRouter = require("./routes/logRouter");
 
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://app.macbease.com",
+  "https://macbease.com"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.use((req, res, next) => {
