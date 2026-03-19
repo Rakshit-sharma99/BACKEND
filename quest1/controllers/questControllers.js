@@ -19,6 +19,8 @@ const createQuest = async (req, res) => {
       numOfEntities = 1,
       target,
       ip,
+      frequency,
+      isRepeatable,
     } = req.body;
 
     if (!orbit || !orbit.id || !title || !category || !metric || !type || !target || !ip) {
@@ -30,6 +32,7 @@ const createQuest = async (req, res) => {
 
     const validCategories = ["Club", "Community", "Event"];
     const validTypes = ["continuous", "discrete"];
+    const validFrequencies = ["daily", "weekly", "monthly", "none"];
 
     if (!validCategories.includes(category)) {
       return res.status(400).json({ success: false, message: "Invalid category" });
@@ -37,6 +40,10 @@ const createQuest = async (req, res) => {
 
     if (!validTypes.includes(type)) {
       return res.status(400).json({ success: false, message: "Invalid type" });
+    }
+
+    if (frequency && !validFrequencies.includes(frequency)) {
+      return res.status(400).json({ success: false, message: "Invalid frequency" });
     }
 
     if (target <= 0 || ip <= 0 || numOfEntities < 1) {
@@ -67,6 +74,18 @@ const createQuest = async (req, res) => {
       });
     }
 
+    // Enforce type rules
+    let finalType = type;
+    let finalNumOfEntities = numOfEntities;
+
+    const lowerMetric = metric.toLowerCase();
+    if (lowerMetric.includes("total") || lowerMetric.includes("created")) {
+      finalType = "continuous";
+      finalNumOfEntities = 0;
+    } else if (numOfEntities > 1) {
+      finalType = "discrete";
+    }
+
     const quest = await Quest.create({
       orbit,
       title: title.trim(),
@@ -75,10 +94,12 @@ const createQuest = async (req, res) => {
       secondaryLogo,
       category,
       metric,
-      type,
-      numOfEntities,
+      type: finalType,
+      numOfEntities: finalNumOfEntities,
       target,
       ip,
+      frequency: frequency || "none",
+      isRepeatable: isRepeatable !== undefined ? isRepeatable : true,
     });
 
     res.status(201).json({ success: true, data: quest });
@@ -104,6 +125,7 @@ const createMultipleQuest = async (req, res) => {
 
     const validCategories = ["Club", "Community", "Event"];
     const validTypes = ["continuous", "discrete"];
+    const validFrequencies = ["daily", "weekly", "monthly", "none"];
 
     const errors = [];
     const validQuests = [];
@@ -126,6 +148,11 @@ const createMultipleQuest = async (req, res) => {
         continue;
       }
 
+      if (q.frequency && !validFrequencies.includes(q.frequency)) {
+        errors.push(`Quest ${i}: invalid frequency`);
+        continue;
+      }
+
       if (q.target <= 0 || q.ip <= 0) {
         errors.push(`Quest ${i}: invalid numeric values`);
         continue;
@@ -136,10 +163,25 @@ const createMultipleQuest = async (req, res) => {
         continue;
       }
 
+      // Enforce type rules
+      let finalType = q.type;
+      let finalNumOfEntities = q.numOfEntities || 1;
+
+      const lowerMetric = q.metric.toLowerCase();
+      if (lowerMetric.includes("total") || lowerMetric.includes("created")) {
+        finalType = "continuous";
+        finalNumOfEntities = 0;
+      } else if (finalNumOfEntities > 1) {
+        finalType = "discrete";
+      }
+
       validQuests.push({
         ...q,
         title: q.title.trim(),
-        numOfEntities: q.numOfEntities || 1,
+        type: finalType,
+        numOfEntities: finalNumOfEntities,
+        frequency: q.frequency || "none",
+        isRepeatable: q.isRepeatable !== undefined ? q.isRepeatable : true,
       });
     }
 

@@ -5,6 +5,11 @@ const {
   regenerateAccessToken,
   verifyChapterLeader,
   getQuestsProgress,
+  setOtp,
+  recoveryEmail,
+  setNewPassword,
+  getChapterLeaderDetails,
+  claimQuestReward,
 } = require("../controllers/chapterLeadearControllers");
 const authenticate = require("../middlewares/authentication.js");
 
@@ -25,6 +30,17 @@ router.post("/regenerateAccessToken", authenticate, regenerateAccessToken);
 router.post("/verify", verifyChapterLeader);
 
 // Chapter leader – get their quest progress (optionally ?category=Club|Community|Event)
-router.get("/getQuestsProgress", getQuestsProgress);
+router.get("/getQuestsProgress", authenticate, getQuestsProgress);
+
+// Get Chapter Leader Details
+router.get("/getDetails", authenticate, getChapterLeaderDetails);
+
+// Claim Quest Reward
+router.post("/claimReward", authenticate, claimQuestReward);
+
+// Forgot Password
+router.post("/setOtp", setOtp);
+router.post("/recoveryEmail", recoveryEmail);
+router.post("/setNewPassword", setNewPassword);
 
 module.exports = router;

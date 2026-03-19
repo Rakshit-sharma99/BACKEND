@@ -15,26 +15,12 @@ const QuestProgressSchema = new mongoose.Schema(
             min: 0,
             max: 100,
         },
-        current: [
-            {
-                value: {
-                    type: Number,
-                    default: 0,
-                    min: 0,
-                },
-                isStarted: {
-                    type: Boolean,
-                    default: false,
-                },
-                isCompleted: {
-                    type: Boolean,
-                    default: false,
-                }
-
-            }
-        ],
+        current: {
+            type: mongoose.Schema.Types.Mixed,
+            default: 0,
+        },
         target: {
-            type: [Number],
+            type: mongoose.Schema.Types.Mixed,
             required: true,
         },
         isCompleted: {
@@ -130,6 +116,10 @@ const ChapterLeaderSchema = new mongoose.Schema(
             ref: "Universe",
         },
         universeMetaData: universeSchema,
+        recoveryOtp: {
+            type: Number,
+            default: null,
+        },
     },
     { timestamps: true }
 );

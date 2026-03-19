@@ -59,7 +59,17 @@ const QuestSchema = new mongoose.Schema({
     required: true
   },
 
-  is_active: { type: Boolean, default: true }
+  is_active: { type: Boolean, default: true },
+
+  isRepeatable: {
+    type: Boolean,
+    default: true
+  },
+  frequency: {
+    type: String,
+    enum: ["daily", "weekly", "monthly", "none"],
+    default: "none"
+  }
 
 }, { timestamps: true });
 

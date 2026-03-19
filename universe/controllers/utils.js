@@ -15,8 +15,6 @@ const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
 const stream = require("stream");
 const path = require("path");
-const Club = require("../models/club");
-const Community = require("../models/community");
 
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
@@ -1259,6 +1257,8 @@ const fetchRightSequence = async (events) => {
     // Get all club IDs from featured events
     const clubIds = featuredEvents.map((e) => e.belongsTo.id);
 
+    const Club = require("../models/club");
+
     // Fetch clubs with ratings
     const clubs = await Club.find(
       { _id: { $in: clubIds } },
@@ -1348,17 +1348,24 @@ const sendOnboardingMail = async (user) => {
   }
 };
 
-async function resolveMetricValue(metric, uid, numOfEntities = 1) {
+async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = null) {
   uid = uid?.toString();
   console.log(`[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`);
 
+  const Club = require("../models/club");
+  const Community = require("../models/community");
 
   let result = [];
+
+  const matchQuery = { uid };
+  if (startDate) {
+    matchQuery.createdAt = { $gte: startDate };
+  }
 
   switch (metric) {
     // 1. Total clubs created
     case "clubs_created": {
-      const count = await Club.countDocuments({ uid });
+      const count = await Club.countDocuments(matchQuery);
       result = [count];
       break;
     }
@@ -1366,20 +1373,22 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 2. Top clubs by members
     case "clubs_with_min_members": {
       const aggregatedClubs = await Club.aggregate([
-        { $match: { uid } },
-        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        { $match: matchQuery },
+        { $project: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
         { $sort: { membersCount: -1 } },
         { $limit: numOfEntities }
       ]);
 
+      // Extract just the membersCount values
       result = aggregatedClubs.map(c => c.membersCount);
+      console.log(result, "membersCount only");
       break;
     }
 
     // 3. Total members across all clubs
     case "total_club_members": {
       const aggResult = await Club.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $group: {
             _id: null,
@@ -1394,7 +1403,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 4. Top clubs by number of events
     case "clubs_with_min_events": {
       const aggResult = await Club.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $addFields: {
             eventsCount: { $size: { $ifNull: ["$upcomingEvent", []] } }
@@ -1410,7 +1419,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 5. Top clubs by number of posts
     case "clubs_with_min_posts": {
       const aggResult = await Club.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $addFields: {
             postsCount: { $size: { $ifNull: ["$content", []] } }
@@ -1426,7 +1435,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 6. Total posts across all clubs
     case "total_club_posts": {
       const aggResult = await Club.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $project: {
             postsCount: { $size: { $ifNull: ["$content", []] } }
@@ -1445,7 +1454,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
     // 7. Total communities created
     case "communities_created": {
-      const count = await Community.countDocuments({ uid });
+      const count = await Community.countDocuments(matchQuery);
       result = [count];
       break;
     }
@@ -1453,16 +1462,16 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 8. Top communities by members
     case "communities_with_min_members": {
       const aggregated = await Community.aggregate([
-        { $match: { uid } },
-        { 
-          $addFields: { 
-            membersCount: { 
+        { $match: matchQuery },
+        {
+          $addFields: {
+            membersCount: {
               $add: [
                 { $size: { $ifNull: ["$members", []] } },
                 { $ifNull: ["$activeMembers", 0] } // combining stored count if needed
               ]
-            } 
-          } 
+            }
+          }
         },
         { $sort: { membersCount: -1 } },
         { $limit: numOfEntities }
@@ -1474,7 +1483,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 9. Total members across all communities
     case "total_community_members": {
       const aggResult = await Community.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $group: {
             _id: null,
@@ -1489,7 +1498,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 10. Top communities by posts
     case "communities_with_min_posts": {
       const aggResult = await Community.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $addFields: {
             postsCount: { $size: { $ifNull: ["$content", []] } }
@@ -1505,7 +1514,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     // 11. Total posts across all communities
     case "total_community_posts": {
       const aggResult = await Community.aggregate([
-        { $match: { uid } },
+        { $match: matchQuery },
         {
           $project: {
             postsCount: { $size: { $ifNull: ["$content", []] } }

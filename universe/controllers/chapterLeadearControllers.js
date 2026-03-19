@@ -1,4 +1,4 @@
-const axios = require("axios");
+﻿const axios = require("axios");
 const jwt = require("jsonwebtoken");
 const ChapterLeader = require("../models/chapterLeader");
 const bcrypt = require("bcryptjs");
@@ -51,7 +51,7 @@ const register = async (req, res) => {
     try {
       const { ses, params } = await sendMail(
         "Admin",
-        `A new Chapter Leader has joined 🚀`,
+        `A new Chapter Leader has joined ðŸš€`,
         `Check Admin dashboard for more details.`,
         "New Chapter Leader Registered",
         "manmithgopari7@mail.com",
@@ -248,24 +248,33 @@ const verifyChapterLeader = async (req, res) => {
     const newProgressEntries = quests
       .filter((quest) => !existingQuestIds.has(quest._id.toString()))
       .map((quest) => {
-        const n = quest.numOfEntities || 1;
+        const isDiscrete = quest.type === "discrete" && quest.numOfEntities > 1;
+        const n = isDiscrete ? quest.numOfEntities : 0;
+
+        let currentVal, targetVal;
+
+        if (isDiscrete) {
+          currentVal = Array.from({ length: n }, () => ({
+            value: 0,
+            isStarted: false,
+            isCompleted: false,
+          }));
+          targetVal = Array.from({ length: n }, () => quest.target);
+        } else {
+          currentVal = 0;
+          targetVal = quest.target;
+        }
 
         return {
           questId: quest._id,
           overallProgress: 0,
-          // one entry per entity
-          current: Array.from({ length: n }, () => ({
-            value:       0,
-            isStarted:   false,
-            isCompleted: false,
-          })),
-          // repeat the single target value n times (one per entity)
-          target: Array.from({ length: n }, () => quest.target),
-          isCompleted:     false,
-          completedAt:     null,
+          current: currentVal,
+          target: targetVal,
+          isCompleted: false,
+          completedAt: null,
           isRewardClaimed: false,
           rewardClaimedAt: null,
-          lastUpdatedAt:   new Date(),
+          lastUpdatedAt: new Date(),
         };
       });
 
@@ -295,10 +304,11 @@ const getQuestsProgress = async (req, res) => {
     //   });
     // }
     console.log(req.query)
+    
     const { category } = req.query; // optional filter
 
     // Fetch the chapter leader record
-    const leader = await ChapterLeader.findById("69bb014b9dd9942d6f650f13");
+    const leader = await ChapterLeader.findById(req.user.id);
 
     if (!leader) {
       return res.status(StatusCodes.NOT_FOUND).json({
@@ -327,12 +337,10 @@ const getQuestsProgress = async (req, res) => {
     let quests     = [];
 
     try {
-      console.log(process.env.QUEST_SERVICE_URL)
       const response = await axios.get(
         `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
         { params: { questIds }, timeout: 5000, ...config }
       );
-      console.log(response.data)
       quests = response.data?.quests || [];
     } catch (questErr) {
       console.error("Failed to fetch quest details:", questErr);
@@ -404,13 +412,177 @@ const getQuestsProgress = async (req, res) => {
       success: true,
       data: {
         orbits,
-        totalIpEarned:   leader.totalIpEarned,
-        totalQuests:     filteredQuests.length,
+        totalIpEarned: leader.totalIpEarned,
+        totalQuests: filteredQuests.length,
         completedQuests,
       },
     });
   } catch (err) {
     console.error("getQuestsProgress error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Forgot Password â€“ set OTP
+const setOtp = async (req, res) => {
+  try {
+    const { userEmail } = req.body;
+    const leader = await ChapterLeader.findOne({ email: userEmail.toLowerCase().trim() });
+    
+    if (!leader) {
+      return res.status(StatusCodes.OK).send("User does not exists.");
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    leader.recoveryOtp = otp;
+    await leader.save();
+
+    return res.status(StatusCodes.OK).json(leader.recoveryOtp);
+  } catch (err) {
+    console.error("setOtp error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+// Forgot Password â€“ send recovery email
+const recoveryEmail = async (req, res) => {
+  try {
+    const { userEmail, otp, name } = req.body;
+
+    const intro = [
+      "You have received this email because a password reset request for your Chapter Leader account was received.",
+      `The OTP is ${otp}`,
+    ];
+    const outro = "If you did not request a password reset, no further action is required on your part.";
+    const subject = "Chapter Leader Password Recovery";
+    const destination = [userEmail];
+
+    const { ses, params } = await sendMail(
+      name,
+      intro,
+      outro,
+      subject,
+      destination
+    );
+
+    await ses.sendEmail(params).promise();
+    return res.status(StatusCodes.OK).send("Email sent successfully.");
+  } catch (err) {
+    console.log("recoveryEmail error:", err);
+    return res.status(StatusCodes.OK).send("Something went wrong.");
+  }
+};
+
+// Forgot Password â€“ set new password
+const setNewPassword = async (req, res) => {
+  try {
+    const { otp, newPass, userEmail } = req.body;
+    const leader = await ChapterLeader.findOne({ email: userEmail.toLowerCase().trim() }).select("+password");
+
+    if (!leader) {
+      return res.status(StatusCodes.OK).send("User does not exists.");
+    }
+
+    if (leader.recoveryOtp !== Number(otp)) {
+      return res.status(StatusCodes.OK).send("Verification failed.");
+    }
+
+    const hashedPassword = await bcrypt.hash(newPass, 10);
+    leader.password = hashedPassword;
+    leader.recoveryOtp = null; // Clear OTP after use
+    await leader.save();
+
+    return res.status(StatusCodes.OK).json("Password changed successfully.");
+  } catch (err) {
+    console.error("setNewPassword error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+const getChapterLeaderDetails = async (req, res) => {
+  try {
+    const leaderId = req.user.id;
+    const leader = await ChapterLeader.findById(leaderId);
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Chapter leader not found" });
+    }
+    return res.status(StatusCodes.OK).json({ success: true, leader });
+  } catch (err) {
+    console.error("getChapterLeaderDetails error:", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+const claimQuestReward = async (req, res) => {
+  try {
+    const { questId } = req.body;
+    const leaderId = req.user.id;
+
+    if (!questId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "questId is required" });
+    }
+
+    const leader = await ChapterLeader.findById(leaderId);
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
+    }
+
+    const progressIndex = leader.progress.findIndex((p) => p.questId.toString() === questId);
+    if (progressIndex === -1) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Quest progress not found for this leader",
+      });
+    }
+
+    const progress = leader.progress[progressIndex];
+    if (!progress.isCompleted) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Quest is not completed yet" });
+    }
+    if (progress.isRewardClaimed) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "Reward already claimed" });
+    }
+
+    const config = generateServiceToken();
+    let questDetails;
+    try {
+      const response = await axios.get(
+        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds?questIds=${questId}`,
+        config
+      );
+      questDetails = response.data?.quests?.[0];
+    } catch (err) {
+      console.error("Fetch quest error:", err.message);
+      return res.status(StatusCodes.SERVICE_UNAVAILABLE).json({
+        success: false,
+        message: "Quest service unavailable",
+      });
+    }
+
+    if (!questDetails) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Quest details not found in quest service",
+      });
+    }
+
+    progress.isRewardClaimed = true;
+    progress.rewardClaimedAt = new Date();
+
+    const rewardAmount = questDetails.ip || 0;
+    leader.totalIpEarned = (leader.totalIpEarned || 0) + rewardAmount;
+
+    leader.markModified("progress");
+    await leader.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Reward claimed successfully",
+      rewardAmount,
+      totalIpEarned: leader.totalIpEarned,
+    });
+  } catch (err) {
+    console.error("claimQuestReward error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -421,4 +593,10 @@ module.exports = {
   regenerateAccessToken,
   verifyChapterLeader,
   getQuestsProgress,
+  getChapterLeaderDetails,
+  claimQuestReward,
+  setOtp,
+  recoveryEmail,
+  setNewPassword,
 };
+
