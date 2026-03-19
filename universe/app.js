@@ -1,6 +1,7 @@
 require("dotenv").config();
 require("./config/kafka_producer");
 require("./config/kafka_listener");
+require("./config/snapshotCron");
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
@@ -209,7 +210,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}.`);
+      console.log(`✅ Server is listening to port ${port}!`);
     });
   } catch (error) {
     console.log(error);

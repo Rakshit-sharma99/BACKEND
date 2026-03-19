@@ -92,3 +92,7 @@ services:
     volumes:
       - ./map:/app
       - /app/node_modules
+  starman:
+    volumes:
+      - ./starman:/app
+      - /app/node_modules

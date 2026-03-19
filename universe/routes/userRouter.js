@@ -56,8 +56,14 @@ const {
   bookmarkContent,
   unbookmarkContent,
   getBookmarks,
+  checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
+  saveUserAsset,
+  editUserAsset,
+  deleteUserAsset,
+  getUserAssets,
+  getUserAssetById,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -115,7 +121,13 @@ router.get("/searchPostableSpaces", searchPostableSpaces);
 router.post("/bookmarkContent", bookmarkContent);
 router.post("/unbookmarkContent", unbookmarkContent);
 router.get("/getBookmarks", getBookmarks);
+router.post("/checkBookmarks", checkBookmarks);
 router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
 router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
+router.post("/saveUserAsset", saveUserAsset);
+router.post("/editUserAsset", editUserAsset);
+router.post("/deleteUserAsset", deleteUserAsset);
+router.get("/getUserAssets", getUserAssets);
+router.get("/getUserAssetById", getUserAssetById);
 
 module.exports = router;

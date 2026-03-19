@@ -298,6 +298,7 @@ const searchUniverse = async (req, res) => {
 
 const getPopularUniverses = async (req, res) => {
   try {
+    const { limit = 5 } = req.query;
     const universes = await Universe.find()
       .sort({
         traffic: -1,
@@ -305,7 +306,7 @@ const getPopularUniverses = async (req, res) => {
         ip: -1,
         rank: 1, // lower rank is better
       })
-      .limit(10);
+      .limit(Number(limit));
 
     return res.status(200).json({
       success: true,
@@ -361,6 +362,97 @@ const getAllowedDomains = async (req, res) => {
   }
 };
 
+const getEnrichedUniverseData = async (req, res) => {
+  try {
+    const { name } = req.query;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "University name is required",
+      });
+    }
+
+    let lat = null;
+    let lng = null;
+    let logo = null;
+    let callSign = "";
+    let location = "";
+
+    // 1️⃣ Fetch from Hipolabs for domain (logo), callSign, location
+    try {
+      const uniRes = await axios.get(
+        `http://universities.hipolabs.com/search?name=${encodeURIComponent(
+          name,
+        )}`,
+        { timeout: 5000 },
+      );
+
+      if (uniRes.data && uniRes.data.length > 0) {
+        // Find exact match or use the first result
+        const exactMatch = uniRes.data.find(
+          (u) => u.name.toLowerCase() === name.toLowerCase(),
+        );
+        const uni = exactMatch || uniRes.data[0];
+
+        callSign = uni.alpha_two_code || "";
+        location = uni.country || "";
+        if (uni.domains && uni.domains.length > 0) {
+          logo = `https://www.google.com/s2/favicons?sz=64&domain=${uni.domains[0]}`;
+        }
+      }
+    } catch (apiErr) {
+      console.warn(`Hipolabs API failed for ${name}:`, apiErr.message);
+    }
+
+    // 2️⃣ Fetch coordinates from Nominatim
+    try {
+      const geoRes = await axios.get(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+          name,
+        )}&format=json&limit=1`,
+        {
+          headers: {
+            "User-Agent": "MultiverseBackend/1.0",
+          },
+          timeout: 5000,
+        },
+      );
+
+      if (geoRes.data && geoRes.data.length > 0) {
+        lat = parseFloat(geoRes.data[0].lat);
+        lng = parseFloat(geoRes.data[0].lon);
+      }
+    } catch (geoErr) {
+      console.warn(`Geocoding failed for ${name}:`, geoErr.message);
+    }
+
+    const enrichedData = {
+      name,
+      callSign,
+      location,
+      lat,
+      lng,
+      logo,
+      source: "external",
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Enriched universe data fetched successfully",
+      data: enrichedData,
+    });
+  } catch (err) {
+    console.error("Get Enriched Universe Data Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch enriched universe data",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   createUniverse,
   editUniverse,
@@ -368,4 +460,5 @@ module.exports = {
   searchUniverse,
   getPopularUniverses,
   getAllowedDomains,
+  getEnrichedUniverseData,
 };

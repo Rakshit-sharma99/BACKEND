@@ -918,14 +918,22 @@ const getContentForLanding = async (req, res) => {
     ]);
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
-    const seenIds = (seenIdsRaw || []).map((id) =>
-      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null
-    ).filter(Boolean);
+    const seenIds = (seenIdsRaw || [])
+      .map((id) =>
+        mongoose.Types.ObjectId.isValid(id)
+          ? new mongoose.Types.ObjectId(id)
+          : null,
+      )
+      .filter(Boolean);
 
-    const communityIds = (user.communitiesPartOf || []).map((c) => c.communityId);
+    const communityIds = (user.communitiesPartOf || []).map(
+      (c) => c.communityId,
+    );
     const clubIds = (user.clubs || []).map((c) => c.clubId);
     const belongsToIds = [...communityIds, ...clubIds];
     const interestTags = user.interests || [];
@@ -949,9 +957,12 @@ const getContentForLanding = async (req, res) => {
           feedType: "followed",
           commentsNum: { $size: "$comments" },
           comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+          bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
         },
       },
-      { $project: { vector: 0 } },
+      { $project: { vector: 0, likes: 0 } },
     ]);
 
     // B. Suggested Content (Interests)
@@ -973,9 +984,12 @@ const getContentForLanding = async (req, res) => {
               feedType: "suggested",
               commentsNum: { $size: "$comments" },
               comments: { $slice: ["$comments", 6] },
+              likeCount: { $size: { $ifNull: ["$likes", []] } },
+              isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+              bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
             },
           },
-          { $project: { vector: 0 } },
+          { $project: { vector: 0, likes: 0 } },
         ])
         : Promise.resolve([]);
 
@@ -1011,9 +1025,12 @@ const getContentForLanding = async (req, res) => {
             feedType: "suggested", // Mark as suggested so UI handles it gracefully
             commentsNum: { $size: "$comments" },
             comments: { $slice: ["$comments", 6] },
+            likeCount: { $size: { $ifNull: ["$likes", []] } },
+            isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+            bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
           },
         },
-        { $project: { vector: 0 } },
+        { $project: { vector: 0, likes: 0 } },
         { $limit: needed }
       ]);
 
@@ -1025,6 +1042,19 @@ const getContentForLanding = async (req, res) => {
     // Trim to limit
     finalFeed = finalFeed.slice(0, parsedLimit);
 
+    // Fetch bookmarks
+    let finalFeedWithBookmarks = finalFeed;
+    if (finalFeed.length > 0) {
+      const contentIds = finalFeed.map((c) => c._id.toString());
+      const bookmarkedIdsArray = await checkUserBookmarks({ userId, contentIds });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalFeedWithBookmarks = finalFeed.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
     // 5. Update Seen List in Redis
     if (finalFeed.length > 0) {
       const newIds = finalFeed.map((c) => c._id.toString());
@@ -1035,12 +1065,12 @@ const getContentForLanding = async (req, res) => {
     }
 
     const nextCursor =
-      finalFeed.length > 0
-        ? finalFeed[finalFeed.length - 1].timeStamp
+      finalFeedWithBookmarks.length > 0
+        ? finalFeedWithBookmarks[finalFeedWithBookmarks.length - 1].timeStamp
         : null;
 
     const responsePayload = {
-      data: finalFeed,
+      data: finalFeedWithBookmarks,
       nextCursor,
     };
 
@@ -1061,7 +1091,7 @@ const getContentForLanding = async (req, res) => {
 //Controller 21
 const getMultipleContents = async (req, res) => {
   try {
-    const { ids, select, filters = {} } = req.body;
+    const { ids, select, filters = {}, userId } = req.body;
 
     // 1. Validate presence and type of IDs
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -1090,7 +1120,7 @@ const getMultipleContents = async (req, res) => {
 
       projectStage._id = 1;
     } else {
-      projectStage = { vector: 0 };
+      projectStage = { vector: 0, likes: 0 };
     }
 
     // 4. Build match condition with optional filters
@@ -1106,6 +1136,10 @@ const getMultipleContents = async (req, res) => {
         $addFields: {
           commentsNum: { $size: "$comments" },
           comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: userId
+            ? { $in: [userId, { $ifNull: ["$likes", []] }] }
+            : false,
         },
       },
       {
@@ -1116,7 +1150,22 @@ const getMultipleContents = async (req, res) => {
       },
     ]);
 
-    return res.status(200).json(contents);
+    let finalContents = contents;
+    if (userId && contents.length > 0) {
+      const contentIds = contents.map((c) => c._id.toString());
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId,
+        contentIds,
+      });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalContents = contents.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
+    return res.status(200).json(finalContents);
   } catch (error) {
     console.error("Error fetching multiple contents:", error);
     return res.status(500).json({ error: "Internal server error" });
@@ -1297,6 +1346,248 @@ const insertNewFields = async (req, res) => {
   }
 };
 
+//Controller 23
+const getUserCommunityPosts = async (req, res) => {
+  try {
+    const { userId, communityId, cursor, limit } = req.query;
+
+    if (!userId || !communityId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and communityId are required." });
+    }
+
+    const parsedLimit = parseInt(limit) || 10;
+    const parsedCursor = cursor ? new Date(cursor) : new Date();
+
+    const pipeline = [
+      {
+        $match: {
+          idOfSender: userId,
+          belongsTo: communityId,
+          timeStamp: { $lt: parsedCursor },
+          contentType: { $in: ["image", "video", "text"] },
+        },
+      },
+      { $sort: { timeStamp: -1 } },
+      { $limit: parsedLimit },
+      {
+        $addFields: {
+          commentsNum: { $size: "$comments" },
+          comments: { $slice: ["$comments", 6] },
+          likeCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: {
+            $in: [req.user ? req.user.id : userId, { $ifNull: ["$likes", []] }],
+          },
+        },
+      },
+      { $project: { vector: 0, likes: 0 } },
+    ];
+
+    const contents = await Content.aggregate(pipeline);
+
+    let finalFeedWithBookmarks = contents;
+    if (contents.length > 0) {
+      const contentIds = contents.map((c) => c._id.toString());
+      const requesterId = req.user ? req.user.id : userId;
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId: requesterId,
+        contentIds,
+      });
+      const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
+
+      finalFeedWithBookmarks = contents.map((item) => ({
+        ...item,
+        isBookmarked: bookmarkedIdsSet.has(item._id.toString()),
+      }));
+    }
+
+    const nextCursor =
+      finalFeedWithBookmarks.length > 0
+        ? finalFeedWithBookmarks[finalFeedWithBookmarks.length - 1].timeStamp
+        : null;
+
+    return res.status(StatusCodes.OK).json({
+      data: finalFeedWithBookmarks,
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Error in getUserCommunityPosts:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+};
+
+/**
+ * Hybrid search for Starman Q&A — combines vector search (semantic)
+ * with regex text search to find relevant posts for a user question.
+ */
+const searchContentQA = async (req, res) => {
+  try {
+    const { query, uid } = req.body;
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Query is required.", found: false });
+    }
+
+    // 1. Generate embedding for semantic search
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query.trim(),
+      encoding_format: "float",
+    });
+
+    const embeddingVector = embeddingResponse?.data?.[0]?.embedding;
+
+    // 2. Run vector search + text search in parallel
+    // Extract meaningful keywords (strip stop words) for text search
+    const STOP_WORDS = new Set([
+      "did", "does", "do", "is", "are", "was", "were", "will", "would",
+      "can", "could", "should", "has", "have", "had", "been", "being",
+      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
+      "for", "of", "with", "by", "from", "it", "its", "this", "that",
+      "what", "when", "where", "who", "how", "why", "which",
+      "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
+      "about", "any", "tell", "know", "find", "show", "get",
+      "visit", "visited", "come", "came", "going", "go", "went",
+      "next", "last", "new", "like", "also", "just", "very",
+    ]);
+
+    const keywords = query
+      .trim()
+      .replace(/[?!.,;:'"()]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !STOP_WORDS.has(w.toLowerCase()));
+
+    // Build aggregation that scores posts by how many keywords they match
+    const minMatches = keywords.length > 1 ? 2 : 1;
+
+    const keywordMatchFields = keywords.map((kw, i) => ({
+      [`_kw${i}`]: {
+        $cond: [
+          {
+            $regexMatch: {
+              input: { $concat: [{ $ifNull: ["$text", ""] }, " ", { $ifNull: ["$title", ""] }] },
+              regex: kw,
+              options: "i",
+            },
+          },
+          1,
+          0,
+        ],
+      },
+    }));
+
+    const scoreExpr =
+      keywords.length > 0
+        ? { $add: keywords.map((_, i) => `$_kw${i}`) }
+        : { $literal: 0 };
+
+    const textSearchPipeline =
+      keywords.length > 0
+        ? Content.aggregate([
+            {
+              $match: {
+                $or: keywords.map((kw) => ({
+                  $or: [
+                    { text: { $regex: new RegExp(kw, "i") } },
+                    { title: { $regex: new RegExp(kw, "i") } },
+                  ],
+                })),
+              },
+            },
+            { $addFields: Object.assign({}, ...keywordMatchFields) },
+            { $addFields: { _kwScore: scoreExpr } },
+            { $match: { _kwScore: { $gte: minMatches } } },
+            { $sort: { _kwScore: -1 } },
+            { $limit: 10 },
+            { $project: { vector: 0, comments: 0, ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])) } },
+          ])
+        : Content.find({ text: { $regex: new RegExp(query.trim(), "i") } }, { vector: 0, comments: 0 })
+            .limit(10)
+            .lean();
+
+    const [vectorResults, textResults] = await Promise.all([
+      // Semantic / vector search
+      embeddingVector && Array.isArray(embeddingVector)
+        ? Content.aggregate([
+            {
+              $vectorSearch: {
+                queryVector: embeddingVector,
+                path: "vector",
+                numCandidates: 200,
+                limit: 10,
+                index: "vector_index",
+              },
+            },
+            {
+              $addFields: {
+                searchScore: { $meta: "vectorSearchScore" },
+                commentsNum: { $size: "$comments" },
+              },
+            },
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+              },
+            },
+          ])
+        : Promise.resolve([]),
+
+      // Text / keyword search — ranked by keyword match count
+      textSearchPipeline,
+    ]);
+
+    // 3. Merge and deduplicate — text matches first (exact), then vector (semantic)
+    const seen = new Set();
+    const merged = [];
+
+    // Text results first (exact keyword matches, always relevant)
+    for (const doc of textResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id)) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "text" });
+      }
+    }
+    // Then vector results (only if score is high enough to be truly relevant)
+    for (const doc of vectorResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id) && (doc.searchScore || 0) >= 0.75) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "vector" });
+      }
+    }
+
+    // 4. Trim to top 3 most relevant — return full docs for expandPost navigation
+    const results = merged.slice(0, 3).map((doc) => {
+      const cleaned = { ...doc };
+      delete cleaned.vector;
+      delete cleaned._source;
+      delete cleaned._kwScore;
+      // Add commentsNum convenience field
+      if (!cleaned.commentsNum && cleaned.comments) {
+        cleaned.commentsNum = cleaned.comments.length;
+      }
+      return cleaned;
+    });
+
+    return res.status(StatusCodes.OK).json({
+      results,
+      found: results.length > 0,
+    });
+  } catch (error) {
+    console.error("searchContentQA error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong.", found: false });
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1322,4 +1613,6 @@ module.exports = {
   uploadMiddleware: upload.single("file"),
   uploadToS3,
   insertNewFields,
+  getUserCommunityPosts,
+  searchContentQA,
 };

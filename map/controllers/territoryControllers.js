@@ -72,7 +72,7 @@ function cosineSimilarity(a, b) {
 async function getRepresentativeTextsForClusters(
   territoryCandidates,
   allNodes,
-  topK = MAX_REPRESENTATIVE_TEXTS
+  topK = MAX_REPRESENTATIVE_TEXTS,
 ) {
   // Index semantic nodes for fast lookup
   const nodeById = new Map();
@@ -109,13 +109,16 @@ async function getRepresentativeTextsForClusters(
 
     // Fetch domain documents
     const [clubs, communities] = await Promise.all([
-        fetchClubById({ids:clubIds,fields:["name","motto","tags"]}),
-        fetchCommunityById({ids:communityIds,fields:["title","label","tag"]})
+      fetchClubById({ ids: clubIds, fields: ["name", "motto", "tags"] }),
+      fetchCommunityById({
+        ids: communityIds,
+        fields: ["title", "label", "tag"],
+      }),
     ]);
 
     const clubById = new Map(clubs.map((c) => [c._id.toString(), c]));
     const communityById = new Map(
-      communities.map((c) => [c._id.toString(), c])
+      communities.map((c) => [c._id.toString(), c]),
     );
 
     // Build representative text payload
@@ -184,7 +187,7 @@ function extractJSON(text) {
 async function nameTerritoryWithLLM(
   representativeTexts,
   existingNames = [],
-  forbiddenWords = []
+  forbiddenWords = [],
 ) {
   const examples = representativeTexts
     .slice(0, MAX_REPRESENTATIVE_TEXTS)
@@ -199,7 +202,7 @@ async function nameTerritoryWithLLM(
   const forbiddenWordsBlock =
     forbiddenWords.length > 0
       ? `Avoid using these words or close variants:\n- ${forbiddenWords.join(
-          "\n- "
+          "\n- ",
         )}`
       : "";
 
@@ -270,14 +273,14 @@ function normalizeImportances(territories) {
 async function computeTerritoryImportanceFromNodes(nodeIds) {
   const nodes = await SemanticNode.find(
     { _id: { $in: nodeIds } },
-    { embedding: 0 }
+    { embedding: 0 },
   ).lean();
 
   const nodeCount = nodes.length;
 
   const totalImportance = nodes.reduce(
     (sum, n) => sum + (n.position?.importance || 0),
-    0
+    0,
   );
 
   const avgImportance = nodeCount > 0 ? totalImportance / nodeCount : 0;
@@ -313,9 +316,9 @@ function extractForbiddenWords(names) {
         name
           .toLowerCase()
           .split(/\s+/)
-          .filter((w) => w.length > 3 && !STOPWORDS.has(w))
-      )
-    )
+          .filter((w) => w.length > 3 && !STOPWORDS.has(w)),
+      ),
+    ),
   );
 }
 
@@ -527,13 +530,13 @@ const clusterSemanticNodes = async (req, res) => {
       territoryCandidates.map((t) => ({
         clusterId: t.clusterId,
         size: t.size,
-      }))
+      })),
     );
 
     // ---- Representative Texts ----
     const enrichedTerritories = await getRepresentativeTextsForClusters(
       territoryCandidates,
-      nodes
+      nodes,
     );
 
     // ---- LLM Naming ----
@@ -546,7 +549,7 @@ const clusterSemanticNodes = async (req, res) => {
       const label = await nameTerritoryWithLLM(
         territory.representativeTexts,
         usedNames,
-        forbiddenWords
+        forbiddenWords,
       );
 
       usedNames.push(label.name);
@@ -564,14 +567,14 @@ const clusterSemanticNodes = async (req, res) => {
     const rawRatedTerritories = await Promise.all(
       labeledTerritories.map(async (territory) => {
         const rawScore = await computeTerritoryImportanceFromNodes(
-          territory.memberNodeIds
+          territory.memberNodeIds,
         );
 
         return {
           ...territory,
           rawImportance: rawScore,
         };
-      })
+      }),
     );
     const ratedTerritories = normalizeImportances(rawRatedTerritories);
 
@@ -651,8 +654,9 @@ const getAllTerritories = async (req, res) => {
       {
         centroidEmbedding: 0,
         memberNodeIds: 0,
+        representativeTexts: 0,
         __v: 0,
-      }
+      },
     ).lean();
 
     return res.status(200).json({
@@ -709,7 +713,7 @@ const getDetailsOfTerritory = async (req, res) => {
       {
         embedding: 0,
         __v: 0,
-      }
+      },
     ).lean();
 
     return res.status(200).json({
@@ -729,6 +733,181 @@ const getDetailsOfTerritory = async (req, res) => {
   }
 };
 
+const deleteAllTerritories = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    await Territory.deleteMany({});
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "All territories deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting all territories:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while deleting territories.",
+      error: error.message,
+    });
+  }
+};
+
+const searchTerritories = async (req, res) => {
+  try {
+    const { interests, q, limit = 5 } = req.query;
+
+    let queryArgs = [];
+    if (interests) {
+      const interestsArr = interests.split(",").map((i) => i.trim());
+      interestsArr.forEach((interest) => {
+        const regex = new RegExp(interest, "i");
+        queryArgs.push({ name: regex });
+        queryArgs.push({ description: regex });
+        queryArgs.push({ tags: regex });
+        queryArgs.push({ aliases: regex });
+      });
+    }
+    if (q) {
+      const regex = new RegExp(q, "i");
+      queryArgs.push({ name: regex });
+      queryArgs.push({ description: regex });
+      queryArgs.push({ tags: regex });
+      queryArgs.push({ aliases: regex });
+    }
+
+    let filter = {};
+    if (queryArgs.length > 0) {
+      filter = { $or: queryArgs };
+    }
+
+    const territories = await Territory.find(filter, {
+      centroidEmbedding: 0,
+      memberNodeIds: 0,
+      representativeTexts: 0,
+    })
+      .sort({ importanceScore: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    return res.status(200).json(territories);
+  } catch (error) {
+    console.error("Error searching territories:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to search territories",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Find territory and position for a given node id
+ */
+const getNodeTerritoryAndPosition = async (req, res) => {
+  try {
+    const { nodeId } = req.query;
+
+    if (!nodeId) {
+      return res.status(400).json({
+        success: false,
+        message: "nodeId is required",
+      });
+    }
+
+    // 1. Find the node to get its position
+    const node = await SemanticNode.findById(nodeId).lean();
+
+    if (!node) {
+      return res.status(404).json({
+        success: false,
+        message: "Node not found",
+      });
+    }
+
+    // 2. Find the territory that contains this node
+    const territory = await Territory.findOne({
+      memberNodeIds: String(nodeId),
+    }).lean();
+
+    return res.status(200).json({
+      success: true,
+      uid: territory.uid,
+      universeMetaData: territory.universeMetaData,
+      node: {
+        id: node._id,
+        entityType: node.entityType,
+        position: node.position,
+      },
+      territory: territory
+        ? {
+            id: territory._id,
+            name: territory.name,
+            clusterId: territory.clusterId,
+            spatial: territory.spatial,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Error finding territory and position for node:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to find territory and position for node",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Temporary controller to backfill uid and universeMetaData for all territories
+ */
+const backfillTerritoryUidAndUniverse = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    const { uid, universeMetaData } = req.body;
+
+    if (!uid || !universeMetaData) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "uid and universeMetaData are required in the request body",
+      });
+    }
+
+    const result = await Territory.updateMany(
+      {},
+      {
+        $set: {
+          uid: uid,
+          universeMetaData: universeMetaData,
+        },
+      },
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Successfully updated ${result.modifiedCount} territories.`,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error backfilling territory data:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while backfilling territories.",
+      error: error.message,
+    });
+  }
+};
+
 // ─────────────────────────────
 // Exports
 // ─────────────────────────────
@@ -736,4 +915,8 @@ module.exports = {
   clusterSemanticNodes,
   getAllTerritories,
   getDetailsOfTerritory,
+  deleteAllTerritories,
+  searchTerritories,
+  getNodeTerritoryAndPosition,
+  backfillTerritoryUidAndUniverse,
 };

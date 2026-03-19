@@ -18,7 +18,7 @@ const representativeTextSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Bounding box
@@ -29,7 +29,7 @@ const bboxSchema = new mongoose.Schema(
     xMax: Number,
     yMax: Number,
   },
-  { _id: false }
+  { _id: false },
 );
 
 // GeoJSON-like geometry
@@ -45,7 +45,7 @@ const geometrySchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Spatial metadata
@@ -61,7 +61,7 @@ const spatialSchema = new mongoose.Schema(
     zMin: Number,
     zMax: Number,
   },
-  { _id: false }
+  { _id: false },
 );
 
 /* ---------- Main Cluster Schema ---------- */
@@ -73,6 +73,22 @@ const territorySchema = new mongoose.Schema(
       required: true,
       index: true,
       unique: true,
+    },
+
+    uid: {
+      type: String,
+      index: true,
+      required: true,
+    },
+
+    universeMetaData: {
+      name: { type: String },
+      location: { type: String },
+      logo: { type: String },
+      callSign: { type: String },
+      logoKey: { type: String },
+      lat: { type: Number },
+      lng: { type: Number },
     },
 
     memberNodeIds: {
@@ -125,10 +141,16 @@ const territorySchema = new mongoose.Schema(
     },
 
     spatial: spatialSchema,
+
+    source: {
+      type: String,
+      enum: ["semantic", "facet"],
+      default: "semantic",
+    },
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("Territory", territorySchema);

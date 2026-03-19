@@ -9,6 +9,7 @@ const {
   searchUniverse,
   getPopularUniverses,
   getAllowedDomains,
+  getEnrichedUniverseData,
 } = require("../controllers/universeControllers");
 
 router.post("/createUniverse", authenticate, createUniverse);
@@ -17,5 +18,6 @@ router.get("/getAllUniverses", getAllUniverses);
 router.get("/searchUniverse", searchUniverse);
 router.get("/getPopularUniverses", getPopularUniverses);
 router.get("/getAllowedDomains", authenticate, getAllowedDomains);
+router.get("/getEnrichedUniverseData", getEnrichedUniverseData);
 
 module.exports = router;
