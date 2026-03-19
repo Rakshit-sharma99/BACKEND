@@ -29,7 +29,8 @@ app.get("/quest/api/v1/hello", (req, res) => {
   res.send("Quest service responding!");
 });
 
-app.use("/quest/api/v1",questRouter);
+app.use("/quest/api/v1", questRouter);
+
 
 const port = process.env.PORT || 6010;
 

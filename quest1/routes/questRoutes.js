@@ -1,17 +1,18 @@
-const express = require('express')
-const router = express.Router();
+const express = require("express");
+const router  = express.Router();
+
 const {
-    createQuest,
-    updateQuest,
-    deleteQuest,
-    getQuests,
-    getQuestById
+  createQuest,
+  createMultipleQuest,
+  getAllActiveQuests,
+  getQuestsByIds,
 } = require("../controllers/questControllers");
 
-router.post("/createQuest", createQuest);
-router.get("/getQuests", getQuests);
-router.get("/getQuestById/:id", getQuestById);
-router.put("/updateQuest/:id", updateQuest);
-router.delete("/deleteQuest/:id", deleteQuest);
+router.post("/createQuest",        createQuest);
+router.post("/createMultipleQuest", createMultipleQuest);
+
+// Internal endpoints (called by universe service with internal JWT)
+router.get("/getAllQuests",    getAllActiveQuests);
+router.get("/getQuestsByIds", getQuestsByIds);
 
 module.exports = router;

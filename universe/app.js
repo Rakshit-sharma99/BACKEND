@@ -1,7 +1,9 @@
 require("dotenv").config();
-require("./config/kafka_producer");
-require("./config/kafka_listener");
+// require("./config/kafka_producer");
+// require("./config/kafka_listener");
 require("./config/snapshotCron");
+require("./jobs/updateProgress");
+
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
@@ -20,10 +22,10 @@ const redis = new Redis({
   port: 6379,
 });
 
-redis.on("connect", () => console.log("✅ Connected to Redis!"));
-redis.on("error", (err) => {
-  console.error("🚨 Redis Error:", err.message);
-});
+// redis.on("connect", () => console.log("✅ Connected to Redis!"));
+// redis.on("error", (err) => {
+//   console.error("🚨 Redis Error:", err.message);
+// });
 
 const {
   SecretsManagerClient,
@@ -77,9 +79,15 @@ const blockRouter = require("./routes/blockRouter");
 const unsortedRouter = require("./routes/unsortedRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
+const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
 
 app.set("trust proxy", 1);
-app.use(cors());
+app.use(cors(
+  {
+    origin: ["http://localhost:5173", "https://macbease.com", "https://www.macbease.com"],
+    credentials: true,
+  }
+));
 app.use(helmet());
 app.use(express.json());
 
@@ -159,6 +167,8 @@ app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
 app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
+app.use("/universe/api/v1/chapterLeader",chapterLeaderRouter)
+
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });

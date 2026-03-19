@@ -1,0 +1,30 @@
+const { Router } = require("express");
+const {
+  register,
+  login,
+  regenerateAccessToken,
+  verifyChapterLeader,
+  getQuestsProgress,
+} = require("../controllers/chapterLeadearControllers");
+const authenticate = require("../middlewares/authentication.js");
+
+const router = Router();
+
+router.get("/health", (req, res) => {
+  res.json({ success: true, message: "Chapter leader service is running" });
+});
+
+// ── Public routes ──────────────────────────────────────────────────────────
+router.post("/register", register);
+router.post("/login",    login);
+
+// ── Auth required ──────────────────────────────────────────────────────────
+router.post("/regenerateAccessToken", authenticate, regenerateAccessToken);
+
+// Admin only – verify a chapter leader & assign quests
+router.post("/verify", verifyChapterLeader);
+
+// Chapter leader – get their quest progress (optionally ?category=Club|Community|Event)
+router.get("/getQuestsProgress", getQuestsProgress);
+
+module.exports = router;

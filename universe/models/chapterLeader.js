@@ -1,0 +1,170 @@
+const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken")
+
+
+const QuestProgressSchema = new mongoose.Schema(
+    {
+        questId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Quest",
+            required: true,
+        },
+        overallProgress: {
+            type: Number,
+            default: 0,
+            min: 0,
+            max: 100,
+        },
+        current: [
+            {
+                value: {
+                    type: Number,
+                    default: 0,
+                    min: 0,
+                },
+                isStarted: {
+                    type: Boolean,
+                    default: false,
+                },
+                isCompleted: {
+                    type: Boolean,
+                    default: false,
+                }
+
+            }
+        ],
+        target: {
+            type: [Number],
+            required: true,
+        },
+        isCompleted: {
+            type: Boolean,
+            default: false,
+        },
+        completedAt: {
+            type: Date,
+            default: null,
+        },
+        isRewardClaimed: {
+            type: Boolean,
+            default: false,
+        },
+        rewardClaimedAt: {
+            type: Date,
+            default: null,
+        },
+
+        lastUpdatedAt: {
+            type: Date,
+            default: Date.now,
+        },
+    },
+    { _id: false }
+);
+
+const universeSchema = new mongoose.Schema(
+    {
+        name: String,
+        location: String,
+        logo: String,
+        callSign: String,
+        logoKey: String,
+
+        lat: {
+            type: Number,
+            default: 0,
+            set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+        },
+
+        lng: {
+            type: Number,
+            default: 0,
+            set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+        },
+    },
+    { _id: false },
+);
+
+const ChapterLeaderSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: 100,
+        },
+        email: {
+            type: String,
+            required: true,
+            trim: true,
+            lowercase: true,
+            unique: true,
+            index: true,
+        },
+        password: {
+            type: String,
+            required: true,
+            minlength: 6,
+            select: false,
+        },
+        progress: {
+            type: [QuestProgressSchema],
+            default: [],
+        },
+        totalIpEarned: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
+
+        isVerified: {
+            type: Boolean,
+            default: false,
+        },
+        approvedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        },
+        uid: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Universe",
+        },
+        universeMetaData: universeSchema,
+    },
+    { timestamps: true }
+);
+
+
+ChapterLeaderSchema.methods.createAccessToken = function () {
+    return jwt.sign(
+        {
+            role: "chapter_leader",
+            id: this._id,
+            uid: this.uid,
+            callSign: this.universeMetaData?.callSign,
+        },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: 60 * 25,
+        },
+    );
+};
+
+ChapterLeaderSchema.methods.createRefreshToken = function () {
+    return jwt.sign(
+        {
+            role: "chapter_leader",
+            id: this._id,
+            uid: this.uid,
+            callSign: this.universeMetaData?.callSign,
+        },
+        process.env.REFRESH_TOKEN_SECRET,
+        {
+            expiresIn: process.env.REFRESH_TOKEN_LIFETIME,
+        },
+    );
+};
+
+ChapterLeaderSchema.index({ uid: 1 });
+
+module.exports = mongoose.model("ChapterLeader", ChapterLeaderSchema);

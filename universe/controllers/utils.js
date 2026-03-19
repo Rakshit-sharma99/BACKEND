@@ -16,6 +16,8 @@ const { v4: uuidv4 } = require("uuid");
 const stream = require("stream");
 const path = require("path");
 const Club = require("../models/club");
+const Community = require("../models/community");
+
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
 function getCurrentISTDate() {
@@ -32,6 +34,15 @@ const sendMail = async (
   action,
   emailHTML,
 ) => {
+  console.log("Mail generating", {
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+    action,
+    emailHTML,
+  })
   const mailGenerator = new Mailgen({
     theme: "cerberus",
     product: {
@@ -1337,6 +1348,199 @@ const sendOnboardingMail = async (user) => {
   }
 };
 
+async function resolveMetricValue(metric, uid, numOfEntities = 1) {
+  uid = uid?.toString();
+  console.log(`[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`);
+
+
+  let result = [];
+
+  switch (metric) {
+    // 1. Total clubs created
+    case "clubs_created": {
+      const count = await Club.countDocuments({ uid });
+      result = [count];
+      break;
+    }
+
+    // 2. Top clubs by members
+    case "clubs_with_min_members": {
+      const aggregatedClubs = await Club.aggregate([
+        { $match: { uid } },
+        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        { $sort: { membersCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+
+      result = aggregatedClubs.map(c => c.membersCount);
+      break;
+    }
+
+    // 3. Total members across all clubs
+    case "total_club_members": {
+      const aggResult = await Club.aggregate([
+        { $match: { uid } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // 4. Top clubs by number of events
+    case "clubs_with_min_events": {
+      const aggResult = await Club.aggregate([
+        { $match: { uid } },
+        {
+          $addFields: {
+            eventsCount: { $size: { $ifNull: ["$upcomingEvent", []] } }
+          }
+        },
+        { $sort: { eventsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.eventsCount);
+      break;
+    }
+
+    // 5. Top clubs by number of posts
+    case "clubs_with_min_posts": {
+      const aggResult = await Club.aggregate([
+        { $match: { uid } },
+        {
+          $addFields: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        { $sort: { postsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.postsCount);
+      break;
+    }
+
+    // 6. Total posts across all clubs
+    case "total_club_posts": {
+      const aggResult = await Club.aggregate([
+        { $match: { uid } },
+        {
+          $project: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$postsCount" }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // 7. Total communities created
+    case "communities_created": {
+      const count = await Community.countDocuments({ uid });
+      result = [count];
+      break;
+    }
+
+    // 8. Top communities by members
+    case "communities_with_min_members": {
+      const aggregated = await Community.aggregate([
+        { $match: { uid } },
+        { 
+          $addFields: { 
+            membersCount: { 
+              $add: [
+                { $size: { $ifNull: ["$members", []] } },
+                { $ifNull: ["$activeMembers", 0] } // combining stored count if needed
+              ]
+            } 
+          } 
+        },
+        { $sort: { membersCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggregated.map(c => c.membersCount);
+      break;
+    }
+
+    // 9. Total members across all communities
+    case "total_community_members": {
+      const aggResult = await Community.aggregate([
+        { $match: { uid } },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // 10. Top communities by posts
+    case "communities_with_min_posts": {
+      const aggResult = await Community.aggregate([
+        { $match: { uid } },
+        {
+          $addFields: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        { $sort: { postsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.postsCount);
+      break;
+    }
+
+    // 11. Total posts across all communities
+    case "total_community_posts": {
+      const aggResult = await Community.aggregate([
+        { $match: { uid } },
+        {
+          $project: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$postsCount" }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    case "communities_with_min_events":
+      result = [0]; // Not yet implemented, needs relationship mapping
+      break;
+
+
+    default:
+      console.warn(`[MetricResolver] Unsupported metric: ${metric}`);
+      result = [0];
+  }
+
+  if (result.length > numOfEntities) {
+    result = result.slice(0, numOfEntities);
+  }
+
+  const loggedResult = result.length > 10 ? [...result.slice(0, 10), `...and ${result.length - 10} more`] : result;
+  console.log(`[MetricResolver] Result for ${metric}: ${JSON.stringify(loggedResult)}`);
+  return result;
+}
+
 module.exports = {
   sendMail,
   getCurrentISTDate,
@@ -1364,4 +1568,5 @@ module.exports = {
   fetchBags,
   fetchRightSequence,
   sendOnboardingMail,
+  resolveMetricValue
 };
