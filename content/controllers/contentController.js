@@ -8,6 +8,7 @@ const {
   lemmatize,
   fetchRelatedTags,
   fetchNativeUserData,
+  checkUserBookmarks
 } = require("./utilControllers");
 const Content = require("../models/content");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -1489,53 +1490,53 @@ const searchContentQA = async (req, res) => {
     const textSearchPipeline =
       keywords.length > 0
         ? Content.aggregate([
-            {
-              $match: {
-                $or: keywords.map((kw) => ({
-                  $or: [
-                    { text: { $regex: new RegExp(kw, "i") } },
-                    { title: { $regex: new RegExp(kw, "i") } },
-                  ],
-                })),
-              },
+          {
+            $match: {
+              $or: keywords.map((kw) => ({
+                $or: [
+                  { text: { $regex: new RegExp(kw, "i") } },
+                  { title: { $regex: new RegExp(kw, "i") } },
+                ],
+              })),
             },
-            { $addFields: Object.assign({}, ...keywordMatchFields) },
-            { $addFields: { _kwScore: scoreExpr } },
-            { $match: { _kwScore: { $gte: minMatches } } },
-            { $sort: { _kwScore: -1 } },
-            { $limit: 10 },
-            { $project: { vector: 0, comments: 0, ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])) } },
-          ])
+          },
+          { $addFields: Object.assign({}, ...keywordMatchFields) },
+          { $addFields: { _kwScore: scoreExpr } },
+          { $match: { _kwScore: { $gte: minMatches } } },
+          { $sort: { _kwScore: -1 } },
+          { $limit: 10 },
+          { $project: { vector: 0, comments: 0, ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])) } },
+        ])
         : Content.find({ text: { $regex: new RegExp(query.trim(), "i") } }, { vector: 0, comments: 0 })
-            .limit(10)
-            .lean();
+          .limit(10)
+          .lean();
 
     const [vectorResults, textResults] = await Promise.all([
       // Semantic / vector search
       embeddingVector && Array.isArray(embeddingVector)
         ? Content.aggregate([
-            {
-              $vectorSearch: {
-                queryVector: embeddingVector,
-                path: "vector",
-                numCandidates: 200,
-                limit: 10,
-                index: "vector_index",
-              },
+          {
+            $vectorSearch: {
+              queryVector: embeddingVector,
+              path: "vector",
+              numCandidates: 200,
+              limit: 10,
+              index: "vector_index",
             },
-            {
-              $addFields: {
-                searchScore: { $meta: "vectorSearchScore" },
-                commentsNum: { $size: "$comments" },
-              },
+          },
+          {
+            $addFields: {
+              searchScore: { $meta: "vectorSearchScore" },
+              commentsNum: { $size: "$comments" },
             },
-            {
-              $project: {
-                vector: 0,
-                comments: 0,
-              },
+          },
+          {
+            $project: {
+              vector: 0,
+              comments: 0,
             },
-          ])
+          },
+        ])
         : Promise.resolve([]),
 
       // Text / keyword search — ranked by keyword match count
