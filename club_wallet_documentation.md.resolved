@@ -1,0 +1,121 @@
+# Club Wallet & Transaction History Documentation
+
+## Overview
+
+The **Club Wallet** system provides organizations (clubs) with an internal financial ledger to track their earnings and expenses on the platform. It automatically tracks revenue generated through user interactions and enables clubs to reinvest these earnings into platform features or withdraw them to their bank accounts.
+
+## Core Components
+
+### 1. Wallet Model
+
+The `Wallet` model represents the financial state of a particular club.
+
+- **Club Linkage**: Bound to a unique `clubId`.
+- **Balances**:
+  - `balance`: Available funds that can be spent or withdrawn.
+  - `lockedBalance`: Funds currently being processed for withdrawal.
+- **Bank Details**: Securely stores the club's linked bank account information (Account Name, Number, IFSC).
+
+### 2. Transaction Model
+
+The `Transaction` model provides an immutable ledger of all financial activities involving a club's wallet.
+
+- **Types**: `CREDIT` (Revenue) and `DEBIT` (Expenses/Withdrawals).
+- **Categories**: `TICKET_SALE`, `MERCHANDISE`, `AD_REVENUE`, `WITHDRAWAL`, `E_CERTIFICATE`, `BADGE`, `BOOST`.
+- **References**: Storing `razorpayPaymentId` for external inflows and `relatedEntityId` (e.g., specific event id) for internal accountability.
+- **Data Granularity vs UI Representation (Important)**:
+  - **Database Level**: Each actual transaction generated via Razorpay is stored as an individual row. For instance, if 2000 users buy tickets, the database schema dictates 2000 separate `Transaction` documents are created—one for each specific payment ID representing that specific user. This achieves perfect concurrency, enables robust reconciliation against Razorpay, and isolates discrete refunds cleanly.
+  - **UI Level (API)**: While the backend creates literal transactions, the transactions GET endpoint (`/api/wallet/:clubId/transactions`) is responsible for aggregating these results where appropriate before serving them to the frontend so the club isn't overwhelmed with thousands of single rows (e.g., displaying `Ticket Sales for 'Summer Fest': ₹2,50,000`, with an optional click-to-expand list of individual ticket buyers).
+- **Immutability via Append-Only Ledger**: To mimic the security of blockchain without its high cost and complexity (gas fees, slow transactions), the system uses an Append-Only Ledger pattern:
+  - `Transaction` records are **never updated or deleted** once created.
+  - If a correction is needed (like a refund), a new corrective `Transaction` (e.g., a `DEBIT` refunding an earlier `CREDIT`) is appended to the ledger.
+  - The `Wallet.balance` serves as a quick-access cache. For strict auditing, the true balance is always calculable by summing up all historical `CREDIT` and `DEBIT` transactions for that wallet. Periodically, automated jobs sanity-check the cached balance against the ledger sum to prevent drift.
+
+## Workflows
+
+### 1. Inflows (Earning Money)
+
+When users purchase tickets, merchandise, or view ads on behalf of a club:
+
+1. The payment is processed via Razorpay.
+2. The Razorpay Order creation injects the target `clubId` into the `notes` metadata.
+3. The platform's Razorpay Webhook (`payment.captured`) intercepts the successful charge.
+4. The webhook handler identifies the `clubId`, finds the associated `Wallet`, and increments the `balance`.
+5. A `CREDIT` transaction is recorded with the specific category (e.g., `TICKET_SALE`).
+
+### 2. Internal Outflows (Spending Money)
+
+Clubs can use their wallet `balance` to buy e-certificates, badges, or boost their events/club profile:
+
+1. The club initiates an internal purchase via the Wallet API.
+2. The system checks if `Wallet.balance` >= required amount.
+3. If sufficient, the system decrements the `balance` and provisions the purchased item (e.g., adding badges to the club's inventory).
+4. A `DEBIT` transaction is recorded with the appropriate category (e.g., `BADGE`).
+
+### 3. External Outflows (Withdrawals)
+
+Clubs can withdraw their earnings to their linked bank accounts, either manually or at preset intervals.
+
+1. **Initiation**: The club (or the automated cron job) initiates a withdrawal for a specified amount.
+2. **Locking Funds**: The requested amount is subtracted from `balance` and added to `lockedBalance` to prevent double-spending.
+3. **Pending State**: A `DEBIT` transaction is created with status `PENDING`.
+4. **Resolution**: Once the bank transfer is verified (either via automated Payouts API or manual admin processing), the `lockedBalance` is cleared, and the transaction status updates to `COMPLETED`.
+
+## API Endpoints
+
+| Method | Endpoint                           | Description                                  |
+| ------ | ---------------------------------- | -------------------------------------------- |
+| GET    | `/api/wallet/:clubId`              | Fetch current balances and linked bank info. |
+| GET    | `/api/wallet/:clubId/transactions` | Fetch paginated transaction history.         |
+| POST   | `/api/wallet/:clubId/purchase`     | Spend wallet balance on platform features.   |
+| POST   | `/api/wallet/:clubId/withdraw`     | Request a withdrawal of available balance.   |
+
+## Critical Implementation Considerations
+
+### 1. Webhook Idempotency
+
+Razorpay may deliver the same webhook event more than once. Before crediting a wallet, always check: _"Does a `Transaction` with this `razorpayPaymentId` already exist?"_ If yes, skip. This prevents duplicate credits from replayed webhooks.
+
+### 2. Atomicity via MongoDB Transactions
+
+Crediting a wallet (incrementing `balance` + inserting a `Transaction` document) **must happen atomically** within a single MongoDB session using `session.withTransaction()`. If one operation succeeds and the other fails independently, the ledger becomes corrupted.
+
+### 3. Race Condition Prevention on Balance Checks
+
+When a club spends from the wallet, use `findOneAndUpdate` with a guard condition like `{ balance: { $gte: amount } }` instead of a "read balance → check → write" pattern. The read-then-write approach is vulnerable to two simultaneous requests both reading the same balance and both spending it, driving the wallet negative.
+
+### 4. Platform Fee / Commission Split
+
+The platform takes a commission from payments before crediting the club's wallet. The split percentage varies by revenue type:
+
+- **Ticket Sales**: The split % is declared in the **Event schema** (e.g., `platformFee` field). It is also passed in the Razorpay `notes` for each order. The webhook handler can tally this against the actual Event document for verification before crediting the club's share.
+- **Merchandise & Ads**: Split percentages will be defined later when the Merchandise and Ad models are built. The wallet crediting logic is designed to be generic enough to accept any split value.
+
+### 5. Authorization & Permissions
+
+Not every club member should have wallet access. Enforce role-based checks on every wallet endpoint:
+
+- **View balance/history** → All admins (`adminId` array).
+- **Initiate withdrawals** → Only `mainAdmin`.
+- **Spend on badges/boosting** → Admins listed in `permissions.whoCanDispatchAwards`.
+
+### 6. Withdrawal Cooldowns & Minimum Amounts
+
+Enforce guardrails to prevent abuse:
+
+- **Minimum withdrawal amount** (e.g., ₹500) to avoid micro-withdrawals clogging the payout queue.
+- **Cooldown period** (e.g., max 1 withdrawal per week) per club.
+
+### 7. Currency Handling (Paise-First)
+
+Always store and compute amounts in **paise (integers)** internally — matching Razorpay's convention (`amount × 100`). Floating-point arithmetic with rupees will eventually cause rounding bugs (e.g., `₹99.999999997`). Convert to rupees only at the API response / UI display layer.
+
+### 8. Robust System Logging
+To trace bugs and monitor financial integrity, the system must employ deep, structured logging at every step:
+- **Webhook Handlers**: Log the raw incoming payload, signature verification results, and whether the event was processed or skipped (e.g., duplicate `razorpayPaymentId`).
+- **Database Operations**: Log the start, success, or failure of every MongoDB Transaction session. Include details on whether a rollback occurred due to concurrent modifications or balance insufficiencies.
+- **Failures and Alerts**: Any failure in the crediting/debiting logic should trigger an immediate `ERROR` level log with the full stack trace, `clubId`, and relevant ID (`payment.id`, `event.id`, etc.) to allow for quick manual remediation.
+
+## Future Extensibility
+
+This wallet structure is designed to be easily extensible. New revenue streams or expense types can be integrated simply by adding new Enums to the `Transaction` category and routing the logic through the same generic Wallet credit/debit mechanisms.

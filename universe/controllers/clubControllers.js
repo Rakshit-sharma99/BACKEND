@@ -1,12 +1,8 @@
 const { StatusCodes } = require("http-status-codes");
 const Club = require("../models/club");
-const Event = require("../models/event");
 const User = require("../models/user");
 const Admin = require("../models/admin");
 const Community = require("../models/community");
-const MacbeaseContent = require("../models/macbeaseContent");
-const Invitation = require("../models/invitation");
-const Itinerary = require("../models/itinerary");
 const Award = require("../models/award");
 const schedule = require("node-schedule");
 const {
@@ -16,7 +12,6 @@ const {
   updateDynamicIsland,
   scheduleNotification2,
   generateUri,
-  fetchMacbeaseContentFromIds,
   fetchInvitationById,
   fetchItineraryFromIds,
 } = require("../controllers/utils");
@@ -26,6 +21,7 @@ const {
   fetchContent,
   fetchMultipleContents,
   searchContentsFromIds,
+  fetchEventData,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -867,7 +863,7 @@ const removeEvent = async (req, res) => {
     club.upcomingEvent = await Promise.all(
       club.upcomingEvent.map(async (eventPoint) => {
         if (eventPoint.id === eventId && eventPoint.eventId) {
-          const concernedEvent = await Event.findById(eventPoint.eventId);
+          const concernedEvent = await fetchEventData({ id: eventPoint.eventId, fields: ["status"] })
           if (
             concernedEvent &&
             (concernedEvent.status === "featured" ||
@@ -876,7 +872,8 @@ const removeEvent = async (req, res) => {
             cantDelete = true;
             return eventPoint; // Keep the event
           }
-          await Event.findByIdAndDelete(eventPoint.eventId);
+          // TODO: Delete event from event service
+          // await Event.findByIdAndDelete(eventPoint.eventId);
           return null; // Remove event
         }
         return eventPoint;
@@ -2041,45 +2038,6 @@ const getAllClub = async (req, res) => {
   }
 };
 
-//Controller 43
-const getAllLikedPins = async (req, res) => {
-  const { key, mode, batch, batchSize, id } = req.query;
-  const skip = (batch - 1) * batchSize;
-  const limit = parseInt(batchSize);
-  try {
-    let likedContents = await User.findById(id || req.user.id, {
-      likedContents: 1,
-      taggedContents: 1,
-      _id: 0,
-    });
-    if (!likedContents)
-      return res.status(StatusCodes.OK).json({ likedSocialPins: [] });
-    likedContents =
-      mode === "liked"
-        ? likedContents.likedContents.reverse()
-        : likedContents.taggedContents.reverse();
-    const selectedBatch = likedContents.slice(skip, skip + limit);
-    const macbeaseIds = selectedBatch
-      .filter((item) => item.type === "macbease" && key === "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const contentIds = selectedBatch
-      .filter((item) => item.type !== "macbease" || key !== "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const [macbeaseData, contentData] = await Promise.all([
-      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
-      fetchMultipleContents({ ids: contentIds }),
-    ]);
-    const data = [...macbeaseData, ...contentData].sort(
-      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
-    );
-    return res.status(StatusCodes.OK).json({ likedSocialPins: data });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Error fetching liked pins.");
-  }
-};
 
 //Controller 44
 const getSimilarGroups = async (req, res) => {
@@ -4198,7 +4156,6 @@ module.exports = {
   getCreatorId,
   getStatus,
   getFastNativeFeed,
-  getAllLikedPins,
   getSimilarGroups,
   getEveryoneOfClub,
   getPushTokenChunk,

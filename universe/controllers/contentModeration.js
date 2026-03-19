@@ -1,10 +1,8 @@
 const { StatusCodes } = require('http-status-codes');
 const Admin = require('../models/admin');
-const MacbeaseContent = require('../models/macbeaseContent');
-const Content = require('../models/content');
 const User = require('../models/user');
 const Community = require('../models/community');
-const { sendMail, fetchContentFromIds, fetchMacbeaseContentFromIds } = require('../controllers/utils');
+const { sendMail, fetchContentFromIds } = require('../controllers/utils');
 const { sendKafkaMessage } = require('../config/utils/sendKafkaMessage');
 
 const submitForReview = async (req, res) => {
@@ -39,11 +37,11 @@ const submitForReview = async (req, res) => {
       unreadNotice: 1,
     });
     if (type === 'normal') {
-      let content = await fetchContentFromIds({contentIds:[cid]});
-      await sendKafkaMessage("UPDATE_CONTENT","content",{
-        contentId:cid,
-        updatedFields:{
-          underReview:true
+      let content = await fetchContentFromIds({ contentIds: [cid] });
+      await sendKafkaMessage("UPDATE_CONTENT", "content", {
+        contentId: cid,
+        updatedFields: {
+          underReview: true
         }
       })
       if (content.sendBy === 'club') {
@@ -101,40 +99,6 @@ const submitForReview = async (req, res) => {
         admin.unreadNotice = [noticeForAdmin, ...admin.unreadNotice];
         sender.unreadNotice = [noticeForUser, ...sender.unreadNotice];
       }
-    } else if (type === 'macbease') {
-      let content = await fetchMacbeaseContentFromIds({ids:[cid]});
-      await sendKafkaMessage("UPDATE_MACBEASE_CONTENT","macbeaseContent",{
-        contentId:cid,
-        updatedFields:{
-          underReview:true
-        }
-      });
-      const noticeForUser = {
-        value: `Post is under review. We will keep you posted about actions we take.`,
-        img1: sender.image,
-        img2: content.url,
-        expandType: 'Macbease',
-        expandData: {
-          ...content._doc,
-        },
-        key: 'tag',
-        time: new Date(),
-        uid: `${new Date()}/${admin._id}/${req.user.id}`,
-      };
-      const noticeForAdmin = {
-        value: `Content marked for review.`,
-        img1: sender.image,
-        img2: content.url,
-        expandType: 'Macbease',
-        expandData: {
-          ...content._doc,
-        },
-        key: 'tag',
-        time: new Date(),
-        uid: `${new Date()}/${admin._id}/${req.user.id}`,
-      };
-      admin.unreadNotice = [noticeForAdmin, ...admin.unreadNotice];
-      sender.unreadNotice = [noticeForUser, ...sender.unreadNotice];
     }
     admin.save();
     sender.save();
@@ -177,15 +141,12 @@ const readContentForModeration = async (req, res) => {
       idToTypeMap[dataPoint.cid] = dataPoint;
       if (dataPoint.type === 'normal') {
         normalIds.push(dataPoint.cid);
-      } else if (dataPoint.type === 'macbease') {
-        macbeaseIds.push(dataPoint.cid);
       }
     }
 
     // Fetch content in batch
-    const [normalContentList, macbeaseContentList] = await Promise.all([
-      fetchContentFromIds({ contentIds: normalIds }),
-      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
+    const [normalContentList] = await Promise.all([
+      fetchContentFromIds({ contentIds: normalIds })
     ]);
 
     // Convert to map for faster access
@@ -194,10 +155,6 @@ const readContentForModeration = async (req, res) => {
       normalContentMap[item._id.toString()] = item;
     }
 
-    const macbeaseContentMap = {};
-    for (const item of macbeaseContentList || []) {
-      macbeaseContentMap[item._id.toString()] = item;
-    }
 
     // Build final result
     const finalData = reviewContent.map(dataPoint => {
@@ -206,8 +163,6 @@ const readContentForModeration = async (req, res) => {
 
       if (dataPoint.type === 'normal') {
         content = normalContentMap[cid];
-      } else if (dataPoint.type === 'macbease') {
-        content = macbeaseContentMap[cid];
       }
 
       if (content) {
@@ -234,19 +189,12 @@ const discardReviewClaim = async (req, res) => {
     if (req.user.role === 'admin') {
       const { cid, type } = req.body;
       if (type === 'normal') {
-          await sendKafkaMessage("UPDATE_CONTENT","content",{
-            contentId:cid,
-            updatedFields:{
-              underReview:false
-            }
-          })
-      } else if (type === 'macbease') {
-          await sendKafkaMessage("UPDATE_MACBEASE_CONTENT","macbeaseContent",{
-            contentId:cid,
-            updatedFields:{
-              underReview:false
-            }
-          });
+        await sendKafkaMessage("UPDATE_CONTENT", "content", {
+          contentId: cid,
+          updatedFields: {
+            underReview: false
+          }
+        })
       }
       let admin = await Admin.findById(req.user.id, { reviewContent: 1 });
       let reviewList = admin.reviewContent;
@@ -322,8 +270,8 @@ const addDiscretion = async (req, res) => {
     // Handle community moderation
     if (mode === 'community_moderation') {
 
-      const content = await fetchContentFromIds({contentIds:[cid],select:["belongsTo"]});
-      console.log("content",content);
+      const content = await fetchContentFromIds({ contentIds: [cid], select: ["belongsTo"] });
+      console.log("content", content);
       if (!content) {
         return res.status(StatusCodes.NOT_FOUND).send('Content not found.');
       }
@@ -331,7 +279,7 @@ const addDiscretion = async (req, res) => {
       const community = await Community.findById(content[0].belongsTo, {
         admins: 1,
       });
-      console.log("community",community)
+      console.log("community", community)
       if (!community) {
         return res.status(StatusCodes.NOT_FOUND).send('Community not found.');
       }
@@ -346,10 +294,10 @@ const addDiscretion = async (req, res) => {
           .send('You are not authorized to moderate this community.');
       }
 
-      await sendKafkaMessage("UPDATE_CONTENT","content",{
-        contentId:cid,
-        updatedFields:{
-          underReview:false,
+      await sendKafkaMessage("UPDATE_CONTENT", "content", {
+        contentId: cid,
+        updatedFields: {
+          underReview: false,
           discretion,
           blur
         }
@@ -360,23 +308,14 @@ const addDiscretion = async (req, res) => {
 
     // Update content based on type
     if (type === 'normal') {
-      await sendKafkaMessage("UPDATE_CONTENT","content",{
-        contentId:cid,
-        updatedFields:{
-          underReview:false,
+      await sendKafkaMessage("UPDATE_CONTENT", "content", {
+        contentId: cid,
+        updatedFields: {
+          underReview: false,
           discretion,
           blur
         }
       })
-    } else if (type === 'macbease') {
-      await sendKafkaMessage("UPDATE_MACBEASE_CONTENT","macbeaseContent",{
-        contentId:cid,
-        updatedFields:{
-          underReview:false,
-          discretion,
-          blur
-        }
-      });
     }
 
     // Update admin review list

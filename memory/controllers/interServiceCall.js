@@ -105,24 +105,9 @@ const fetchUsersByFields = async (body) => {
   }
 };
 
-const fetchMacbeaseContentByField = async (body) => {
-  try {
-    const config = generateServiceToken();
-    const macbeaseContent = await axios.post(
-      `http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByField`,
-      body,
-      config
-    );
-    return macbeaseContent.data;
-  } catch (error) {
-    console.log(error);
-  }
-};
-
 module.exports = {
   fetchNativeUserData,
   fetchClubData,
   getUserMetaMap,
-  fetchMacbeaseContentByField,
   fetchUsersByFields
 }

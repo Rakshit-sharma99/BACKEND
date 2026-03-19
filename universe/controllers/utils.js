@@ -10,6 +10,7 @@ const { io } = require("../app");
 const { default: mongoose } = require("mongoose");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const nlp = require("compromise");
 
 const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
@@ -1166,20 +1167,7 @@ const fetchContentFromIds = async (query) => {
     return null;
   }
 };
-const fetchMacbeaseContentFromIds = async (query) => {
-  try {
-    const config = generateServiceToken();
-    const macbeaseContents = await axios.post(
-      "http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
-      query,
-      config,
-    );
-    return macbeaseContents.data;
-  } catch (error) {
-    console.log(error.message);
-    return null;
-  }
-};
+
 const fetchItineraryFromIds = async (query) => {
   try {
     const config = generateServiceToken();
@@ -1337,6 +1325,28 @@ const sendOnboardingMail = async (user) => {
   }
 };
 
+function lemmatize(tags) {
+  if (!Array.isArray(tags) || tags.length === 0) {
+    return [];
+  }
+  return tags.map((tag) => {
+    let words = tag.split(" ");
+
+    let lemmatizedWords = words.map((word) => {
+      const doc = nlp(word);
+      let lemma = doc.verbs().toInfinitive().out(); // Get base form if verb
+
+      // If lemma is empty, keep original word
+      if (!lemma) return word;
+
+      // Maintain proper capitalization
+      return lemma.charAt(0).toUpperCase() + lemma.slice(1);
+    });
+
+    return lemmatizedWords.join(" "); // Reconstruct phrase
+  });
+}
+
 module.exports = {
   sendMail,
   getCurrentISTDate,
@@ -1357,7 +1367,6 @@ module.exports = {
   fetchOrgData,
   createNewOrg,
   fetchContentFromIds,
-  fetchMacbeaseContentFromIds,
   fetchItineraryFromIds,
   fetchInvitationById,
   fetchJoinLinkById,

@@ -9,7 +9,7 @@ const ADD_USERTO_ORG = {
     topicSuffix: "_add_userto_org",
 
     validate: (data) => {
-  
+
       if (typeof data.orgId !== "string") {
         throw new Error("'orgId' must be a string");
       }
@@ -159,7 +159,7 @@ const CREATE_COMMUNITY = {
         throw new Error("'universeMetaData' must be a valid object");
       }
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -199,47 +199,7 @@ const UPDATE_CONTENT = {
         throw new Error("'updatedFields' must be a valid object");
       }
     },
-      
-    build: (payload) => ({
-      value: JSON.stringify(payload),
-    }),
-  }
-}
 
-/**
- * @typedef {Object} UPDATE_MACBEASE_CONTENT_PAYLOAD
- * @property {String} contentId
- * @property {Object} updatedFields
- */
-
-const UPDATE_MACBEASE_CONTENT = {
-  UPDATE_MACBEASE_CONTENT: {
-    topicSuffix: "_update_macbease_content",
-
-    validate: (data) => {
-      if (!data || typeof data !== "object") {
-        throw new Error("Payload must be an object");
-      }
-
-      const requiredStringFields = [
-        "contentId"
-      ];
-
-      for (const field of requiredStringFields) {
-        if (typeof data[field] !== "string" || !data[field].trim()) {
-          throw new Error(`'${field}' must be a non-empty string`);
-        }
-      }
-
-      if (
-        typeof data.updatedFields !== "object" ||
-        data.updatedFields === null ||
-        Array.isArray(data.updatedFields)
-      ) {
-        throw new Error("'updatedFields' must be a valid object");
-      }
-    },
-      
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -279,7 +239,7 @@ const UPDATE_INVITATION = {
         throw new Error("'updatedFields' must be a valid object");
       }
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -313,7 +273,7 @@ const UPDATE_JOINLINK = {
       }
 
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -331,7 +291,7 @@ const CREATE_MEMORY = {
 
     validate: (data) => {
 
-      if (!data.memoryData || !typeof data.memoryData==='object') {
+      if (!data.memoryData || !typeof data.memoryData === 'object') {
         throw new Error('memoryData must be object');
       }
     },
@@ -347,7 +307,6 @@ module.exports = {
   ...CREATE_USER,
   ...CREATE_COMMUNITY,
   ...UPDATE_CONTENT,
-  ...UPDATE_MACBEASE_CONTENT,
   ...UPDATE_INVITATION,
   ...UPDATE_JOINLINK,
   ...CREATE_MEMORY

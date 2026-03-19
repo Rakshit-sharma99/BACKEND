@@ -20,10 +20,6 @@ services:
     volumes:
       - ./card:/app
       - /app/node_modules
-  resource:
-    volumes:
-      - ./resource:/app
-      - /app/node_modules
   event:
     volumes:
       - ./event:/app
@@ -36,10 +32,6 @@ services:
     volumes:
       - ./badge:/app
       - /app/node_modules
-  macbeaseContent:
-    volumes:
-      - ./macbease_content:/app
-      - /app/node_modules
   offer:
     volumes:
       - ./offer:/app
@@ -51,10 +43,6 @@ services:
   invitation:
     volumes:
       - ./invitation:/app
-      - /app/node_modules
-  project:
-    volumes:
-      - ./project:/app
       - /app/node_modules
   itinerary:
     volumes:

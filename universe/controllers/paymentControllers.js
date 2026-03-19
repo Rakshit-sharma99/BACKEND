@@ -16,6 +16,108 @@ const generatePaymentIntent = async (req, res) => {
  * Validate ticket price and coupon against server data
  * @returns {boolean} true if amount matches, false otherwise
  */
+function roundCurrency(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function buildDiscountedBreakdown({
+  ticketPrice,
+  feePercent,
+  coupon,
+}) {
+  const baseAmount = Number(ticketPrice) || 0;
+  const platformFee =
+    feePercent > 0 ? roundCurrency((baseAmount * feePercent) / 100) : 0;
+  const grossCharge = roundCurrency(baseAmount + platformFee);
+
+  let finalCharge = grossCharge;
+
+  if (coupon) {
+    if (coupon.discountType === "flat") {
+      finalCharge = roundCurrency(grossCharge - (Number(coupon.discountValue) || 0));
+    } else if (coupon.discountType === "percentage") {
+      finalCharge = roundCurrency(
+        grossCharge - (grossCharge * (Number(coupon.discountValue) || 0)) / 100,
+      );
+    }
+  }
+
+  finalCharge = Math.max(0, finalCharge);
+
+  if (grossCharge === 0) {
+    return {
+      grossChargeRupees: 0,
+      platformFeeRupees: 0,
+      clubNetCreditRupees: 0,
+      finalChargeRupees: 0,
+    };
+  }
+
+  const netPlatformFee = roundCurrency((platformFee / grossCharge) * finalCharge);
+  const clubNetCredit = roundCurrency(finalCharge - netPlatformFee);
+
+  return {
+    grossChargeRupees: grossCharge,
+    platformFeeRupees: netPlatformFee,
+    clubNetCreditRupees: clubNetCredit,
+    finalChargeRupees: finalCharge,
+  };
+}
+
+async function getTicketPricingBreakdown({
+  eventId,
+  type,
+  couponId,
+  userId,
+}) {
+  try {
+    const eventData = await fetchEventData({
+      id: eventId,
+      fields: ["ticketTypes", "platformFeeEnabled", "platformFee", "belongsTo"],
+    });
+    if (!eventData) return null;
+
+    const selectedTicket = eventData.ticketTypes.find((t) => t.type === type);
+    if (!selectedTicket) return null;
+
+    const baseAmount = Number(selectedTicket.price);
+    if (isNaN(baseAmount)) return null;
+
+    let coupon = null;
+    if (couponId) {
+      coupon = await fetchCouponById({ couponId, eventId, userId });
+    }
+
+    const feePercent = eventData.platformFeeEnabled
+      ? Number(eventData.platformFee) || 2.5
+      : 0;
+
+    const breakdown = buildDiscountedBreakdown({
+      ticketPrice: baseAmount,
+      feePercent,
+      coupon,
+    });
+
+    return {
+      baseAmountRupees: roundCurrency(baseAmount),
+      grossChargeRupees: breakdown.grossChargeRupees,
+      finalChargeRupees: breakdown.finalChargeRupees,
+      platformFeeRupees: breakdown.platformFeeRupees,
+      clubNetCreditRupees: breakdown.clubNetCreditRupees,
+      grossChargePaise: Math.round(breakdown.grossChargeRupees * 100),
+      chargedAmountPaise: Math.round(breakdown.finalChargeRupees * 100),
+      platformFeePaise: Math.round(breakdown.platformFeeRupees * 100),
+      clubNetCreditPaise: Math.round(breakdown.clubNetCreditRupees * 100),
+      feePercent,
+      clubId: eventData?.belongsTo?.id || null,
+      belongsToType: eventData?.belongsTo?.type || null,
+    };
+  } catch (error) {
+    console.error("getTicketPricingBreakdown error:", error);
+    return null;
+  }
+}
+
 async function checkAmountValidity({
   eventId,
   type,
@@ -23,43 +125,19 @@ async function checkAmountValidity({
   amount,
   userId,
 }) {
-  try {
-    const eventData = await fetchEventData({id:eventId,fields:["ticketTypes","platformFeeEnabled","platformFee"]})
-    if (!eventData) return false;
+  const breakdown = await getTicketPricingBreakdown({
+    eventId,
+    type,
+    couponId,
+    userId,
+  });
 
-    const selectedTicket = eventData.ticketTypes.find((t) => t.type === type);
-    if (!selectedTicket) return false;
+  if (!breakdown) return { isValid: false, breakdown: null };
 
-    let genuineAmount = Number(selectedTicket.price);
-    if (isNaN(genuineAmount)) return false;
-
-    // Apply platform fee
-    if (eventData.platformFeeEnabled) {
-      const feePercent = Number(eventData.platformFee) || 2.5;
-      genuineAmount += (genuineAmount * feePercent) / 100;
-    }
-
-    // Apply coupon logic if provided
-    if (couponId) {
-      const coupon = await fetchCouponById({couponId,eventId,userId});
-
-      if (coupon) {
-        if (coupon.discountType === "flat") {
-          genuineAmount -= Number(coupon.discountValue) || 0;
-        } else if (coupon.discountType === "percentage") {
-          genuineAmount -=
-            (genuineAmount * (Number(coupon.discountValue) || 0)) / 100;
-        }
-      }
-    }
-
-    genuineAmount = Math.max(0, Math.ceil(genuineAmount));
-
-    return genuineAmount === Number(amount);
-  } catch (error) {
-    console.error("checkAmountValidity error:", error);
-    return false;
-  }
+  return {
+    isValid: breakdown.finalChargeRupees === Number(amount),
+    breakdown,
+  };
 }
 
 /**
@@ -107,7 +185,7 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, msg: "Invalid amount" });
     }
 
-    const isValidAmount = await checkAmountValidity({
+    const { isValid, breakdown } = await checkAmountValidity({
       amount: amountNum,
       eventId: notes.eventId,
       type: notes.type,
@@ -115,9 +193,9 @@ const createOrder = async (req, res) => {
       couponId,
     });
 
-    console.log("valid", isValidAmount);
+    console.log("valid", isValid);
 
-    if (!isValidAmount) {
+    if (!isValid || !breakdown) {
       console.log(3);
       return res.status(400).json({ success: false, msg: "Amount mismatch" });
     }
@@ -129,11 +207,18 @@ const createOrder = async (req, res) => {
       amtPaid: notes.amtPaid,
       type: notes.type,
       extraFieldsData: notes.extraFieldsData,
+      clubId: breakdown.clubId,
+      belongsToType: breakdown.belongsToType,
+      grossChargePaise: breakdown.grossChargePaise,
+      chargedAmountPaise: breakdown.chargedAmountPaise,
+      platformFeePaise: breakdown.platformFeePaise,
+      clubNetCreditPaise: breakdown.clubNetCreditPaise,
+      feePercent: breakdown.feePercent,
       ...(couponId && { couponId }), // include only if present
     };
 
     const options = {
-      amount: amountNum * 100, // convert to paise
+      amount: Math.round(amountNum * 100), // convert to paise
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
       notes: safeNotes,
@@ -204,7 +289,7 @@ const createAwardsOrder = async (req, res) => {
     };
 
     const options = {
-      amount: amountNum * 100, // convert to paise
+      amount: Math.round(amountNum * 100), // convert to paise
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
       notes: safeNotes,

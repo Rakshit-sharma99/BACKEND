@@ -4,7 +4,6 @@ const Admin = require("../models/admin");
 const bcrypt = require("bcryptjs");
 const Community = require("../models/community");
 const Club = require("../models/club");
-const Quest = require("../models/quest");
 const Bookmark = require("../models/bookmark");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -12,9 +11,9 @@ const {
   scheduleNotification,
   scheduleNotification2,
   updateUserIP,
+  lemmatize
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
-const { lemmatize } = require("./commonControllers");
 const {
   fetchSearchedEvents,
   fetchSearchedCards,
@@ -593,7 +592,6 @@ const getBasicUserBio = async (req, res) => {
       deactivated: 1,
       communitiesPartOf: 1,
       tunedIn_By: 1,
-      macbeaseContentContribution: 1,
       creatorPost: 1,
       profession: 1,
       interests: 1,
@@ -647,7 +645,6 @@ const getBasicUserBio = async (req, res) => {
       batch: user.passoutYear,
       role: user.role,
       creatorPost: user.creatorPost,
-      posts: user.macbeaseContentContribution.length,
       tunedIn_By: user.tunedIn_By ? user.tunedIn_By.length : 0,
       tunerGraphics,
       organisationData: [
@@ -1476,11 +1473,12 @@ const changeIp = async (req, res) => {
 
     const user = await User.findById(userId, { ip: 1 }).lean();
 
-    if (questId) {
-      await Quest.findByIdAndUpdate(questId, {
-        $push: { completedBy: mongoose.Types.ObjectId(userId) },
-      });
-    }
+    // TODO: Add quest completion logic in quest service
+    // if (questId) {
+    //   await Quest.findByIdAndUpdate(questId, {
+    //     $push: { completedBy: mongoose.Types.ObjectId(userId) },
+    //   });
+    // }
 
     return res
       .status(StatusCodes.OK)

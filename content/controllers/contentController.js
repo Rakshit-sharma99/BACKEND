@@ -7,16 +7,7 @@ const {
   scheduleNotification2,
   lemmatize,
   fetchRelatedTags,
-  fetchMacbeaseContentFromLastTimeStamp,
   fetchNativeUserData,
-  fetchMacbeaseContentFromIds,
-  fetchCardsFromIds,
-  fetchNativeRandomCommunities,
-  fetchNativeRandomClubs,
-  fetchRandomCardsForFeed,
-  fetchClubsRecommendations,
-  fetchCommunitiesRecommendations,
-  checkUserBookmarks,
 } = require("./utilControllers");
 const Content = require("../models/content");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -673,89 +664,6 @@ const searchContentByTag = async (req, res) => {
   }
 };
 
-//Controller 13
-const loadMoreContent = async (req, res) => {
-  try {
-    const { lastTimeStamp } = req.query;
-    const parsedTimeStamp = lastTimeStamp
-      ? new Date(lastTimeStamp)
-      : new Date();
-
-    // Fetch Macbease content using the timestamp
-    const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-      timeStamp: parsedTimeStamp,
-      operator: "lt",
-      sort: "desc",
-      limit: 12,
-    });
-
-    if (macbeaseContents.length === 0) {
-      return res.status(StatusCodes.OK).json([]);
-    }
-
-    // Determine the timestamp range from macbease contents
-    const startRange = macbeaseContents[0].timeStamp;
-    const endRange = macbeaseContents[macbeaseContents.length - 1].timeStamp;
-
-    // Fetch user's communities and clubs
-    const userInfo = await fetchNativeUserData({
-      id: req.user.id,
-      fields: ["communitiesPartOf", "clubs"],
-      callSign: "universe",
-    });
-
-    const belongsToArray = [
-      ...new Set([
-        ...userInfo.communitiesPartOf.map((c) => c.communityId),
-        ...userInfo.clubs.map((c) => c.clubId),
-      ]),
-    ];
-
-    // Query for older content
-    const contents = await Content.find({
-      belongsTo: { $in: belongsToArray },
-      timeStamp: { $lt: new Date(startRange), $gte: new Date(endRange) },
-    })
-      .sort({ timeStamp: -1 })
-      .limit(24)
-      .select("-vector")
-      .lean();
-
-    const modifiedContents = contents.map((content) => ({
-      ...content,
-      commentsNum: content.comments.length,
-      comments: content.comments.slice(0, 6),
-    }));
-
-    //getting some random feed
-    // const randomFeed = await Content.find(
-    //   { belongsTo: { $nin: belongsToArray } },
-    //   { vector: 0 }
-    // )
-    //   .limit(6)
-    //   .lean();
-    // const modifiedRandomFeed = randomFeed.map((content) => ({
-    //   ...content,
-    //   commentsNum: content.comments.length,
-    //   comments: content.comments.slice(0, 6),
-    // }));
-
-    // Combine and sort
-    const combinedFeed = [
-      ...macbeaseContents,
-      ...modifiedContents,
-      // ...modifiedRandomFeed,
-    ].sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
-
-    return res.status(StatusCodes.OK).json(combinedFeed);
-  } catch (error) {
-    console.error("Error in loadMoreContent:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Failed to retrieve content.");
-  }
-};
-
 //Controller 14
 const replyToComment = async (req, res) => {
   const { contentId, cid } = req.query;
@@ -953,67 +861,6 @@ const generateHashTags = async (req, res) => {
   }
 };
 
-//Controller 18
-const getEngagementData = async (req, res) => {
-  try {
-    const { contentIds = [], macbeaseContentIds = [], cardIds = [] } = req.body;
-
-    if (!Array.isArray(contentIds)) {
-      return res.status(400).json({ error: "contentIds must be an array." });
-    }
-
-    // Run all 3 fetches in parallel (if arrays are non-empty)
-    const [contentData, macbeaseContentData, cardsData] = await Promise.all([
-      contentIds.length
-        ? Content.find({ _id: { $in: contentIds } })
-          .select("likes comments")
-          .lean()
-        : [],
-      macbeaseContentIds.length
-        ? fetchMacbeaseContentFromIds({
-          ids: macbeaseContentIds,
-          select: "likes comments",
-        })
-        : [],
-      cardIds.length
-        ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
-        : [],
-    ]);
-
-    console.log("cards data", cardsData);
-
-    // Aggregate all into one array
-    const allData = [...contentData, ...macbeaseContentData, ...cardsData];
-
-    // Transform into a map of engagement data
-    const engagementMap = {};
-
-    for (const item of allData) {
-      const { _id } = item;
-
-      if (!_id) continue;
-
-      engagementMap[_id] = {};
-
-      if ("likes" in item || "comments" in item) {
-        engagementMap[_id] = {
-          likes: item.likes || [],
-          comments: (item.comments || []).slice(0, 6),
-          commentsNum: (item.comments || []).length,
-        };
-      } else if ("likedBy" in item) {
-        engagementMap[_id] = {
-          likedBy: item.likedBy || [],
-        };
-      }
-    }
-
-    return res.json(engagementMap);
-  } catch (error) {
-    console.error("Error fetching engagement data:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
 
 //Controller 19
 const searchContentByText = async (req, res) => {
@@ -1039,61 +886,6 @@ const searchContentByText = async (req, res) => {
   } catch (error) {
     console.error("Error searching content:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Server error");
-  }
-};
-
-//helper function
-const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
-  try {
-    const clubIds = (clubs || []).map((item) => item.clubId);
-    const oneMonthBefore = new Date(cachedEndTimeStamp);
-    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-    const createAggregationPipeline = (matchCriteria) => [
-      {
-        $match: {
-          ...matchCriteria,
-          timeStamp: {
-            $gte: oneMonthBefore,
-            $lt: new Date(cachedEndTimeStamp),
-          },
-        },
-      },
-      {
-        $addFields: {
-          commentsNum: { $size: "$comments" },
-          comments: { $slice: ["$comments", 6] },
-        },
-      },
-      { $project: { vector: 0 } },
-      { $sample: { size: 3 } },
-    ];
-    const commContentsMatch = {
-      contentType: "image",
-      sendBy: "userCommunity",
-    };
-    const clubContentsMatch = {
-      contentType: "image",
-      belongsTo: { $in: clubIds },
-    };
-    const [macbeaseContents, commContents, clubContents] =
-      await Promise.allSettled([
-        fetchMacbeaseContentFromLastTimeStamp({
-          rangeStart: oneMonthBefore,
-          rangeEnd: new Date(cachedEndTimeStamp),
-          sample: 3,
-        }),
-        Content.aggregate(createAggregationPipeline(commContentsMatch)),
-        Content.aggregate(createAggregationPipeline(clubContentsMatch)),
-        fetchRandomCardsForFeed(),
-      ]).then((results) =>
-        results.map((r) => (r.status === "fulfilled" ? r.value : [])),
-      );
-
-    const result = [...macbeaseContents, ...commContents, ...clubContents];
-    return result;
-  } catch (error) {
-    console.error("Error fetching secondary feed:", error);
-    return null;
   }
 };
 
@@ -1809,12 +1601,10 @@ module.exports = {
   getRandomContent,
   editContent,
   searchContentByTag,
-  loadMoreContent,
   replyToComment,
   searchContent,
   searchByCommunity,
   generateHashTags,
-  getEngagementData,
   searchContentByText,
   getContentForLanding,
   getMultipleContents,

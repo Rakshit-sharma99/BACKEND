@@ -14,7 +14,6 @@ const {
   getRandomContent,
   editContent,
   searchContentByTag,
-  loadMoreContent,
   replyToComment,
   searchContent,
   searchByCommunity,
@@ -47,12 +46,10 @@ router.get("/unLikeAComment", unLikeAComment);
 router.get("/getRandomContent", getRandomContent);
 router.patch("/editContent", editContent);
 router.get("/searchContentByTag", searchContentByTag);
-router.get("/loadMoreContent", loadMoreContent);
 router.post("/replyToComment", replyToComment);
 router.get("/searchContent", searchContent);
 router.post("/searchByCommunity", searchByCommunity);
 router.post("/generateHashTags", generateHashTags);
-router.post("/getEngagementData", getEngagementData);
 router.get("/searchContentByText", searchContentByText);
 router.get("/getContentForLanding", getContentForLanding);
 router.post("/getMultipleContents", getMultipleContents);
