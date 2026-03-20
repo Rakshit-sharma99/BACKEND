@@ -116,9 +116,14 @@ const ChapterLeaderSchema = new mongoose.Schema(
             ref: "Universe",
         },
         universeMetaData: universeSchema,
-        recoveryOtp: {
-            type: Number,
-            default: null,
+        refreshToken: {
+            type: String,
+        },
+        passwordResetToken: {
+            type: String,
+        },
+        passwordResetTokenExpire: {
+            type: Date,
         },
     },
     { timestamps: true }

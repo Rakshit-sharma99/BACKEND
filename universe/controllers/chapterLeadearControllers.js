@@ -423,39 +423,50 @@ const getQuestsProgress = async (req, res) => {
   }
 };
 
-// Forgot Password â€“ set OTP
-const setOtp = async (req, res) => {
+const forgotPassword = async (req, res) => {
   try {
-    const { userEmail } = req.body;
-    const leader = await ChapterLeader.findOne({ email: userEmail.toLowerCase().trim() });
-    
-    if (!leader) {
-      return res.status(StatusCodes.OK).send("User does not exists.");
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is required",
+      });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
-    leader.recoveryOtp = otp;
+    const leader = await ChapterLeader.findOne({ email });
+
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Chapter leader not found",
+      });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    leader.passwordResetToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    leader.passwordResetTokenExpire = Date.now() + 10 * 60 * 1000;
+
     await leader.save();
 
-    return res.status(StatusCodes.OK).json(leader.recoveryOtp);
-  } catch (err) {
-    console.error("setOtp error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
-  }
-};
-
-// Forgot Password â€“ send recovery email
-const recoveryEmail = async (req, res) => {
-  try {
-    const { userEmail, otp, name } = req.body;
+    const resetUrl = `https://app.macbease.com/reset-password/${token}`;
 
     const intro = [
-      "You have received this email because a password reset request for your Chapter Leader account was received.",
-      `The OTP is ${otp}`,
+      "You have received this email because a password reset request for your account was received.",
+      resetUrl,
     ];
-    const outro = "If you did not request a password reset, no further action is required on your part.";
-    const subject = "Chapter Leader Password Recovery";
-    const destination = [userEmail];
+
+    const outro =
+      "If you did not request this, please ignore this email.";
+
+    const subject = "Password Recovery";
+    const destination = [user.email];
+    const name = user.name || "User";
 
     const { ses, params } = await sendMail(
       name,
@@ -465,37 +476,67 @@ const recoveryEmail = async (req, res) => {
       destination
     );
 
-    await ses.sendEmail(params).promise();
-    return res.status(StatusCodes.OK).send("Email sent successfully.");
-  } catch (err) {
-    console.log("recoveryEmail error:", err);
-    return res.status(StatusCodes.OK).send("Something went wrong.");
+    ses.sendEmail(params, async (err) => {
+      if (err) {
+        user.passwordResetToken = undefined;
+        user.passwordResetTokenExpire = undefined;
+        await user.save();
+        console.log(err)
+        return res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .json({ success: false, message: "Email failed" });
+      }
+
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password reset email sent",
+      });
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
 };
 
-// Forgot Password â€“ set new password
-const setNewPassword = async (req, res) => {
+const resetPassword = async (req, res) => {
   try {
-    const { otp, newPass, userEmail } = req.body;
-    const leader = await ChapterLeader.findOne({ email: userEmail.toLowerCase().trim() }).select("+password");
+    const { password, token } = req.body;
+
+    if (!password) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Password is required" });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const leader = await ChapterLeader.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetTokenExpire: { $gt: Date.now() },
+    });
 
     if (!leader) {
-      return res.status(StatusCodes.OK).send("User does not exists.");
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid or expired token" });
     }
 
-    if (leader.recoveryOtp !== Number(otp)) {
-      return res.status(StatusCodes.OK).send("Verification failed.");
-    }
-
-    const hashedPassword = await bcrypt.hash(newPass, 10);
+    const hashedPassword = await securePassword(password)
     leader.password = hashedPassword;
-    leader.recoveryOtp = null; // Clear OTP after use
+    leader.passwordResetToken = undefined;
+    leader.passwordResetTokenExpire = undefined;
+
     await leader.save();
 
-    return res.status(StatusCodes.OK).json("Password changed successfully.");
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Password reset successful",
+    });
   } catch (err) {
-    console.error("setNewPassword error:", err);
-    return res.status(500).json({ success: false, message: "Server error" });
+    console.log(err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
   }
 };
 
@@ -595,8 +636,7 @@ module.exports = {
   getQuestsProgress,
   getChapterLeaderDetails,
   claimQuestReward,
-  setOtp,
-  recoveryEmail,
-  setNewPassword,
+  forgotPassword,
+  resetPassword,
 };
 
