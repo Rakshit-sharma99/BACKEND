@@ -1519,7 +1519,7 @@ const checkEventStatus = async (req, res) => {
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
       fields: ["adminId", "mainAdmin"],
-      callSign: event?.universeMetaData?.callSign,
+      callSign: "universe",
     });
 
     if (!club) {
@@ -1671,39 +1671,52 @@ const editEventDetails = async (req, res) => {
 //Controller 26
 const searchEvents = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, status, date, clubName, place } = req.query;
 
-    if (!q || typeof q !== "string") {
-      return res
-        .status(400)
-        .send("q parameter is required and must be a string");
+    const query = {};
+
+    if (q && typeof q === "string") {
+      const keywords = q.split(",").map((word) => word.trim());
+      const regexes = keywords.map((kw) => new RegExp(kw, "i"));
+      query.$or = [
+        { name: { $in: regexes } },
+        { description: { $in: regexes } },
+        { place: { $in: regexes } },
+      ];
     }
 
-    // Convert comma-separated string to array
-    const keywords = q.split(",").map((word) => word.trim());
+    if (place && typeof place === "string") {
+      query.place = new RegExp(place, "i");
+    }
 
-    // Build regex patterns
-    const regexes = keywords.map((kw) => new RegExp(kw, "i"));
+    if (status && typeof status === "string") {
+      query.status = status;
+    }
 
-    const events = await Event.find(
-      {
-        $or: [
-          { name: { $in: regexes } },
-          { description: { $in: regexes } },
-          { place: { $in: regexes } },
-        ],
-      },
-      {
-        _id: 1,
-        name: 1,
-        belongsTo: 1,
-        url: 1,
-        eventDate: 1,
-        startTime: 1,
-        endTime: 1,
-        place: 1,
-      },
-    );
+    if (date && typeof date === "string") {
+      const parsedDate = new Date(date);
+      if (!isNaN(parsedDate.getTime())) {
+        const startOfDay = new Date(parsedDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(parsedDate.setHours(23, 59, 59, 999));
+        query.eventDate = { $gte: startOfDay, $lte: endOfDay };
+      }
+    }
+
+    if (clubName && typeof clubName === "string") {
+      query["belongsTo.name"] = new RegExp(clubName, "i");
+    }
+
+    const events = await Event.find(query, {
+      _id: 1,
+      name: 1,
+      belongsTo: 1,
+      url: 1,
+      eventDate: 1,
+      startTime: 1,
+      endTime: 1,
+      place: 1,
+      status: 1,
+    }).sort({ eventDate: -1 });
 
     return res.status(StatusCodes.OK).json(events);
   } catch (error) {

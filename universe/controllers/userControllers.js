@@ -20,6 +20,7 @@ const {
   getMemoryCount,
   fetchAllowedDomains,
   fetchMultipleAssets,
+  fetchSearchedProfileFacets,
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
@@ -2879,6 +2880,44 @@ const getUserAssetById = async (req, res) => {
   }
 };
 
+const searchUsersByFacet = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Query string is required" });
+    }
+
+    const facetResponse = await fetchSearchedProfileFacets(query);
+    
+    if (!facetResponse || !facetResponse.success || !facetResponse.data || !facetResponse.data.length) {
+       return res.status(StatusCodes.OK).json([]);
+    }
+
+    const parentIds = facetResponse.data.map(item => item._id);
+
+    const users = await User.find(
+      { _id: { $in: parentIds } },
+      { name: 1, image: 1, _id: 1, course: 1, pushToken: 1, interests: 1, deactivated: 1, email: 1, profession: 1, field: 1 }
+    ).lean();
+
+    const userMap = new Map(users.map(u => [String(u._id), u]));
+    const sortedUsers = parentIds.map(id => userMap.get(String(id))).filter(Boolean);
+
+    const results = sortedUsers.map(user => {
+      const facetData = facetResponse.data.find(f => String(f._id) === String(user._id));
+      return {
+        ...user,
+        matchedFacets: facetData ? facetData.facets : []
+      };
+    });
+
+    return res.status(StatusCodes.OK).json(results);
+  } catch (error) {
+    console.error("searchUsersByFacet error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
+  }
+};
+
 module.exports = {
   getUserAssets,
   getUserAssetById,
@@ -2944,4 +2983,5 @@ module.exports = {
   checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
+  searchUsersByFacet,
 };

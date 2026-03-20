@@ -8,7 +8,7 @@ const {
   lemmatize,
   fetchRelatedTags,
   fetchNativeUserData,
-  checkUserBookmarks
+  checkUserBookmarks,
 } = require("./utilControllers");
 const Content = require("../models/content");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -862,7 +862,6 @@ const generateHashTags = async (req, res) => {
   }
 };
 
-
 //Controller 19
 const searchContentByText = async (req, res) => {
   try {
@@ -970,28 +969,28 @@ const getContentForLanding = async (req, res) => {
     const suggestedQuery =
       interestTags.length > 0
         ? Content.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              _id: { $nin: seenIds },
-              timeStamp: { $lt: parsedCursor },
-              contentType: { $in: ["image", "video"] },
+            {
+              $match: {
+                tags: { $in: interestTags },
+                _id: { $nin: seenIds },
+                timeStamp: { $lt: parsedCursor },
+                contentType: { $in: ["image", "video"] },
+              },
             },
-          },
-          { $sort: { timeStamp: -1 } },
-          { $limit: parsedLimit },
-          {
-            $addFields: {
-              feedType: "suggested",
-              commentsNum: { $size: "$comments" },
-              comments: { $slice: ["$comments", 6] },
-              likeCount: { $size: { $ifNull: ["$likes", []] } },
-              isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
-              bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
+            { $sort: { timeStamp: -1 } },
+            { $limit: parsedLimit },
+            {
+              $addFields: {
+                feedType: "suggested",
+                commentsNum: { $size: "$comments" },
+                comments: { $slice: ["$comments", 6] },
+                likeCount: { $size: { $ifNull: ["$likes", []] } },
+                isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+                bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
+              },
             },
-          },
-          { $project: { vector: 0, likes: 0 } },
-        ])
+            { $project: { vector: 0, likes: 0 } },
+          ])
         : Promise.resolve([]);
 
     // Execute Initial Queries
@@ -1002,10 +1001,14 @@ const getContentForLanding = async (req, res) => {
 
     // Merge & Deduplicate (in case overlap between followed/suggested)
     let combined = [...followedContent, ...suggestedContent];
-    const uniqueCombined = Array.from(new Map(combined.map(item => [item._id.toString(), item])).values());
+    const uniqueCombined = Array.from(
+      new Map(combined.map((item) => [item._id.toString(), item])).values(),
+    );
 
     // Sort by Time
-    uniqueCombined.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    uniqueCombined.sort(
+      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
+    );
 
     // 4. Fallback Mechanism
     // If we don't have enough content, fetch popular/random content
@@ -1015,11 +1018,17 @@ const getContentForLanding = async (req, res) => {
       const needed = parsedLimit - finalFeed.length;
 
       // IDs to exclude in fallback (Seen + Just Fetched)
-      const currentFetchedIds = finalFeed.map(c => c._id);
+      const currentFetchedIds = finalFeed.map((c) => c._id);
       const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
 
       const fallbackContent = await Content.aggregate([
-        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor }, contentType: { $in: ["image", "video"] } } },
+        {
+          $match: {
+            _id: { $nin: excludeIdsForFallback },
+            timeStamp: { $lt: parsedCursor },
+            contentType: { $in: ["image", "video"] },
+          },
+        },
         { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
         {
           $addFields: {
@@ -1032,7 +1041,7 @@ const getContentForLanding = async (req, res) => {
           },
         },
         { $project: { vector: 0, likes: 0 } },
-        { $limit: needed }
+        { $limit: needed },
       ]);
 
       finalFeed = [...finalFeed, ...fallbackContent];
@@ -1047,7 +1056,10 @@ const getContentForLanding = async (req, res) => {
     let finalFeedWithBookmarks = finalFeed;
     if (finalFeed.length > 0) {
       const contentIds = finalFeed.map((c) => c._id.toString());
-      const bookmarkedIdsArray = await checkUserBookmarks({ userId, contentIds });
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId,
+        contentIds,
+      });
       const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
 
       finalFeedWithBookmarks = finalFeed.map((item) => ({
@@ -1077,7 +1089,11 @@ const getContentForLanding = async (req, res) => {
 
     // Update Short-term Cache
     if (!cursor) {
-      await redis.setex(`landing_feed:${userId}`, 60, JSON.stringify(responsePayload));
+      await redis.setex(
+        `landing_feed:${userId}`,
+        60,
+        JSON.stringify(responsePayload),
+      );
     }
 
     return res.status(StatusCodes.OK).json(responsePayload);
@@ -1446,15 +1462,80 @@ const searchContentQA = async (req, res) => {
     // 2. Run vector search + text search in parallel
     // Extract meaningful keywords (strip stop words) for text search
     const STOP_WORDS = new Set([
-      "did", "does", "do", "is", "are", "was", "were", "will", "would",
-      "can", "could", "should", "has", "have", "had", "been", "being",
-      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
-      "for", "of", "with", "by", "from", "it", "its", "this", "that",
-      "what", "when", "where", "who", "how", "why", "which",
-      "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
-      "about", "any", "tell", "know", "find", "show", "get",
-      "visit", "visited", "come", "came", "going", "go", "went",
-      "next", "last", "new", "like", "also", "just", "very",
+      "did",
+      "does",
+      "do",
+      "is",
+      "are",
+      "was",
+      "were",
+      "will",
+      "would",
+      "can",
+      "could",
+      "should",
+      "has",
+      "have",
+      "had",
+      "been",
+      "being",
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "from",
+      "it",
+      "its",
+      "this",
+      "that",
+      "what",
+      "when",
+      "where",
+      "who",
+      "how",
+      "why",
+      "which",
+      "i",
+      "me",
+      "my",
+      "we",
+      "our",
+      "you",
+      "your",
+      "he",
+      "she",
+      "they",
+      "about",
+      "any",
+      "tell",
+      "know",
+      "find",
+      "show",
+      "get",
+      "visit",
+      "visited",
+      "come",
+      "came",
+      "going",
+      "go",
+      "went",
+      "next",
+      "last",
+      "new",
+      "like",
+      "also",
+      "just",
+      "very",
     ]);
 
     const keywords = query
@@ -1471,7 +1552,15 @@ const searchContentQA = async (req, res) => {
         $cond: [
           {
             $regexMatch: {
-              input: { $concat: [{ $ifNull: ["$text", ""] }, " ", { $ifNull: ["$title", ""] }] },
+              input: {
+                $concat: [
+                  { $ifNull: ["$text", ""] },
+                  " ",
+                  { $ifNull: ["$title", ""] },
+                  " ",
+                  { $ifNull: ["$metaData.name", ""] },
+                ],
+              },
               regex: kw,
               options: "i",
             },
@@ -1490,53 +1579,69 @@ const searchContentQA = async (req, res) => {
     const textSearchPipeline =
       keywords.length > 0
         ? Content.aggregate([
-          {
-            $match: {
-              $or: keywords.map((kw) => ({
-                $or: [
-                  { text: { $regex: new RegExp(kw, "i") } },
-                  { title: { $regex: new RegExp(kw, "i") } },
-                ],
-              })),
+            {
+              $match: {
+                $or: keywords.map((kw) => ({
+                  $or: [
+                    { text: { $regex: new RegExp(kw, "i") } },
+                    { title: { $regex: new RegExp(kw, "i") } },
+                    { "metaData.name": { $regex: new RegExp(kw, "i") } },
+                  ],
+                })),
+              },
             },
-          },
-          { $addFields: Object.assign({}, ...keywordMatchFields) },
-          { $addFields: { _kwScore: scoreExpr } },
-          { $match: { _kwScore: { $gte: minMatches } } },
-          { $sort: { _kwScore: -1 } },
-          { $limit: 10 },
-          { $project: { vector: 0, comments: 0, ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])) } },
-        ])
-        : Content.find({ text: { $regex: new RegExp(query.trim(), "i") } }, { vector: 0, comments: 0 })
-          .limit(10)
-          .lean();
+            { $addFields: Object.assign({}, ...keywordMatchFields) },
+            { $addFields: { _kwScore: scoreExpr } },
+            { $match: { _kwScore: { $gte: minMatches } } },
+            { $sort: { _kwScore: -1 } },
+            { $limit: 10 },
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+                ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])),
+              },
+            },
+          ])
+        : Content.find(
+            {
+              $or: [
+                { text: { $regex: new RegExp(query.trim(), "i") } },
+                { title: { $regex: new RegExp(query.trim(), "i") } },
+                { "metaData.name": { $regex: new RegExp(query.trim(), "i") } },
+              ],
+            },
+            { vector: 0, comments: 0 },
+          )
+            .limit(10)
+            .lean();
 
     const [vectorResults, textResults] = await Promise.all([
       // Semantic / vector search
       embeddingVector && Array.isArray(embeddingVector)
         ? Content.aggregate([
-          {
-            $vectorSearch: {
-              queryVector: embeddingVector,
-              path: "vector",
-              numCandidates: 200,
-              limit: 10,
-              index: "vector_index",
+            {
+              $vectorSearch: {
+                queryVector: embeddingVector,
+                path: "vector",
+                numCandidates: 200,
+                limit: 10,
+                index: "vector_index",
+              },
             },
-          },
-          {
-            $addFields: {
-              searchScore: { $meta: "vectorSearchScore" },
-              commentsNum: { $size: "$comments" },
+            {
+              $addFields: {
+                searchScore: { $meta: "vectorSearchScore" },
+                commentsNum: { $size: "$comments" },
+              },
             },
-          },
-          {
-            $project: {
-              vector: 0,
-              comments: 0,
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+              },
             },
-          },
-        ])
+          ])
         : Promise.resolve([]),
 
       // Text / keyword search — ranked by keyword match count

@@ -403,6 +403,23 @@ const fetchAllowedDomains = async (universeId) => {
   }
 };
 
+const fetchSearchedProfileFacets = async (query) => {
+  try {
+    if (!query) return [];
+
+    const config = generateServiceToken();
+    const body = { metaQuery: query, limit: 50 };
+    
+    const url = `http://map:7050/map/api/v1/nodes/metaSearchProfileFacets`;
+    const response = await axios.post(url, body, config);
+    
+    return response.data;
+  } catch (error) {
+    console.error("Error in fetchSearchedProfileFacets:", error.message);
+    return [];
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -419,4 +436,5 @@ module.exports = {
   fetchTicketFieldsByQuery,
   fetchFeaturedEvent,
   fetchAllowedDomains,
+  fetchSearchedProfileFacets,
 };

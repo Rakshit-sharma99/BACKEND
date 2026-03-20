@@ -44,21 +44,25 @@ function createChat(history = [], systemPrompt = "") {
       // 1. Append the new message to our messages array
       if (typeof message === "string") {
         messages.push({ role: "user", content: message });
-      } else if (Array.isArray(message) && message[0]?.functionResponse) {
-        // Handling tool resolution from chatController
-        const fnResp = message[0].functionResponse;
-        const toolCallId = toolCallIds[fnResp.name] || fnResp.name;
+      } else if (Array.isArray(message)) {
+        // Handling tool resolution from chatController (can be one or multiple)
+        for (const part of message) {
+          if (part.functionResponse) {
+            const fnResp = part.functionResponse;
+            // Use provided ID if available, else look up by name
+            const toolCallId = fnResp.id || toolCallIds[fnResp.name] || fnResp.name;
 
-        messages.push({
-          role: "tool",
-          tool_call_id: toolCallId,
-          name: fnResp.name,
-          // Stringify the result if it's an object as OpenAI requires strings for tool messages
-          content:
-            typeof fnResp.response.result === "string"
-              ? fnResp.response.result
-              : JSON.stringify(fnResp.response.result),
-        });
+            messages.push({
+              role: "tool",
+              tool_call_id: toolCallId,
+              name: fnResp.name,
+              content:
+                typeof fnResp.response.result === "string"
+                  ? fnResp.response.result
+                  : JSON.stringify(fnResp.response.result),
+            });
+          }
+        }
       }
 
       // 2. Call OpenAI with streaming
@@ -130,7 +134,13 @@ function createChat(history = [], systemPrompt = "") {
               console.error("OpenAI tool args parse error", e, tc.arguments);
             }
 
-            parts.push({ functionCall: { name: tc.name, args: argsObj } });
+            parts.push({
+              functionCall: {
+                id: tc.id,
+                name: tc.name,
+                args: argsObj,
+              },
+            });
           }
 
           // Add the assistant's tool calls to our history so follow-ups work

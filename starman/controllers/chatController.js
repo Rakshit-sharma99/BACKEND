@@ -77,9 +77,11 @@ const chat = async (req, res) => {
       );
 
       if (functionCalls && functionCalls.length > 0) {
-        // Execute each tool call
+        const toolResponses = [];
+
+        // Execute each tool call in the parallel batch
         for (const part of functionCalls) {
-          const { name, args } = part.functionCall;
+          const { name, args, id } = part.functionCall;
           console.log(`🔧 Tool call: ${name}`, args);
 
           const toolResult = await executeTool(name, args || {}, user);
@@ -95,24 +97,25 @@ const chat = async (req, res) => {
             }
           }
 
-          // Feed tool result back to Gemini to generate a natural response
-          result = await chat.sendMessageStream([
-            {
-              functionResponse: {
-                name,
-                response: { result: toolResult },
-              },
+          // Prepare the response for OpenAI (including the tool call ID)
+          toolResponses.push({
+            functionResponse: {
+              id, // Pass the ID back to openaiClient
+              name,
+              response: { result: toolResult },
             },
-          ]);
+          });
+        }
 
-          // Stream the follow-up text
-          for await (const followUpChunk of result.stream) {
-            const text =
-              followUpChunk.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (text) {
-              fullText += text;
-              sendSSE("chunk", { text });
-            }
+        // Feed ALL tool results back to generate a natural response in one go
+        result = await chat.sendMessageStream(toolResponses);
+
+        // Stream the follow-up text
+        for await (const followUpChunk of result.stream) {
+          const text = followUpChunk.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            fullText += text;
+            sendSSE("chunk", { text });
           }
         }
       } else {
@@ -209,11 +212,24 @@ function extractButtons(toolName, rawResult) {
       id: item._id || item.id,
       type: "event",
       label: item.name || item.title,
-      subtitle: item.venue || item.date || "",
-      image: item.coverImage || item.image || null,
-      meta: {
-        date: item.date,
-        venue: item.venue,
+      subtitle: [
+        item.belongsTo?.name,
+        item.place,
+        item.eventDate ? new Date(item.eventDate).toLocaleDateString() : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: item.url || null,
+      meta: { date: item.eventDate, venue: item.place },
+      action: {
+        mode: "navigate",
+        navigateTo: "eventExpand",
+        params: {
+          eventData: {
+            name: item.name,
+            eventId: item._id,
+          },
+        },
       },
     }),
 
@@ -222,6 +238,7 @@ function extractButtons(toolName, rawResult) {
       type: "event",
       label: item.name || item.title,
       subtitle: [
+        item.belongsTo?.name,
         item.place,
         item.eventDate ? new Date(item.eventDate).toLocaleDateString() : null,
       ]
@@ -245,9 +262,18 @@ function extractButtons(toolName, rawResult) {
       id: item._id || item.id,
       type: "profile",
       label: item.name || item.callSign,
-      subtitle: item.course || item.bio || "",
+      subtitle: item.interests?.join(", ") || item.course || item.bio || "",
       image: item.image || item.img || null,
       meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: "profile2",
+        params: {
+          img: item.image || item.img || null,
+          name: item.name || item.callSign,
+          id: item._id || item.id,
+        },
+      },
     }),
 
     search_alumni: (item) => ({

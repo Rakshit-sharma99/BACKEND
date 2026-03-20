@@ -357,7 +357,7 @@ const tools = [
       {
         name: "search_events",
         description:
-          "Search for events by topic or interest keywords. Use this to find events related to a specific interest, activity, or goal (e.g. 'startup', 'music', 'aerospace').",
+          "Search for events by topic, date, status, or club name. Use this to find events related to a specific interest, activity, or goal (e.g. 'startup', 'music').",
         parameters: {
           type: "object",
           properties: {
@@ -366,8 +366,27 @@ const tools = [
               description:
                 "Comma-separated keywords to search events by, e.g. 'startup,entrepreneurship,pitch'",
             },
+            status: {
+              type: "string",
+              description:
+                "Optional status to filter events by, e.g. 'expired', 'pending', 'featured', 'past and unclear', 'past and clear'",
+            },
+            date: {
+              type: "string",
+              description:
+                "Optional exact date string (e.g., '2026-03-19') to find events happening on that day.",
+            },
+            clubName: {
+              type: "string",
+              description:
+                "Optional club name to find events hosted BY a specific club (e.g., 'Music Club', 'Coding Society').",
+            },
+            place: {
+              type: "string",
+              description:
+                "Optional location or venue to find events happening AT a specific place (e.g., 'SDMA', 'Main Audi', 'Ground', 'OAT').",
+            },
           },
-          required: ["query"],
         },
       },
     ],

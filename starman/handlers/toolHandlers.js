@@ -80,8 +80,12 @@ async function search_territories({ interests }, user) {
  */
 async function get_upcoming_events({ limit = 5 }, user) {
   try {
-    const res = await axios.get(`${EVENT_URL}/getUpcomingEvents`, {
-      params: { uid: user.uid, limit },
+    const params = {};
+
+    params.status = "featured";
+
+    const res = await axios.get(`${EVENT_URL}/searchEvents`, {
+      params,
       headers: internalHeaders(),
     });
     return res.data;
@@ -127,10 +131,9 @@ async function get_platform_stats() {
  */
 async function search_users({ interests, lookingFor }, user) {
   try {
-    const res = await axios.get(`${UNIVERSE_URL}/searchUsers`, {
+    const res = await axios.get(`${UNIVERSE_URL}/user/searchUsersByFacet`, {
       params: {
-        interests: interests.join(","),
-        lookingFor: lookingFor || "",
+        query: interests.join(","),
         uid: user.uid,
       },
       headers: internalHeaders(),
@@ -343,7 +346,7 @@ async function app_navigate({ screen, query }, user) {
 
     profile2: async () => {
       if (!query) return {}; // Open current user's own profile
-      
+
       const res = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
         params: { name: query },
         headers: internalHeaders(),
@@ -685,10 +688,13 @@ async function get_user_facet_texts({ userId }) {
 
     if (!isObjectId) {
       // It's likely a name, try to resolve it
-      const searchRes = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
-        params: { name: userId },
-        headers: internalHeaders(),
-      });
+      const searchRes = await axios.get(
+        `${UNIVERSE_URL}/user/searchUserByName`,
+        {
+          params: { name: userId },
+          headers: internalHeaders(),
+        },
+      );
       const users = searchRes.data;
       if (!Array.isArray(users) || users.length === 0) {
         return {
@@ -714,12 +720,19 @@ async function get_user_facet_texts({ userId }) {
 }
 
 /**
- * Search events by topic/interest keywords.
+ * Search events by topic/interest keywords, date, status, or club name.
  */
-async function search_events({ query }, user) {
+async function search_events({ query, status, date, clubName, place }, user) {
   try {
+    const params = {};
+    if (query) params.q = query;
+    if (status) params.status = status;
+    if (date) params.date = date;
+    if (clubName) params.clubName = clubName;
+    if (place) params.place = place;
+
     const res = await axios.get(`${EVENT_URL}/searchEvents`, {
-      params: { q: query },
+      params,
       headers: internalHeaders(),
     });
     return res.data;

@@ -64,6 +64,7 @@ const {
   deleteUserAsset,
   getUserAssets,
   getUserAssetById,
+  searchUsersByFacet,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -129,5 +130,6 @@ router.post("/editUserAsset", editUserAsset);
 router.post("/deleteUserAsset", deleteUserAsset);
 router.get("/getUserAssets", getUserAssets);
 router.get("/getUserAssetById", getUserAssetById);
+router.get("/searchUsersByFacet", searchUsersByFacet);
 
 module.exports = router;
