@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 const OrbitSchema = new mongoose.Schema({
   id: {
     type: Number,
-    required: true,
   },
   title: String,
   subTitle: String,
@@ -12,7 +11,7 @@ const OrbitSchema = new mongoose.Schema({
 const QuestSchema = new mongoose.Schema({
   orbit: {
     type: OrbitSchema,
-    required: true,
+    required: false
   },
   title: {
     type: String,
@@ -61,10 +60,6 @@ const QuestSchema = new mongoose.Schema({
 
   is_active: { type: Boolean, default: true },
 
-  isRepeatable: {
-    type: Boolean,
-    default: true
-  },
   frequency: {
     type: String,
     enum: ["daily", "weekly", "monthly", "none"],

@@ -2,9 +2,6 @@ const Quest = require("../models/quest");
 const mongoose = require("mongoose");
 const { StatusCodes } = require("http-status-codes");
 
-// ────────────────────────────────────────────────────────────────────────────
-// Create single quest
-// ────────────────────────────────────────────────────────────────────────────
 const createQuest = async (req, res) => {
   try {
     const {
@@ -23,10 +20,10 @@ const createQuest = async (req, res) => {
       isRepeatable,
     } = req.body;
 
-    if (!orbit || !orbit.id || !title || !category || !metric || !type || !target || !ip) {
+    if (!title || !category || !metric || !type || !target || !ip) {
       return res.status(400).json({
         success: false,
-        message: "Missing required fields (orbit/title/category/metric/type/target/ip)",
+        message: "Missing required fields (title/category/metric/type/target/ip)",
       });
     }
 
@@ -53,7 +50,7 @@ const createQuest = async (req, res) => {
       });
     }
 
-    if (typeof orbit.id !== "number") {
+    if (orbit && orbit.id && typeof orbit.id !== "number") {
       return res.status(400).json({
         success: false,
         message: "Orbit id must be a number",
@@ -64,7 +61,7 @@ const createQuest = async (req, res) => {
       title: title.trim(),
       metric,
       category,
-      "orbit.id": orbit.id,
+      "orbit.id": orbit?.id,
     });
 
     if (existing) {
@@ -109,9 +106,6 @@ const createQuest = async (req, res) => {
   }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
-// Create multiple quests (batch)
-// ────────────────────────────────────────────────────────────────────────────
 const createMultipleQuest = async (req, res) => {
   try {
     const { quests } = req.body;
@@ -125,7 +119,7 @@ const createMultipleQuest = async (req, res) => {
 
     const validCategories = ["Club", "Community", "Event"];
     const validTypes = ["continuous", "discrete"];
-    const validFrequencies = ["daily", "weekly", "monthly", "none"];
+    const validFrequencies = ["daily", "none"];
 
     const errors = [];
     const validQuests = [];
@@ -133,7 +127,7 @@ const createMultipleQuest = async (req, res) => {
     for (let i = 0; i < quests.length; i++) {
       const q = quests[i];
 
-      if (!q.orbit || !q.orbit.id || !q.title || !q.category || !q.metric || !q.type || !q.target || !q.ip) {
+      if (!q.title || !q.category || !q.metric || !q.type || !q.target || !q.ip) {
         errors.push(`Quest ${i}: missing required fields`);
         continue;
       }
@@ -158,7 +152,7 @@ const createMultipleQuest = async (req, res) => {
         continue;
       }
 
-      if (typeof q.orbit.id !== "number") {
+      if (q.orbit && q.orbit.id && typeof q.orbit.id !== "number") {
         errors.push(`Quest ${i}: orbit id must be number`);
         continue;
       }
@@ -195,16 +189,16 @@ const createMultipleQuest = async (req, res) => {
         title: q.title,
         metric: q.metric,
         category: q.category,
-        "orbit.id": q.orbit.id,
+        "orbit.id": q.orbit?.id,
       })),
     });
 
     const existingSet = new Set(
-      existing.map((e) => `${e.title}-${e.metric}-${e.category}-${e.orbit.id}`)
+      existing.map((e) => `${e.title}-${e.metric}-${e.category}-${e.orbit?.id}`)
     );
 
     const filtered = validQuests.filter(
-      (q) => !existingSet.has(`${q.title}-${q.metric}-${q.category}-${q.orbit.id}`)
+      (q) => !existingSet.has(`${q.title}-${q.metric}-${q.category}-${q.orbit?.id}`)
     );
 
     if (filtered.length === 0) {
@@ -225,11 +219,6 @@ const createMultipleQuest = async (req, res) => {
   }
 };
 
-// ────────────────────────────────────────────────────────────────────────────
-// Get all active quests  (called internally by universe on verify)
-// GET /quest/api/v1/getAllQuests
-// Returns: { success, quests: [ { _id, orbit, title, category, metric, type, numOfEntities, target, ip } ] }
-// ────────────────────────────────────────────────────────────────────────────
 const getAllActiveQuests = async (req, res) => {
   try {
     const quests = await Quest.find({ is_active: true }).lean();
