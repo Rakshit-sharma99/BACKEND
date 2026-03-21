@@ -13,6 +13,7 @@ const server = http.createServer(app);
 const io = socketIo(server, {
   path: "/universe/socket.io",
 });
+const cookieParser = require("cookie-parser");
 
 const Redis = require("ioredis");
 const redis = new Redis({
@@ -79,6 +80,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
