@@ -2,7 +2,7 @@ const jwt = require("jsonwebtoken");
 const { StatusCodes } = require("http-status-codes");
 
 const auth = async (req, res, next) => {
-  const cookieToken = req.cookies.access_token;
+  const cookieToken = req.cookies?.access_token || (req.cookies && req.cookies.access_token);
   const authHeader = req.headers.authorization;
 
   let token = null;
