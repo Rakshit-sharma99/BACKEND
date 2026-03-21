@@ -389,6 +389,22 @@ const tools = [
           },
         },
       },
+      {
+        name: "query_universe_knowledge",
+        description:
+          "Query the crowdsourced campus knowledge base for answers to campus-life questions. Use this when users ask about popular spots, best food places, campus culture, or any subjective campus question. Returns aggregated insights from many users with confidence scores and consensus data.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "The campus question to look up in the knowledge base, e.g. 'best momos', 'sunset spot', 'bunking places'",
+            },
+          },
+          required: ["query"],
+        },
+      },
     ],
   },
 ];

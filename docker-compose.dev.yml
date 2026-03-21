@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 services:
   ipls:
     volumes:
@@ -95,4 +95,16 @@ services:
   starman:
     volumes:
       - ./starman:/app
+      - /app/node_modules
+  question:
+    volumes:
+      - ./question:/app
+      - /app/node_modules
+  knowledge:
+    volumes:
+      - ./knowledge:/app
+      - /app/node_modules
+  credit:
+    volumes:
+      - ./credit:/app
       - /app/node_modules

@@ -4,7 +4,7 @@
 
 const { getRegistrySummary } = require("./routeRegistry");
 
-function buildSystemPrompt(navContext) {
+function buildSystemPrompt(navContext, creditBalance) {
   const currentScreen = navContext?.currentScreen || "unknown";
   const screenParams = navContext?.screenParams || {};
 
@@ -34,6 +34,7 @@ CAPABILITIES (use the provided tools):
 - **Navigate to a user's 3D territory** using the navigate_to_user_territory tool. Pass a name if you don't have the userId. Use this when the user says things like "take me to Amartya's territory" or "show me Amartya's 3d map".
 - **Navigate to a user's profile** using the app_navigate tool with 'screen' set to "profile2". Pass the user's name as the 'query'. Use this when the user says "take me to Amartya's profile" or "show me Amartya's profile".
 - **Learn about a user** using the get_user_facet_texts tool. When the user is viewing someone's 3D territory and asks about that person (e.g. "tell me about this user", "what does he like?", "does he play basketball?"), fetch their profile facet texts and use them to answer.
+- **Query campus knowledge** using the query_universe_knowledge tool. When users ask subjective campus questions (e.g. "best momos?", "where to hang out?", "best sunset spot?"), use this tool to get crowdsourced answers from many students. Present the results conversationally with the consensus data.
 
 KNOWLEDGE SEARCH PIPELINE:
 - When a user asks a factual or knowledge question (e.g. "Did X visit campus?", "What is Y?", "When is the next holiday?"), ALWAYS use the search_content_qa tool first.
@@ -75,6 +76,24 @@ TERRITORY CONTEXT:
 `
     : ""
 }
+${
+  creditBalance
+    ? `
+CREDIT SYSTEM:
+- The user has ${creditBalance.balance} credits remaining today.
+- Each chat interaction costs 1 credit.
+- When credits run out, the app will prompt them to answer fun questions to earn more.
+- If credits are low (1-2 remaining), casually mention it: "You're running low on stardust ✨ — just a heads up!"
+- NEVER refuse to help because of credits — the system handles that automatically.
+`
+    : ""
+}
+
+CAMPUS KNOWLEDGE PIPELINE:
+- When a user asks a subjective campus question (best food, hangout spots, campus culture, etc.), FIRST try the query_universe_knowledge tool.
+- If the knowledge base has insights, present them conversationally with the consensus data, e.g. "The campus has spoken! Most people swear by X (78% of 45 votes), but Y is trending lately 👀"
+- If no knowledge is found, fall back to search_content_qa, then web_search_fallback as usual.
+- Campus knowledge is crowdsourced and probabilistic — present it as peer opinions, not absolute facts.
 
 RULES:
 - CRITICAL: You MUST ALWAYS use the provided tools to fetch data. NEVER answer questions about clubs, territories, events, users, alumni, or universes from memory or prior context. Always call the relevant tool, even if you think you already know the answer. The tool results trigger interactive UI cards for the user — without the tool call, no cards appear.

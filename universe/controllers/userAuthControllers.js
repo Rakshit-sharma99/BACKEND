@@ -246,8 +246,8 @@ const registerUser = async (req, res) => {
         reg: user.reg,
         profession: user.profession,
         universeMetaData,
-      }
-    }
+      },
+    };
     if (platform === "app") {
       res_payload.token = accessToken;
       res_payload.refreshToken = refreshToken;
@@ -489,6 +489,8 @@ const regenerateAccessToken = async (req, res) => {
     const user = await User.findById(payload.id, {
       refreshTokens: 1,
       appVersion: 1,
+      uid: 1,
+      universeMetaData: 1,
     });
 
     if (!user) {

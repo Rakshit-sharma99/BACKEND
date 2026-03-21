@@ -21,6 +21,28 @@ const {
   updateHistory,
   setLastResults,
 } = require("../session/sessionStore");
+const axios = require("axios");
+const { publishEvent } = require("../config/kafka");
+
+// ── Service URLs ──
+const CREDIT_URL =
+  process.env.CREDIT_URL || "http://credit:7090/credit/api/v1";
+const QUESTION_URL =
+  process.env.QUESTION_URL || "http://question:7070/question/api/v1";
+const KNOWLEDGE_URL =
+  process.env.KNOWLEDGE_URL || "http://knowledge:7080/knowledge/api/v1";
+
+const jwt = require("jsonwebtoken");
+function getInternalToken() {
+  return jwt.sign(
+    { role: "internal", service: "starman" },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: "5m" },
+  );
+}
+function internalHeaders() {
+  return { Authorization: `Bearer ${getInternalToken()}` };
+}
 
 /**
  * POST /starman/api/v1/chat
@@ -55,9 +77,33 @@ const chat = async (req, res) => {
   };
 
   try {
+    // ── Credit Check ──
+    let creditBalance = null;
+    try {
+      const creditRes = await axios.get(`${CREDIT_URL}/balance`, {
+        params: { userId: user.id, uid: user.uid },
+        headers: internalHeaders(),
+      });
+      creditBalance = creditRes.data;
+    } catch (creditErr) {
+      console.error("Credit check failed, proceeding without:", creditErr.message);
+    }
+
+    // If credits are exhausted, notify the client
+    if (creditBalance && !creditBalance.hasCredits) {
+      sendSSE("credits_exhausted", {
+        balance: 0,
+        message: "You've used all your daily stardust! ✨ Answer a quick question to fuel back up 🚀",
+        refillOptions: ["answer_question"],
+      });
+      sendSSE("done", { sessionId: sessionId || "none" });
+      res.end();
+      return;
+    }
+
     // ── Session ──
     const session = getOrCreateSession(sessionId, user.id);
-    const systemPrompt = buildSystemPrompt(navContext || {});
+    const systemPrompt = buildSystemPrompt(navContext || {}, creditBalance);
     const chat = createChat(session.history, systemPrompt);
 
     // ── Send message to Gemini (streaming) ──
@@ -137,8 +183,44 @@ const chat = async (req, res) => {
     // ── Update session history ──
     updateHistory(session.sessionId, message, fullText);
 
+    // ── Deduct credit ──
+    if (creditBalance && creditBalance.hasCredits) {
+      try {
+        const spendRes = await axios.post(`${CREDIT_URL}/spend`, {
+          userId: user.id,
+          uid: user.uid,
+          amount: 1,
+          ref: session.sessionId,
+          reason: "Chat interaction",
+        }, { headers: internalHeaders() });
+        const newBalance = spendRes.data?.balance;
+        sendSSE("credit_update", {
+          balance: newBalance,
+          spent: 1,
+        });
+      } catch (spendErr) {
+        console.error("Credit spend failed:", spendErr.message);
+      }
+    }
+
+    // ── Publish chat.completed to Kafka for question learning ──
+    publishEvent("chat.completed", {
+      messages: [
+        { role: "user", text: message },
+        { role: "model", text: fullText },
+      ],
+      userId: user.id,
+      uid: user.uid,
+      sessionId: session.sessionId,
+    });
+
     // ── Done ──
-    sendSSE("done", { sessionId: session.sessionId });
+    sendSSE("done", {
+      sessionId: session.sessionId,
+      creditsRemaining: creditBalance?.balance != null
+        ? Math.max(0, creditBalance.balance - 1)
+        : null,
+    });
     res.end();
   } catch (error) {
     console.error("Chat error:", error);

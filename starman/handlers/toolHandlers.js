@@ -51,6 +51,8 @@ const IPLS_URL = process.env.IPLS_URL || "http://ipls:5080/ipls/api/v1";
 const TICKET_URL = process.env.TICKET_URL || "http://ticket:6000/ticket/api/v1";
 const CONTENT_URL =
   process.env.CONTENT_URL || "http://content:5000/content/api/v1";
+const KNOWLEDGE_URL =
+  process.env.KNOWLEDGE_URL || "http://knowledge:7080/knowledge/api/v1";
 
 // ────────────────────────────────────────────────
 // Tool Handlers
@@ -742,6 +744,27 @@ async function search_events({ query, status, date, clubName, place }, user) {
   }
 }
 
+/**
+ * Query the crowdsourced campus knowledge base.
+ * Returns aggregated insights with confidence scores and consensus data.
+ */
+async function query_universe_knowledge({ query }, user) {
+  try {
+    const res = await axios.get(`${KNOWLEDGE_URL}/insight/query`, {
+      params: { query, uid: user.uid },
+      headers: internalHeaders(),
+    });
+    return res.data;
+  } catch (err) {
+    console.error("query_universe_knowledge error:", err.message);
+    return {
+      error: true,
+      found: false,
+      message: "Could not query campus knowledge right now.",
+    };
+  }
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -768,6 +791,7 @@ const TOOL_HANDLERS = {
   navigate_to_user_territory,
   get_user_facet_texts,
   search_events,
+  query_universe_knowledge,
 };
 
 /**

@@ -337,6 +337,48 @@ services:
       - app-network
     restart: unless-stopped
 
+  credit:
+    build:
+      context: ./credit
+      dockerfile: Dockerfile
+    image: spargens/credit
+    env_file:
+      - ./env/credit/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  question:
+    build:
+      context: ./question
+      dockerfile: Dockerfile
+    image: spargens/question
+    env_file:
+      - ./env/question/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  knowledge:
+    build:
+      context: ./knowledge
+      dockerfile: Dockerfile
+    image: spargens/knowledge
+    env_file:
+      - ./env/knowledge/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:latest
     container_name: multiverse-backend-kafka-1
