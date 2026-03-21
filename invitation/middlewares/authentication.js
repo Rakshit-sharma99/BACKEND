@@ -2,13 +2,24 @@ const jwt = require("jsonwebtoken");
 const {StatusCodes} = require("http-status-codes");
 
 const auth = async(req,res,next) => {
-    const authHeader = req.headers.authorization;
-    if(!authHeader || !authHeader.startsWith("Bearer")){
-        return res.status(StatusCodes.MISDIRECTED_REQUEST).send("enter valid authorization token.");
-    }
+  const cookieToken = req.cookies?.access_token || (req.cookies && req.cookies.access_token);
+  const authHeader = req.headers.authorization;
 
-    const token = authHeader.split(" ")[1];
-    try{
+  let token = null;
+
+  if (cookieToken) {
+    token = cookieToken;
+  } else if (authHeader && authHeader.startsWith("Bearer")) {
+    token = authHeader.split(" ")[1];
+  }
+
+  if (!token) {
+    return res
+      .status(StatusCodes.MISDIRECTED_REQUEST)
+      .send("Enter valid authorization token.");
+  }
+
+  try{
         const payload = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET);
         if(payload.role === "internal") {
             req.internalService = payload.service;
