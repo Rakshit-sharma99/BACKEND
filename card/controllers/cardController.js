@@ -908,7 +908,11 @@ const insertNewFields = async (req, res) => {
 const getCardForLanding = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { uid, universeId } = req.query;
     const limit = 4;
+    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const universeFilter =
+      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
 
     console.log("called get cards for landing")
 
@@ -937,6 +941,7 @@ const getCardForLanding = async (req, res) => {
                   10,
                 ],
               },
+              ...universeFilter,
             },
           },
           { $sort: { createdAt: -1 } },
@@ -962,6 +967,7 @@ const getCardForLanding = async (req, res) => {
                 10,
               ],
             },
+            ...universeFilter,
           },
         },
         { $sample: { size: needed } },

@@ -1496,6 +1496,10 @@ const insertNewFields = async (req, res) => {
 const getMemoryRequest = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { uid, universeId } = req.query;
+    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const universeFilter =
+      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
 
     const user = await fetchNativeUserData({
       id: userId,
@@ -1503,7 +1507,12 @@ const getMemoryRequest = async (req, res) => {
       callSign: "universe"
     })
 
-    const memories = await Memory.find({ _id: { $in: user.memoryRequests } }).sort({ createdAt: -1 }).lean();
+    const memories = await Memory.find({
+      _id: { $in: user.memoryRequests },
+      ...universeFilter,
+    })
+      .sort({ createdAt: -1 })
+      .lean();
 
     return res.status(StatusCodes.OK).json({ memories })
 

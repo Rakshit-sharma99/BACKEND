@@ -3517,7 +3517,11 @@ const searchCommunitiesWithRegex = async (req, res) => {
 const getCommunitiesForFeed = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { uid, universeId } = req.query;
     const limit = 4;
+    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const universeFilter =
+      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
 
     const user = await User.findById(userId, {
       interests: 1,
@@ -3548,6 +3552,7 @@ const getCommunitiesForFeed = async (req, res) => {
                   { label: { $in: interestTags } },
                   // Optional: { title: { $in: interestTags } } if titles match interests
                 ],
+                ...universeFilter,
               },
             },
             { $sample: { size: limit } },
@@ -3575,6 +3580,7 @@ const getCommunitiesForFeed = async (req, res) => {
         {
           $match: {
             _id: { $nin: excludeIds },
+            ...universeFilter,
           },
         },
         { $sample: { size: needed } },

@@ -3279,7 +3279,11 @@ const getFeaturedEvents = async (req, res) => {
 const getFeaturedEventsForFeed = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { uid, universeId } = req.query;
     const limit = 4;
+    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const universeFilter =
+      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
 
     const user = await fetchNativeUserData({
       id: userId,
@@ -3305,6 +3309,7 @@ const getFeaturedEventsForFeed = async (req, res) => {
                 status: "featured",
                 eventDate: { $gte: now },
                 tags: { $in: interestTags },
+                ...universeFilter,
               },
             },
             { $limit: limit },
@@ -3335,6 +3340,7 @@ const getFeaturedEventsForFeed = async (req, res) => {
             status: "featured",
             eventDate: { $gte: now },
             _id: { $nin: currentIds },
+            ...universeFilter,
           },
         },
         { $sample: { size: needed } },

@@ -51,6 +51,14 @@ services:
     profiles: [ "all", "overlay" ]
   map:
     profiles: [ "all", "map" ]
+  starman:
+    profiles: [ "all", "starman" ]
+  credit:
+    profiles: [ "all", "credit" ]
+  question:
+    profiles: [ "all", "question" ]
+  knowledge:
+    profiles: [ "all", "knowledge" ]
 
   # Core infrastructure services
   kafka:
