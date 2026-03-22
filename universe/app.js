@@ -63,7 +63,7 @@ app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:5173",
   "https://app.macbease.com",
-  "https://macbease.com"
+  "https://macbease.com",
 ];
 
 app.use(
@@ -72,11 +72,11 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error("Not allowed by CORS."));
       }
     },
     credentials: true,
-  })
+  }),
 );
 app.use(helmet());
 app.use(express.json());
