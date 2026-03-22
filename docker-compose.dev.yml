@@ -108,3 +108,7 @@ services:
     volumes:
       - ./credit:/app
       - /app/node_modules
+  sere:
+    volumes:
+      - ./sere:/app
+      - /app/node_modules

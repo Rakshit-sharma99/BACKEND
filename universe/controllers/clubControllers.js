@@ -287,6 +287,19 @@ const joinAsMember = async (req, res) => {
         club.yAxisData.push(new Date());
         club.save((err, update) => {
           if (err) return console.error(err);
+
+          // Publish user.activity event for SERE
+          try {
+            sendKafkaMessage("USER_ACTIVITY", "user", {
+              userId: req.user.id,
+              uid: req.user.uid,
+              activityType: "club_join",
+              ref: clubId,
+            });
+          } catch (kafkaErr) {
+            console.error("user.activity publish failed:", kafkaErr.message);
+          }
+
           return res
             .status(StatusCodes.OK)
             .send("You have successfully joined as the member of the club.");

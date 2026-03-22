@@ -58,6 +58,7 @@ const awardRouter = require("./routes/awardRouter");
 const blockRouter = require("./routes/blockRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
+const pushRouter = require("./routes/pushRouter");
 
 app.set("trust proxy", 1);
 const allowedOrigins = [
@@ -133,6 +134,7 @@ app.use("/universe/api/v1/alumni", authenticate, alumniRouter);
 app.use("/universe/api/v1/award", authenticate, awardRouter);
 app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
+app.use("/universe/api/v1/push", authenticate, pushRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });

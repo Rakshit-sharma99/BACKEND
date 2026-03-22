@@ -180,6 +180,33 @@ const chat = async (req, res) => {
       sendSSE("buttons", { buttons: cards });
     }
 
+    // ── Publish deferred query if tools returned no results ──
+    // This tells SERE to track the question and notify the user later
+    if (cards.length === 0 && fullText.length > 0) {
+      // Check if any tool was called but returned empty
+      const lastResults = session.lastResults || {};
+      const toolsCalled = Object.keys(lastResults);
+      const allEmpty = toolsCalled.length > 0 && toolsCalled.every((key) => {
+        const r = lastResults[key];
+        if (!r) return true;
+        if (r.error) return true;
+        if (Array.isArray(r) && r.length === 0) return true;
+        if (r.data && Array.isArray(r.data) && r.data.length === 0) return true;
+        if (r.results && Array.isArray(r.results) && r.results.length === 0) return true;
+        return false;
+      });
+
+      if (allEmpty) {
+        publishEvent("query.deferred", {
+          userId: user.id,
+          uid: user.uid,
+          query: message,
+          sessionId: session.sessionId,
+          toolsCalled,
+        });
+      }
+    }
+
     // ── Update session history ──
     updateHistory(session.sessionId, message, fullText);
 

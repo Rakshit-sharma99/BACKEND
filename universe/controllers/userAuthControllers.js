@@ -223,6 +223,21 @@ const registerUser = async (req, res) => {
     /* ---------- Send onboarding mail ---------- */
     sendOnboardingMail(user);
 
+    /* ---------- Publish user.signup event for SERE ---------- */
+    try {
+      await sendKafkaMessage("USER_SIGNUP", "user", {
+        userId: user._id.toString(),
+        uid: universe._id,
+        name: user.name,
+        interests: user.interests || [],
+        profession: user.profession,
+        universeMetaData,
+      });
+      console.log("📤 Published user.signup for SERE");
+    } catch (kafkaErr) {
+      console.error("user.signup publish failed:", kafkaErr.message);
+    }
+
     /* ---------- Cookies ---------- */
     res.cookie("access_token", accessToken, {
       httpOnly: true,

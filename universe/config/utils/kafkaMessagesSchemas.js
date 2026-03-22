@@ -302,6 +302,62 @@ const CREATE_MEMORY = {
   },
 };
 
+/**
+ * @typedef {Object} USER_ACTIVITY_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} activityType - one of: club_join, event_attend, memory_upload, first_post, assets_added
+ * @property {string} [ref] - optional reference ID (clubId, eventId, etc.)
+ */
+
+const USER_ACTIVITY = {
+  USER_ACTIVITY: {
+    topicSuffix: ".activity",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.activityType !== "string") {
+        throw new Error("'activityType' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} USER_SIGNUP_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} name
+ * @property {string[]} interests
+ * @property {string} profession
+ * @property {Object} universeMetaData
+ */
+
+const USER_SIGNUP = {
+  USER_SIGNUP: {
+    topicSuffix: ".signup",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.name !== "string") {
+        throw new Error("'name' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -309,5 +365,7 @@ module.exports = {
   ...UPDATE_CONTENT,
   ...UPDATE_INVITATION,
   ...UPDATE_JOINLINK,
-  ...CREATE_MEMORY
+  ...CREATE_MEMORY,
+  ...USER_ACTIVITY,
+  ...USER_SIGNUP,
 }

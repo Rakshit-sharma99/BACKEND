@@ -337,6 +337,32 @@ const CREDIT_TICKET_SALE = {
     }),
   },
 };
+/**
+ * @typedef {Object} USER_ACTIVITY_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} activityType
+ * @property {string} [ref]
+ */
+
+const USER_ACTIVITY = {
+  USER_ACTIVITY: {
+    topicSuffix: ".activity",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.activityType !== "string") {
+        throw new Error("'activityType' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
 
 module.exports = {
   ...ADD_TICKET_TO_USER_SCHEMA,
@@ -348,4 +374,5 @@ module.exports = {
   ...ADD_TICKET_TO_USER,
   ...UPDATE_COUPON,
   ...CREDIT_TICKET_SALE,
+  ...USER_ACTIVITY,
 };

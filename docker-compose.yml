@@ -379,6 +379,20 @@ services:
       - app-network
     restart: unless-stopped
 
+  sere:
+    build:
+      context: ./sere
+      dockerfile: Dockerfile
+    image: spargens/sere
+    env_file:
+      - ./env/sere/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:latest
     container_name: multiverse-backend-kafka-1

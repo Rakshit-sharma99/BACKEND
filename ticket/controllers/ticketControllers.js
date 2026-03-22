@@ -258,6 +258,18 @@ const generateTicket = async (req, res) => {
       userField: user.field,
     });
 
+    // Publish user.activity event for SERE onboarding tracking
+    try {
+      await sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId: req.user.id,
+        uid: req.user.uid,
+        activityType: "event_attend",
+        ref: eventId,
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
+    }
+
     await session.commitTransaction();
     session.endSession();
 

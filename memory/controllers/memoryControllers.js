@@ -241,6 +241,18 @@ const createMemory = async (req, res) => {
       });
     }
 
+    // Publish user.activity event for SERE onboarding tracking
+    try {
+      await sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId,
+        uid: req.user.uid,
+        activityType: "memory_upload",
+        ref: memory._id.toString(),
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
+    }
+
     return res.status(StatusCodes.CREATED).json({
       msg: "Memory added to your Memory Lane 🪐",
       memory,
