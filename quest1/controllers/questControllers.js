@@ -16,8 +16,8 @@ const createQuest = async (req, res) => {
       numOfEntities = 1,
       target,
       ip,
-      frequency,
-      isRepeatable,
+      // frequency,
+      // isRepeatable,
     } = req.body;
 
     if (!title || !category || !metric || !type || !target || !ip) {
@@ -29,7 +29,7 @@ const createQuest = async (req, res) => {
 
     const validCategories = ["Club", "Community", "Event"];
     const validTypes = ["continuous", "discrete"];
-    const validFrequencies = ["daily", "weekly", "monthly", "none"];
+    // const validFrequencies = ["daily", "weekly", "monthly", "none"];
 
     if (!validCategories.includes(category)) {
       return res.status(400).json({ success: false, message: "Invalid category" });
@@ -39,14 +39,14 @@ const createQuest = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid type" });
     }
 
-    if (frequency && !validFrequencies.includes(frequency)) {
-      return res.status(400).json({ success: false, message: "Invalid frequency" });
-    }
+    // if (frequency && !validFrequencies.includes(frequency)) {
+    //   return res.status(400).json({ success: false, message: "Invalid frequency" });
+    // }
 
-    if (target <= 0 || ip <= 0 || numOfEntities < 1) {
+    if (target <= 0 || ip <= 0 || numOfEntities < 0) {
       return res.status(400).json({
         success: false,
-        message: "target, ip must be > 0; numOfEntities must be >= 1",
+        message: "target, ip must be > 0; numOfEntities must be >= 0",
       });
     }
 
