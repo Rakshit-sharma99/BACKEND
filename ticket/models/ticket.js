@@ -1,5 +1,28 @@
 const mongoose = require("mongoose");
 
+const universeSchema = new mongoose.Schema(
+  {
+    name: String,
+    location: String,
+    logo: String,
+    callSign: String,
+    logoKey: String,
+
+    lat: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
+
+    lng: {
+      type: Number,
+      default: 0,
+      set: (v) => (Number.isFinite(Number(v)) ? Number(v) : 0),
+    },
+  },
+  { _id: false },
+);
+
 const ticketSchema = new mongoose.Schema(
   {
     boughtBy: {
@@ -79,6 +102,12 @@ const ticketSchema = new mongoose.Schema(
       type: mongoose.Types.ObjectId,
       ref: "Coupon",
     },
+    uid: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Universe",
+    },
+
+    universeMetaData: universeSchema,
   },
   { timestamps: true }
 );
