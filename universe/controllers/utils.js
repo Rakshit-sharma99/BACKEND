@@ -1535,6 +1535,58 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = nu
       result = [0]; // Not yet implemented, needs relationship mapping
       break;
 
+    case "total_event_created":
+      result = await Event.find({
+        uid
+      })
+      result = [result.length];
+      break;
+    
+    case "total_event_registration":
+      result = await Event.find({
+        uid,
+        bookedBy: { $ne: [] }
+      },
+        {
+          bookedBy: 1
+        }).$limit(numOfEntities)
+      return result
+      break;
+
+    case "top_event_registration":
+      result = await Event.find({
+        uid,
+        bookedBy: { $ne: [] }
+      },
+        {
+          bookedBy: 1
+        })
+      result = result.map(e => e.bookedBy.length);
+      break;
+    
+    case "cross_campus_events_registrations":
+
+      const events = await Event.find({
+        uid
+      })
+
+      const eventIds = events.map(e => e._id);
+
+      const tickets = await Ticket.find({
+        eventId: { $in: eventIds },
+        uid: { $ne: uid }
+      })
+
+      result = [tickets.length];
+      break;
+
+    case "unique_categories_hosted":
+      result = [0]
+      break;
+
+    case "category_event_combo":
+      result = Array(numOfEntities).fill(0)
+      break;
 
     default:
       console.warn(`[MetricResolver] Unsupported metric: ${metric}`);
