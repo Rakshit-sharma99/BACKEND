@@ -114,23 +114,85 @@ const tools = [
         },
       },
       {
-        name: "send_message",
+        name: "send_message_get_recipients",
         description:
-          "Send a direct message to one or more users on behalf of the current user. Always confirm with the user before calling this.",
+          "Find potential recipients for sending a message. ALWAYS call this IN PARALLEL with send_message_compose when the user wants to send a message. Returns a list of users that the frontend will display with checkboxes for selection.",
         parameters: {
           type: "object",
           properties: {
-            recipientIds: {
+            interests: {
               type: "array",
               items: { type: "string" },
-              description: "User IDs to send the message to",
+              description:
+                "Interest keywords to find relevant recipients, e.g. ['coding', 'hackathon']",
+            },
+            names: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Optional specific user names to search for, e.g. ['Amartya', 'Ravi']",
+            },
+            lookingFor: {
+              type: "string",
+              description:
+                "Optional context for what kind of recipients to find, e.g. 'hackathon partners', 'study group members'",
+            },
+          },
+        },
+      },
+      {
+        name: "send_message_compose",
+        description:
+          "Generate a draft message based on the user's intent and tone. ALWAYS call this IN PARALLEL with send_message_get_recipients when the user wants to send a message. The draft will be shown for review and refinement.",
+        parameters: {
+          type: "object",
+          properties: {
+            recipientNames: {
+              type: "array",
+              items: { type: "string" },
+              description: "The names of the users to send the message to (e.g. ['Ayush', 'Ravi']). NEVER use ObjectIds or hex strings here. ONLY use conversational names.",
+            },
+            intent: {
+              type: "string",
+              description:
+                "What the user wants to communicate, e.g. 'invite to hackathon this weekend', 'ask about study group'",
+            },
+            tone: {
+              type: "string",
+              description:
+                "Optional tone preference: 'formal', 'casual', or 'friendly'. Defaults to 'friendly'.",
+            },
+          },
+          required: ["recipientIds", "intent"],
+        },
+      },
+      {
+        name: "send_message_execute",
+        description:
+          "Send the final confirmed message to the confirmed recipients. ONLY call this after the user has confirmed the recipient list AND the message content. ALWAYS use the user's name, NEVER use ObjectIds.",
+        parameters: {
+          type: "object",
+          properties: {
+            recipientNames: {
+              type: "array",
+              items: { type: "string" },
+              description: "The names of the users who will receive the message (e.g. ['Ayush']). NEVER use ObjectIds or hex strings here. The backend will automatically find the correct user by their name.",
             },
             message: {
               type: "string",
-              description: "The message text to send",
+              description: "The final confirmed message text to send",
             },
           },
           required: ["recipientIds", "message"],
+        },
+      },
+      {
+        name: "fetch_credit_question",
+        description:
+          "Fetch a question for the user to answer to earn credits. Use this tool ONLY when the user asks how to earn credits, asks for a question to earn credits, or when you want to explicitly offer them a chance to earn more credits.",
+        parameters: {
+          type: "object",
+          properties: {},
         },
       },
       {

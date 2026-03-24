@@ -148,6 +148,10 @@ const communitySchema = new mongoose.Schema({
     lat: { type: Number },
     lng: { type: Number },
   },
+  scope: {
+    type: [String],
+    default: [],
+  },
 });
 
 module.exports = mongoose.model("Community", communitySchema);

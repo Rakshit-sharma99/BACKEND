@@ -25,8 +25,7 @@ const axios = require("axios");
 const { publishEvent } = require("../config/kafka");
 
 // ── Service URLs ──
-const CREDIT_URL =
-  process.env.CREDIT_URL || "http://credit:7090/credit/api/v1";
+const CREDIT_URL = process.env.CREDIT_URL || "http://credit:7090/credit/api/v1";
 const QUESTION_URL =
   process.env.QUESTION_URL || "http://question:7070/question/api/v1";
 const KNOWLEDGE_URL =
@@ -86,14 +85,18 @@ const chat = async (req, res) => {
       });
       creditBalance = creditRes.data;
     } catch (creditErr) {
-      console.error("Credit check failed, proceeding without:", creditErr.message);
+      console.error(
+        "Credit check failed, proceeding without:",
+        creditErr.message,
+      );
     }
 
     // If credits are exhausted, notify the client
     if (creditBalance && !creditBalance.hasCredits) {
       sendSSE("credits_exhausted", {
         balance: 0,
-        message: "You've used all your daily stardust! ✨ Answer a quick question to fuel back up 🚀",
+        message:
+          "You've used all your daily stardust! ✨ Answer a quick question to fuel back up 🚀",
         refillOptions: ["answer_question"],
       });
       sendSSE("done", { sessionId: sessionId || "none" });
@@ -186,15 +189,19 @@ const chat = async (req, res) => {
       // Check if any tool was called but returned empty
       const lastResults = session.lastResults || {};
       const toolsCalled = Object.keys(lastResults);
-      const allEmpty = toolsCalled.length > 0 && toolsCalled.every((key) => {
-        const r = lastResults[key];
-        if (!r) return true;
-        if (r.error) return true;
-        if (Array.isArray(r) && r.length === 0) return true;
-        if (r.data && Array.isArray(r.data) && r.data.length === 0) return true;
-        if (r.results && Array.isArray(r.results) && r.results.length === 0) return true;
-        return false;
-      });
+      const allEmpty =
+        toolsCalled.length > 0 &&
+        toolsCalled.every((key) => {
+          const r = lastResults[key];
+          if (!r) return true;
+          if (r.error) return true;
+          if (Array.isArray(r) && r.length === 0) return true;
+          if (r.data && Array.isArray(r.data) && r.data.length === 0)
+            return true;
+          if (r.results && Array.isArray(r.results) && r.results.length === 0)
+            return true;
+          return false;
+        });
 
       if (allEmpty) {
         publishEvent("query.deferred", {
@@ -213,13 +220,17 @@ const chat = async (req, res) => {
     // ── Deduct credit ──
     if (creditBalance && creditBalance.hasCredits) {
       try {
-        const spendRes = await axios.post(`${CREDIT_URL}/spend`, {
-          userId: user.id,
-          uid: user.uid,
-          amount: 1,
-          ref: session.sessionId,
-          reason: "Chat interaction",
-        }, { headers: internalHeaders() });
+        const spendRes = await axios.post(
+          `${CREDIT_URL}/spend`,
+          {
+            userId: user.id,
+            uid: user.uid,
+            amount: 1,
+            ref: session.sessionId,
+            reason: "Chat interaction",
+          },
+          { headers: internalHeaders() },
+        );
         const newBalance = spendRes.data?.balance;
         sendSSE("credit_update", {
           balance: newBalance,
@@ -244,9 +255,10 @@ const chat = async (req, res) => {
     // ── Done ──
     sendSSE("done", {
       sessionId: session.sessionId,
-      creditsRemaining: creditBalance?.balance != null
-        ? Math.max(0, creditBalance.balance - 1)
-        : null,
+      creditsRemaining:
+        creditBalance?.balance != null
+          ? Math.max(0, creditBalance.balance - 1)
+          : null,
     });
     res.end();
   } catch (error) {
@@ -274,13 +286,15 @@ function extractButtons(toolName, rawResult) {
         : [rawResult.data]
       : rawResult.results
         ? rawResult.results
-        : rawResult.territories
-          ? rawResult.territories
-          : rawResult.tickets
-            ? rawResult.tickets
-            : rawResult.success
-              ? [rawResult]
-              : [];
+        : rawResult.recipients
+          ? rawResult.recipients
+          : rawResult.territories
+            ? rawResult.territories
+            : rawResult.tickets
+              ? rawResult.tickets
+              : rawResult.success || rawResult.step
+                ? [rawResult]
+                : [];
 
   if (items.length === 0) return [];
 
@@ -597,6 +611,56 @@ function extractButtons(toolName, rawResult) {
         navigateTo: item.screen,
         tab: item.tab || null,
         params: item.params || {},
+      },
+    }),
+
+    send_message_get_recipients: (item) => ({
+      id: item._id || item.id || null,
+      type: "recipient_selection",
+      label: item.name || "User",
+      subtitle: item.course || item.interests?.slice(0, 3).join(", ") || "",
+      image: item.image || null,
+      meta: {
+        interests: item.interests,
+        course: item.course,
+      },
+      action: {
+        mode: "select",
+        userId: item._id || item.id,
+      },
+    }),
+
+    send_message_compose: (item) => ({
+      id: null,
+      type: "message_preview",
+      label: "Draft Message",
+      subtitle: `${item.recipientCount || 0} recipient(s) · ${item.tone || "friendly"} tone`,
+      image: null,
+      meta: {
+        draft: item.draft,
+        recipientCount: item.recipientCount,
+        tone: item.tone,
+      },
+    }),
+
+    send_message_execute: (item) => ({
+      id: null,
+      type: "message_sent",
+      label: "Messages Sent",
+      subtitle: `Sent to ${item.sentCount || 0} user(s)`,
+      image: null,
+      meta: {
+        sentCount: item.sentCount,
+        failedCount: item.failedCount || 0,
+      },
+    }),
+
+    fetch_credit_question: (item) => ({
+      id: null,
+      type: "app-action",
+      label: "Fetch Credit Question",
+      action: {
+        actionName: "fetch_credit_question",
       },
     }),
   };

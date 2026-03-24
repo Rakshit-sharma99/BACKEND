@@ -186,18 +186,168 @@ async function compute_similarity({ targetUserId }, user) {
 }
 
 /**
- * Send a DM to users on behalf of the current user.
+ * STEP 1: Find potential recipients for a message.
+ * Searches by interests (facets) and/or by name.
+ * Returns a deduplicated user list for the frontend to render with checkboxes.
  */
-async function send_message({ recipientIds, message }, user) {
+async function send_message_get_recipients({ interests, names, lookingFor }, user) {
   try {
+    const results = [];
+    const seenIds = new Set();
+
+    // Search by interests/facets if provided
+    if (interests && interests.length > 0) {
+      const res = await axios.get(`${UNIVERSE_URL}/user/searchUsersByFacet`, {
+        params: {
+          query: interests.join(","),
+          uid: user.uid,
+        },
+        headers: internalHeaders(),
+      });
+      const users = Array.isArray(res.data) ? res.data : [];
+      for (const u of users) {
+        const id = u._id || u.id;
+        if (id && !seenIds.has(id.toString()) && id.toString() !== user.id) {
+          seenIds.add(id.toString());
+          results.push({
+            _id: id,
+            name: u.name || u.callSign,
+            image: u.image || u.img || null,
+            interests: u.interests || [],
+            course: u.course || "",
+          });
+        }
+      }
+    }
+
+    // Search by names if provided
+    if (names && names.length > 0) {
+      for (const name of names) {
+        try {
+          const res = await axios.get(`${UNIVERSE_URL}/user/searchUserByName`, {
+            params: { name },
+            headers: internalHeaders(),
+          });
+          const users = Array.isArray(res.data) ? res.data : [];
+          for (const u of users) {
+            const id = u._id || u.id;
+            if (id && !seenIds.has(id.toString()) && id.toString() !== user.id) {
+              seenIds.add(id.toString());
+              results.push({
+                _id: id,
+                name: u.name || u.callSign,
+                image: u.image || u.img || null,
+                interests: u.interests || [],
+                course: u.course || "",
+              });
+            }
+          }
+        } catch (nameErr) {
+          console.error(`search by name "${name}" failed:`, nameErr.message);
+        }
+      }
+    }
+
+    return {
+      recipients: results.slice(0, 20), // Cap at 20 to keep SSE payload manageable
+      totalFound: results.length,
+      step: "recipient_selection",
+    };
+  } catch (err) {
+    console.error("send_message_get_recipients error:", err.message);
+    return { error: true, message: "Could not find recipients right now." };
+  }
+}
+
+/**
+ * STEP 2: Generate a draft message using OpenAI based on the user's intent.
+ * This is optional — the user can also type the message themselves.
+ */
+async function send_message_compose({ recipientNames, intent, tone = "friendly" }, user) {
+  try {
+    const { OpenAI } = require("openai");
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const toneGuide = {
+      formal: "Write in a professional and formal tone.",
+      casual: "Write in a relaxed, casual tone with slang where appropriate.",
+      friendly: "Write in a warm, friendly and approachable tone.",
+    };
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a message composer for a campus social platform. ${toneGuide[tone] || toneGuide.friendly} Keep messages concise (2-4 sentences). Use 1-2 emojis max. Do not include subject lines or greetings like "Dear". Just write the message body.`,
+        },
+        {
+          role: "user",
+          content: `Write a message to send to ${recipientNames.length} user(s) about: ${intent}`,
+        },
+      ],
+      max_tokens: 200,
+    });
+
+    const draft = completion?.choices?.[0]?.message?.content || "";
+
+    return {
+      draft,
+      recipientCount: recipientNames.length,
+      tone,
+      step: "message_preview",
+    };
+  } catch (err) {
+    console.error("send_message_compose error:", err.message);
+    return { error: true, message: "Could not compose message right now." };
+  }
+}
+
+/**
+ * STEP 3: Execute — send the confirmed message to confirmed recipients.
+ * Calls the universe service's sendBulkMessage endpoint.
+ */
+async function send_message_execute({ recipientNames, message }, user) {
+  try {
+    // Resolve names to ObjectIds 
+    const resolvedIds = [];
+    for (const name of recipientNames) {
+      if (!name) continue;
+      
+      const isObjectId = /^[0-9a-fA-F]{24}$/.test(name);
+      if (isObjectId) {
+        resolvedIds.push(name);
+      } else {
+        // Treat as a name, resolve via search
+        try {
+          const searchRes = await axios.get(
+            `${UNIVERSE_URL}/user/searchUserByName`,
+            { params: { name }, headers: internalHeaders() },
+          );
+          const users = Array.isArray(searchRes.data) ? searchRes.data : [];
+          if (users.length > 0) {
+            resolvedIds.push(users[0]._id.toString());
+          } else {
+            console.error(`send_message_execute: Could not resolve name "${name}" to a user.`);
+          }
+        } catch (resolveErr) {
+          console.error(`send_message_execute: Error resolving name "${name}":`, resolveErr.message);
+        }
+      }
+    }
+
+    if (resolvedIds.length === 0) {
+      return { error: true, message: "Could not find any valid recipients to send to." };
+    }
+
     const res = await axios.post(
-      `${UNIVERSE_URL}/sendBulkMessage`,
-      { recipientIds, message, senderId: user.id },
-      { headers: internalHeaders() },
+      `${UNIVERSE_URL}/chat/sendBulkMessage`,
+      { recipientIds: resolvedIds, message, senderId: user.id },
+      { headers: userHeaders(user) },
     );
     return res.data;
   } catch (err) {
-    console.error("send_message error:", err.message);
+    console.error("send_message_execute error:", err.message);
     return { error: true, message: "Could not send messages right now." };
   }
 }
@@ -765,6 +915,14 @@ async function query_universe_knowledge({ query }, user) {
   }
 }
 
+/**
+ * Trigger the frontend to fetch a credit question and show the refill banner UI
+ */
+async function fetch_credit_question(args, user) {
+  // We don't fetch the question here; the frontend does it via app-action
+  return [{ success: true, action: "fetch_credit_question" }];
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -776,7 +934,10 @@ const TOOL_HANDLERS = {
   search_users,
   search_alumni,
   compute_similarity,
-  send_message,
+  send_message_get_recipients,
+  send_message_compose,
+  send_message_execute,
+  fetch_credit_question,
   top_universes,
   search_universe,
   search_nodes_by_name,

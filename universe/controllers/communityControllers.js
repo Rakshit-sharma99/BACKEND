@@ -114,6 +114,7 @@ const createCommunity = async (req, res) => {
       tag,
       hiddenTags = [],
       universeMetaData,
+      scope,
     } = req.body;
     const creatorId = req.user.id;
     const createdOn = new Date();
@@ -132,6 +133,7 @@ const createCommunity = async (req, res) => {
       admins: [creatorId],
       uid: req.user.uid,
       universeMetaData,
+      scope,
     });
 
     await sendKafkaMessage("CREATE_COMMUNITY", "multiverse", {
