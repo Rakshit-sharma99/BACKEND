@@ -25,10 +25,9 @@ async function getQuests(questIds) {
 
     const config = generateServiceToken();
     try {
-        const response = await axios.get(`${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`, {
-            params: { questIds: questIds.join(",") },
-            ...config
-        });
+        const response = await axios.post(`${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`, {
+            questIds
+        }, config);
         return response.data?.quests || [];
     } catch (error) {
         console.error("[ProgressSync] Error fetching quests:", error.message);
@@ -51,100 +50,60 @@ async function updateAllLeadersProgress() {
             const quests = await getQuests(questIds);
 
             for (const quest of quests) {
+                if(quest.entity !== "Club" && quest.entity !== "Community") continue;
                 // Determine if it's discrete (array) or continuous (scalar)
-                const isDiscrete = quest.type === 'discrete' && quest.numOfEntities > 1;
-                const nEntities = isDiscrete ? quest.numOfEntities : 1;
-
-                let startDate = null;
-                const now = require("moment-timezone")().tz("Asia/Kolkata");
-
-                if (quest.frequency === 'daily') {
-                    startDate = now.startOf('day').toDate();
-                } else if (quest.frequency === 'weekly') {
-                    startDate = now.startOf('isoWeek').toDate();
-                } else if (quest.frequency === 'monthly') {
-                    startDate = now.startOf('month').toDate();
-                }
+                const isDiscrete = quest.type === 'discrete' && quest.entityLimit > 1;
+                
 
                 const pIndex = leader.progress.findIndex(p => p.questId.toString() === quest._id.toString());
                 if (pIndex !== -1) {
                     const progress = leader.progress[pIndex];
 
-                    // Reset logic for repeatable quests
-                    if (quest.isRepeatable && progress.isCompleted && progress.completedAt) {
-                        if (startDate && require("moment-timezone")(progress.completedAt).isBefore(startDate)) {
-                            progress.isCompleted = false;
-                            progress.completedAt = null;
-                            progress.overallProgress = 0;
-                            if (isDiscrete) {
-                                progress.current = Array.from({ length: nEntities }, () => ({
-                                    value: 0,
-                                    isStarted: false,
-                                    isCompleted: false
-                                }));
-                            } else {
-                                progress.current = 0;
-                            }
-                            progress.isRewardClaimed = false;
-                            progress.rewardClaimedAt = null;
-                            console.log(`[ProgressSync] Reset repeatable quest ${quest.title} for ${leader.name}`);
-                        }
-                    }
+                    // Case 1: (isDiscrete & entityLimit > 1)
+                    // Case 2: (continuous and entityLimit = 0)
+                    // Case 3: (continuous and entityLimit is 1)
 
-                    const newValues = await resolveMetricValue(quest.metric, leader.uid, nEntities, startDate);
+                    const nEntities = quest.entityLimit > 1 ? quest.entityLimit : 1;
+                    const newValues = await resolveMetricValue(quest.metric, leader.uid, nEntities);
 
-                    if (isDiscrete) {
-                        // ARRAY-BASED PROGRESS (Discrete)
+                    const wasCompleted = progress.isCompleted;
+
+                    if (quest.type === 'discrete' && quest.entityLimit > 1) {
+                        // Case 1: Discrete Multiple
                         let completedEntities = 0;
-                        if (!Array.isArray(progress.current)) {
-                            progress.current = Array.from({ length: nEntities }, () => ({
-                                value: 0,
-                                isStarted: false,
-                                isCompleted: false
-                            }));
-                        }
-                        if (!Array.isArray(progress.target)) {
-                            progress.target = Array.from({ length: nEntities }, () => quest.target);
-                        }
-
                         for (let i = 0; i < nEntities; i++) {
                             const val = newValues[i] || 0;
-                            const targetVal = progress.target[i] || quest.target;
-                            progress.current[i] = {
-                                value: val < targetVal ? val : targetVal,
-                                isStarted: val > 0,
-                                isCompleted: val >= targetVal
-                            };
-                            if (progress.current[i].isCompleted) {
+                            const targetVal = quest.target;
+                            if (val >= targetVal) {
                                 completedEntities++;
                             }
                         }
-                        console.log(progress.current);
-                        progress.overallProgress = (completedEntities / nEntities) * 100;
-                        const wasCompleted = progress.isCompleted;
+                        progress.value = completedEntities;
+                        progress.overallProgress = Math.min((completedEntities / nEntities) * 100, 100);
                         progress.isCompleted = completedEntities === nEntities;
-                        
-                        if (progress.isCompleted && !wasCompleted) {
-                            progress.completedAt = new Date();
-                            console.log(`[ProgressSync] Quest Completed! ${quest.title} for ${leader.name}`);
-                        }
-                    } else {
-                        // SCALAR-BASED PROGRESS (Continuous or Single-Entity Discrete)
+                    } 
+                    else if (quest.type === 'continuous' && quest.entityLimit === 0) {
+                        // Case 2: Continuous Total (Limit 0)
                         const val = newValues[0] || 0;
-                        const targetVal = typeof progress.target === 'number' ? progress.target : quest.target;
-
-                        progress.current = val < targetVal ? val : targetVal;
-                        progress.target = targetVal;
-                        progress.overallProgress = (progress.current / targetVal) * 100;
-
-                        const wasCompleted = progress.isCompleted;
-                        progress.isCompleted = progress.current >= targetVal;
-
-                        if (progress.isCompleted && !wasCompleted) {
-                            progress.completedAt = new Date();
-                            console.log(`[ProgressSync] Quest Completed! ${quest.title} for ${leader.name}`);
-                        }
+                        const targetVal = quest.target;
+                        progress.value = val >= targetVal ? targetVal : val;
+                        progress.overallProgress = Math.min((progress.value / targetVal) * 100, 100);
+                        progress.isCompleted = val >= targetVal;
                     }
+                    else {
+                        // Case 3: Continuous Single (Limit 1) or Discrete Single
+                        const val = newValues[0] || 0;
+                        const targetVal = quest.target;
+                        progress.value = val >= targetVal ? targetVal : val;
+                        progress.overallProgress = Math.min((progress.value / targetVal) * 100, 100);
+                        progress.isCompleted = val >= targetVal;
+                    }
+
+                    if (progress.isCompleted && !wasCompleted) {
+                        progress.completedAt = new Date();
+                        console.log(`[ProgressSync] Quest Completed! ${quest.title} for ${leader.name}`);
+                    }
+
                     progress.lastUpdatedAt = new Date();
                 }
             }

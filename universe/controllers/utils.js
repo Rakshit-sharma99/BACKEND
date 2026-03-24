@@ -1348,19 +1348,20 @@ const sendOnboardingMail = async (user) => {
   }
 };
 
-async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = null) {
+async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   uid = uid?.toString();
   console.log(`[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`);
 
-  const Club = require("../models/club");
-  const Community = require("../models/community");
+   const User = require("../models/user");
+   const Club = require("../models/club");
+   const Community = require("../models/community");
+   const Event = require("../models/event");
+   const Content = require("../models/content");
+   const Ticket = require("../models/ticket");
 
-  let result = [];
+   let result = [];
 
   const matchQuery = { uid };
-  if (startDate) {
-    matchQuery.createdAt = { $gte: startDate };
-  }
 
   switch (metric) {
     // 1. Total clubs created
@@ -1541,17 +1542,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = nu
       })
       result = [result.length];
       break;
-    
-    case "total_event_registration":
-      result = await Event.find({
+
+    case "total_event_registration": {
+      const count = await Event.countDocuments({
         uid,
-        bookedBy: { $ne: [] }
-      },
-        {
-          bookedBy: 1
-        }).$limit(numOfEntities)
-      return result
+        "bookedBy.0": { $exists: true }
+      });
+      result = [count];
       break;
+    }
 
     case "top_event_registration":
       result = await Event.find({
@@ -1563,7 +1562,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = nu
         })
       result = result.map(e => e.bookedBy.length);
       break;
-    
+
     case "cross_campus_events_registrations":
 
       const events = await Event.find({
@@ -1586,6 +1585,35 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1, startDate = nu
 
     case "category_event_combo":
       result = Array(numOfEntities).fill(0)
+      break;
+
+    case "total_members": {
+      const count = await User.countDocuments({ uid });
+      result = [count];
+      break;
+    }
+
+    case "registered_students": {
+      const count = await User.countDocuments({ uid, profession: "Student" });
+      result = [count];
+      break;
+    }
+
+    case "registered_professors": {
+      const count = await User.countDocuments({ uid, profession: "Professor" });
+      result = [count];
+      break;
+    }
+
+    case "registered_alumni": {
+      const count = await User.countDocuments({ uid, profession: "Alumni" });
+      result = [count];
+      break;
+    }
+
+    case "active_member_posts":
+    case "member_event_attendance":
+      result = [0];
       break;
 
     default:

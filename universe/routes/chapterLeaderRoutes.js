@@ -4,7 +4,7 @@ const {
   login,
   regenerateAccessToken,
   verifyChapterLeader,
-  getQuestsProgress,
+  getChapterLeaderProgresses,
   getChapterLeaderDetails,
   claimQuestReward,
   forgotPassword,
@@ -21,10 +21,10 @@ router.get("/health", (req, res) => {
 router.post("/register", register);
 router.post("/login",login);
 router.post("/regenerateAccessToken", authenticate, regenerateAccessToken);
-router.post("/verify", authenticate, verifyChapterLeader);
+router.post("/verify", verifyChapterLeader);
 router.post("/forgotPassword", forgotPassword);
 router.post("/resetPassword", resetPassword);
-router.get("/getQuestsProgress", authenticate, getQuestsProgress);
+router.get("/getChapterLeaderProgresses", authenticate, getChapterLeaderProgresses);
 router.get("/getDetails", authenticate, getChapterLeaderDetails);
 router.post("/claimReward", authenticate, claimQuestReward);
 module.exports = router;

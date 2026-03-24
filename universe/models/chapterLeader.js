@@ -1,52 +1,47 @@
 const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken")
 
-
-const QuestProgressSchema = new mongoose.Schema(
-    {
-        questId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: "Quest",
-            required: true,
-        },
-        overallProgress: {
-            type: Number,
-            default: 0,
-            min: 0,
-            max: 100,
-        },
-        current: {
-            type: mongoose.Schema.Types.Mixed,
-            default: 0,
-        },
-        target: {
-            type: mongoose.Schema.Types.Mixed,
-            required: true,
-        },
-        isCompleted: {
-            type: Boolean,
-            default: false,
-        },
-        completedAt: {
-            type: Date,
-            default: null,
-        },
-        isRewardClaimed: {
-            type: Boolean,
-            default: false,
-        },
-        rewardClaimedAt: {
-            type: Date,
-            default: null,
-        },
-
-        lastUpdatedAt: {
-            type: Date,
-            default: Date.now,
-        },
+const QuestProgressSchema = new mongoose.Schema({
+    questId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Quest",
+        required: true
     },
-    { _id: false }
-);
+
+    // for discrete will stroe the number of entities completed like 3 clubs completed the target
+    // for continuous will stroe the total value like 10 clubs created out of 30. Here 10 is the value
+    
+    value: {
+        type: Number,
+        default: 0
+    },
+
+    overallProgress: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 100,
+    },
+    isCompleted: {
+        type: Boolean,
+        default: false
+    },
+
+    completedAt: Date,
+
+    isRewardClaimed: {
+        type: Boolean,
+        default: false
+    },
+
+    rewardClaimedAt: Date,
+
+    lastUpdatedAt: {
+        type: Date,
+        default: Date.now
+    }
+
+}, { _id: false });
 
 const universeSchema = new mongoose.Schema(
     {

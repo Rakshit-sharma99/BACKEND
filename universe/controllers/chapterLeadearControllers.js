@@ -1,4 +1,4 @@
-﻿const axios = require("axios");
+const axios = require("axios");
 const jwt = require("jsonwebtoken");
 const ChapterLeader = require("../models/chapterLeader");
 const bcrypt = require("bcryptjs");
@@ -248,28 +248,10 @@ const verifyChapterLeader = async (req, res) => {
     const newProgressEntries = quests
       .filter((quest) => !existingQuestIds.has(quest._id.toString()))
       .map((quest) => {
-        const isDiscrete = quest.type === "discrete" && quest.numOfEntities > 1;
-        const n = isDiscrete ? quest.numOfEntities : 0;
-
-        let currentVal, targetVal;
-
-        if (isDiscrete) {
-          currentVal = Array.from({ length: n }, () => ({
-            value: 0,
-            isStarted: false,
-            isCompleted: false,
-          }));
-          targetVal = Array.from({ length: n }, () => quest.target);
-        } else {
-          currentVal = 0;
-          targetVal = quest.target;
-        }
-
         return {
           questId: quest._id,
           overallProgress: 0,
-          current: currentVal,
-          target: targetVal,
+          value: 0,
           isCompleted: false,
           completedAt: null,
           isRewardClaimed: false,
@@ -294,7 +276,7 @@ const verifyChapterLeader = async (req, res) => {
   }
 };
 
-const getQuestsProgress = async (req, res) => {
+const getChapterLeaderProgresses = async (req, res) => {
   try {
     // Role guard
     // if (req.user.role !== "chapter_leader") {
@@ -305,7 +287,7 @@ const getQuestsProgress = async (req, res) => {
     // }
     console.log(req.query)
     
-    const { category } = req.query; // optional filter
+    const { entity } = req.query; // optional filter (formerly category)
 
     // Fetch the chapter leader record
     const leader = await ChapterLeader.findById(req.user.id);
@@ -332,14 +314,15 @@ const getQuestsProgress = async (req, res) => {
     }
 
     // Fetch quest details from quest1 service
-    const questIds = progressList.map((p) => p.questId.toString()).join(",");
+    const questIds = progressList.map((p) => p.questId.toString());
     const config   = generateServiceToken();
     let quests     = [];
 
     try {
-      const response = await axios.get(
+      const response = await axios.post(
         `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
-        { params: { questIds }, timeout: 5000, ...config }
+        { questIds },
+        { timeout: 5000, ...config }
       );
       quests = response.data?.quests || [];
     } catch (questErr) {
@@ -356,10 +339,10 @@ const getQuestsProgress = async (req, res) => {
       progressMap[p.questId.toString()] = p;
     });
 
-    // Apply optional category filter
-    console.log(category, quests.length)
-    const filteredQuests = category !== 'undefined'
-      ? quests.filter((q) => q.category.toLowerCase() === category.toLowerCase())
+    // Apply optional entity (category) filter
+    console.log(entity, quests.length)
+    const filteredQuests = (entity && entity !== 'undefined')
+      ? quests.filter((q) => q.entity.toLowerCase() === entity.toLowerCase())
       : quests;
     console.log(filteredQuests.length)
     // Group by orbit
@@ -382,17 +365,17 @@ const getQuestsProgress = async (req, res) => {
         questId:         quest._id,
         title:           quest.title,
         description:     quest.description,
-        category:        quest.category,
+        entity:          quest.entity,
         metric:          quest.metric,
         type:            quest.type,
         logo:            quest.logo,
         secondaryLogo:   quest.secondaryLogo,
         ip:              quest.ip,
-        numOfEntities:   quest.numOfEntities,
+        entityLimit:     quest.entityLimit,
+        target:          quest.target,
         // progress data
         overallProgress: progress.overallProgress,
-        current:         progress.current,
-        target:          progress.target,
+        value:           progress.value,
         isCompleted:     progress.isCompleted,
         isRewardClaimed: progress.isRewardClaimed,
         completedAt:     progress.completedAt,
@@ -418,7 +401,7 @@ const getQuestsProgress = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("getQuestsProgress error:", err);
+    console.error("getChapterLeaderProgresses error:", err);
     return res.status(500).json({ success: false, message: "Server error" });
   }
 };
@@ -587,8 +570,9 @@ const claimQuestReward = async (req, res) => {
     const config = generateServiceToken();
     let questDetails;
     try {
-      const response = await axios.get(
-        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds?questIds=${questId}`,
+      const response = await axios.post(
+        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
+        { questIds: [questId] },
         config
       );
       questDetails = response.data?.quests?.[0];
@@ -633,7 +617,7 @@ module.exports = {
   login,
   regenerateAccessToken,
   verifyChapterLeader,
-  getQuestsProgress,
+  getChapterLeaderProgresses,
   getChapterLeaderDetails,
   claimQuestReward,
   forgotPassword,
