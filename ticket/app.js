@@ -10,6 +10,7 @@ const http = require("http");
 const socketIo = require("socket.io");
 const app = express();
 const server = http.createServer(app);
+const cookieParser = require("cookie-parser");
 const io = socketIo(server, {
   path: "/ticket/socket.io",
   cors: {
@@ -47,6 +48,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   console.log(

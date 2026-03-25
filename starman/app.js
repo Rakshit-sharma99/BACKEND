@@ -9,11 +9,13 @@ const server = http.createServer(app);
 
 const starmanRouter = require("./routes/starmanRouter");
 const authenticate = require("./middlewares/authentication");
+const cookieParser = require("cookie-parser");
 
 app.set("trust proxy", 1);
 app.use(cors());
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logger
 app.use((req, res, next) => {
