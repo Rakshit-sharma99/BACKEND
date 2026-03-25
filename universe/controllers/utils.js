@@ -1352,18 +1352,21 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   uid = uid?.toString();
   console.log(`[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`);
 
-   const User = require("../models/user");
-   const Club = require("../models/club");
-   const Community = require("../models/community");
-   const Event = require("../models/event");
-   const Content = require("../models/content");
-   const Ticket = require("../models/ticket");
+  const User = require("../models/user");
+  const Club = require("../models/club");
+  const Community = require("../models/community");
+  const Event = require("../models/event");
+  const Content = require("../models/content");
+  const Ticket = require("../models/ticket");
 
-   let result = [];
+  let result = [];
 
   const matchQuery = { uid };
 
   switch (metric) {
+
+    // Club Resolvers
+
     // 1. Total clubs created
     case "clubs_created": {
       const count = await Club.countDocuments(matchQuery);
@@ -1453,6 +1456,8 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // Community Resolvers
+
     // 7. Total communities created
     case "communities_created": {
       const count = await Community.countDocuments(matchQuery);
@@ -1532,89 +1537,215 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
-    case "communities_with_min_events":
-      result = [0]; // Not yet implemented, needs relationship mapping
-      break;
+    // Event Resolvers
 
-    case "total_event_created":
-      result = await Event.find({
-        uid
-      })
-      result = [result.length];
+    case "total_event_created": {
+      const count = await Event.aggregate([
+        {
+          $match: {
+            uid: { $eq : uid}
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
-
+    }
     case "total_event_registration": {
-      const count = await Event.countDocuments({
-        uid,
-        "bookedBy.0": { $exists: true }
-      });
-      result = [count];
+      const count = await Event.aggregate([
+        {
+          $match: {
+            uid,
+            bookedBy: { $ne: [] }
+          }
+        },
+        {
+          $project: {
+            bookedBy: 1
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$bookedBy", []] } } }
+          }
+        }
+      ])
+      result = [count[0]?.total || 0];
       break;
     }
 
     case "top_event_registration":
-      result = await Event.find({
-        uid,
-        bookedBy: { $ne: [] }
-      },
+      result = await Event.aggregate([
         {
-          bookedBy: 1
-        })
-      result = result.map(e => e.bookedBy.length);
+          $match: {
+            uid,
+            bookedBy: { $ne: [] }
+          }
+        },
+        {
+          $project: {
+            bookedCount: { $size: { $ifNull: ["$bookedBy", []] } }
+          }
+        },
+        {
+          $sort: {
+            bookedCount: -1
+          }
+        },
+        {
+          $limit: numOfEntities
+        }
+      ]);
+
+      result = result.map(e => e.bookedCount);
       break;
 
     case "cross_campus_events_registrations":
+      const eventIds = await Event.find({ uid }).distinct("_id");
 
-      const events = await Event.find({
-        uid
-      })
-
-      const eventIds = events.map(e => e._id);
-
-      const tickets = await Ticket.find({
+      const count = await Ticket.countDocuments({
         eventId: { $in: eventIds },
         uid: { $ne: uid }
-      })
+      });
 
-      result = [tickets.length];
-      break;
-
-    case "unique_categories_hosted":
-      result = [0]
+      result = [count];
       break;
 
     case "category_event_combo":
-      result = Array(numOfEntities).fill(0)
+
       break;
 
+    // Member Reslover
+
     case "total_members": {
-      const count = await User.countDocuments({ uid });
-      result = [count];
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
     case "registered_students": {
-      const count = await User.countDocuments({ uid, profession: "Student" });
-      result = [count];
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Student"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
     case "registered_professors": {
-      const count = await User.countDocuments({ uid, profession: "Professor" });
-      result = [count];
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Professor"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
     case "registered_alumni": {
-      const count = await User.countDocuments({ uid, profession: "Alumni" });
-      result = [count];
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Alumni"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
-    case "active_member_posts":
-    case "member_event_attendance":
-      result = [0];
+    case "active_member_posts": {
+      const topUsers = await User.aggregate([
+        {
+          $match: { uid }
+        },
+        {
+          $project: {
+            totalContribution: {
+              $add: [
+               {$size: { $ifNull: ["$clubContributions", []] }},
+               {$size : { $ifNull: ["$communityContribution", []] }}
+              ]
+            }
+          }
+        },
+        {
+          $sort: { totalContribution: -1 }
+        },
+        {
+          $limit: numOfEntities
+        }
+      ]);
+      result = topUsers.map(u => u.totalContribution);
       break;
+    }
+
+    case "member_event_attendance": {
+      const members = await User.aggregate([
+        {
+          $match: { uid }
+        },
+        {
+          $project: {
+            totalAttendance: {
+              $size: { $ifNull: ["$ticketsBought", []] }
+            }
+          }
+        },
+        {
+          $sort: { totalAttendance: -1 }
+        },
+        {
+          $limit: numOfEntities
+        }
+      ]);
+      result = members.map(m => m.totalAttendance);
+      break;
+    }
 
     default:
       console.warn(`[MetricResolver] Unsupported metric: ${metric}`);

@@ -50,7 +50,7 @@ async function updateAllLeadersProgress() {
             const quests = await getQuests(questIds);
 
             for (const quest of quests) {
-                if(quest.entity !== "Club" && quest.entity !== "Community") continue;
+                if(quest.entity !== "Member") continue;
                 // Determine if it's discrete (array) or continuous (scalar)
                 const isDiscrete = quest.type === 'discrete' && quest.entityLimit > 1;
                 
@@ -103,7 +103,7 @@ async function updateAllLeadersProgress() {
                         progress.completedAt = new Date();
                         console.log(`[ProgressSync] Quest Completed! ${quest.title} for ${leader.name}`);
                     }
-
+                    console.log("progress", progress)
                     progress.lastUpdatedAt = new Date();
                 }
             }

@@ -322,7 +322,7 @@ const getChapterLeaderProgresses = async (req, res) => {
       const response = await axios.post(
         `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
         { questIds },
-        { timeout: 5000, ...config }
+        {...config }
       );
       quests = response.data?.quests || [];
     } catch (questErr) {
