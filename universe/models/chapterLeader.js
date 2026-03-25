@@ -66,6 +66,38 @@ const universeSchema = new mongoose.Schema(
     { _id: false },
 );
 
+const AddressSchema = new mongoose.Schema(
+    {
+        name: {
+            type: String
+        },
+        phone: {
+            type: String
+        },
+        addressLine1: {
+            type: String,
+            required: true
+        },
+        addressLine2: {
+            type: String,
+        },
+        city: {
+            type: String,
+            required: true
+        },
+        state: {
+            type: String,
+            required: true
+        },
+        zip: {
+            type: String,
+            required: true
+        },
+        country: String,
+    },
+    { _id: true }
+);
+
 const ChapterLeaderSchema = new mongoose.Schema(
     {
         name: {
@@ -120,6 +152,9 @@ const ChapterLeaderSchema = new mongoose.Schema(
         passwordResetTokenExpire: {
             type: Date,
         },
+        address : [
+            AddressSchema
+        ]
     },
     { timestamps: true }
 );

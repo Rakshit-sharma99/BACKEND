@@ -9,7 +9,12 @@ const {
   claimQuestReward,
   forgotPassword,
   resetPassword,
-} = require("../controllers/chapterLeadearControllers");
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  getAllAddresses,
+  claimProduct
+} = require("../controllers/chapterLeaderControllers.js");
 const authenticate = require("../middlewares/authentication.js");
 
 const router = Router();
@@ -19,12 +24,17 @@ router.get("/health", (req, res) => {
 });
 
 router.post("/register", register);
-router.post("/login",login);
-router.post("/regenerateAccessToken", authenticate, regenerateAccessToken);
+router.post("/login", login);
+router.post("/regenerateAccessToken", regenerateAccessToken);
 router.post("/verify", verifyChapterLeader);
 router.post("/forgotPassword", forgotPassword);
 router.post("/resetPassword", resetPassword);
 router.get("/getChapterLeaderProgresses", authenticate, getChapterLeaderProgresses);
 router.get("/getDetails", authenticate, getChapterLeaderDetails);
 router.post("/claimReward", authenticate, claimQuestReward);
+router.post("/addAddress", authenticate, addAddress);
+router.get("/getAddresses", authenticate, getAllAddresses);
+router.put("/updateAddress/:addressId", authenticate, updateAddress);
+router.delete("/deleteAddress/:addressId", authenticate, deleteAddress);
+router.post("/claimProduct", authenticate, claimProduct);
 module.exports = router;

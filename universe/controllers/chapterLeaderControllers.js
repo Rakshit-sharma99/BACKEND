@@ -1,9 +1,11 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const ChapterLeader = require("../models/chapterLeader");
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
-const { sendMail } = require("../controllers/utils");
+const { sendMail } = require("./utils");
+const Product = require("../models/product");
 
 const generateServiceToken = () => {
   const token = jwt.sign(
@@ -75,10 +77,10 @@ const register = async (req, res) => {
       success: true,
       message: "Registration successful. Your account is pending verification.",
       data: {
-        id:   user._id,
+        id: user._id,
         name: user.name,
         email: user.email,
-        uid:  user.uid,
+        uid: user.uid,
       },
     });
   } catch (err) {
@@ -133,10 +135,10 @@ const login = async (req, res) => {
       accessToken,
       refreshToken,
       user: {
-        id:              user._id,
-        name:            user.name,
-        email:           user.email,
-        uid:             user.uid,
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        uid: user.uid,
         universeMetaData: user.universeMetaData,
       },
     });
@@ -261,8 +263,8 @@ const verifyChapterLeader = async (req, res) => {
       });
 
     chapterLeader.progress.push(...newProgressEntries);
-    chapterLeader.isVerified  = true;
-    chapterLeader.approvedBy  = "691c24284045605396274042";
+    chapterLeader.isVerified = true;
+    chapterLeader.approvedBy = "691c24284045605396274042";
 
     await chapterLeader.save();
 
@@ -286,7 +288,7 @@ const getChapterLeaderProgresses = async (req, res) => {
     //   });
     // }
     console.log(req.query)
-    
+
     const { entity } = req.query; // optional filter (formerly category)
 
     // Fetch the chapter leader record
@@ -305,9 +307,9 @@ const getChapterLeaderProgresses = async (req, res) => {
       return res.status(StatusCodes.OK).json({
         success: true,
         data: {
-          orbits:          [],
-          totalIpEarned:   leader.totalIpEarned,
-          totalQuests:     0,
+          orbits: [],
+          totalIpEarned: leader.totalIpEarned,
+          totalQuests: 0,
           completedQuests: 0,
         },
       });
@@ -315,14 +317,14 @@ const getChapterLeaderProgresses = async (req, res) => {
 
     // Fetch quest details from quest1 service
     const questIds = progressList.map((p) => p.questId.toString());
-    const config   = generateServiceToken();
-    let quests     = [];
+    const config = generateServiceToken();
+    let quests = [];
 
     try {
       const response = await axios.post(
         `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
         { questIds },
-        {...config }
+        { ...config }
       );
       quests = response.data?.quests || [];
     } catch (questErr) {
@@ -356,31 +358,31 @@ const getChapterLeaderProgresses = async (req, res) => {
 
       if (!orbitMap[orbitKey]) {
         orbitMap[orbitKey] = {
-          orbit:  quest.orbit || { id: orbitKey },
+          orbit: quest.orbit || { id: orbitKey },
           quests: [],
         };
       }
 
       orbitMap[orbitKey].quests.push({
-        questId:         quest._id,
-        title:           quest.title,
-        description:     quest.description,
-        entity:          quest.entity,
-        metric:          quest.metric,
-        type:            quest.type,
-        logo:            quest.logo,
-        secondaryLogo:   quest.secondaryLogo,
-        ip:              quest.ip,
-        entityLimit:     quest.entityLimit,
-        target:          quest.target,
+        questId: quest._id,
+        title: quest.title,
+        description: quest.description,
+        entity: quest.entity,
+        metric: quest.metric,
+        type: quest.type,
+        logo: quest.logo,
+        secondaryLogo: quest.secondaryLogo,
+        ip: quest.ip,
+        entityLimit: quest.entityLimit,
+        target: quest.target,
         // progress data
         overallProgress: progress.overallProgress,
-        value:           progress.value,
-        isCompleted:     progress.isCompleted,
+        value: progress.value,
+        isCompleted: progress.isCompleted,
         isRewardClaimed: progress.isRewardClaimed,
-        completedAt:     progress.completedAt,
+        completedAt: progress.completedAt,
         rewardClaimedAt: progress.rewardClaimedAt,
-        lastUpdatedAt:   progress.lastUpdatedAt,
+        lastUpdatedAt: progress.lastUpdatedAt,
       });
     });
 
@@ -612,6 +614,220 @@ const claimQuestReward = async (req, res) => {
   }
 };
 
+const addAddress = async (req, res) => {
+  try {
+    const { address } = req.body;
+
+    if (!address?.addressLine1 || !address?.city || !address?.state || !address?.zip) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Address (addressLine1, city, state, zip) is required"
+      });
+    }
+
+    const leaderId = req.user.id;
+    const leader = await ChapterLeader.findById(leaderId);
+
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Leader not found"
+      });
+    }
+    console.log(address)
+    const normalize = (str) => str?.trim().toLowerCase();
+
+    const isSameAddress = leader.address.some((addr) => {
+      return (
+        normalize(addr.addressLine1) === normalize(address.addressLine1) &&
+        normalize(addr.city) === normalize(address.city) &&
+        normalize(addr.state) === normalize(address.state) &&
+        normalize(addr.zip) === normalize(address.zip)
+      );
+    });
+
+    if (isSameAddress) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Same address already exists",
+      });
+    }
+
+    leader.address.push(address);
+    await leader.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Address added successfully",
+      address: leader.address
+    });
+
+  } catch (err) {
+    console.error("addAddress error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong"
+    });
+  }
+};
+
+const updateAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const { address } = req.body;
+    const leaderId = req.user.id;
+
+    const leader = await ChapterLeader.findById(leaderId);
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
+    }
+
+    const addressToUpdate = leader.address.id(addressId);
+    if (!addressToUpdate) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Address not found" });
+    }
+
+    // Update fields
+    if (address.name) addressToUpdate.name = address.name;
+    if (address.phone) addressToUpdate.phone = address.phone;
+    if (address.addressLine1) addressToUpdate.addressLine1 = address.addressLine1;
+    if (address.addressLine2) addressToUpdate.addressLine2 = address.addressLine2;
+    if (address.city) addressToUpdate.city = address.city;
+    if (address.state) addressToUpdate.state = address.state;
+    if (address.zip) addressToUpdate.zip = address.zip;
+    if (address.country) addressToUpdate.country = address.country;
+
+    await leader.save();
+    return res.status(StatusCodes.OK).json({ success: true, message: "Address updated successfully", address: addressToUpdate });
+  } catch (err) {
+    console.error("updateAddress error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong" });
+  }
+};
+
+const deleteAddress = async (req, res) => {
+  try {
+    const { addressId } = req.params;
+    const leaderId = req.user.id;
+
+    const leader = await ChapterLeader.findById(leaderId);
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
+    }
+
+    const addressToDelete = leader.address.id(addressId);
+    if (!addressToDelete) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Address not found" });
+    }
+
+    addressToDelete.deleteOne();
+    await leader.save();
+
+    return res.status(StatusCodes.OK).json({ success: true, message: "Address deleted successfully" });
+  } catch (err) {
+    console.error("deleteAddress error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong" });
+  }
+};
+
+const getAllAddresses = async (req, res) => {
+  try {
+    const leaderId = req.user.id;
+    const leader = await ChapterLeader.findById(leaderId);
+
+    if (!leader) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Leader not found",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      addresses: leader.address || [],
+    });
+  } catch (err) {
+    console.error("getAllAddresses error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const claimProduct = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { productId } = req.body;
+    const leaderId = req.user.id;
+    const leader = await ChapterLeader.findById(leaderId).session(session);
+    if (!leader) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(StatusCodes.NOT_FOUND).json({ 
+        success: false, 
+        message: "Leader not found" 
+      });
+    }
+    const product = await Product.findById(productId).session(session);
+    if (!product) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(StatusCodes.NOT_FOUND).json({ 
+        success: false, 
+        message: "Product not found" 
+      });
+    }
+
+    if (!product.isAvailable || product.stock === 0) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false, 
+        message: "Product is not available" 
+      });
+    }
+
+    if (product.requiresShipping && (!leader.address || leader.address.length === 0)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false, 
+        message: "Address is required for physical product" 
+      });
+    }
+
+    if (leader.totalIpEarned < product.pointsRequired) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(StatusCodes.BAD_REQUEST).json({ 
+        success: false, 
+        message: "Insufficient IP points" 
+      });
+    }
+
+    leader.totalIpEarned -= product.pointsRequired;
+    await leader.save({ session });
+
+    product.stock -= 1;
+    await product.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Product claimed successfully",
+      product
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("claimProduct error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong" });
+  }
+}
 module.exports = {
   register,
   login,
@@ -622,5 +838,10 @@ module.exports = {
   claimQuestReward,
   forgotPassword,
   resetPassword,
+  addAddress,
+  updateAddress,
+  deleteAddress,
+  getAllAddresses,
+  claimProduct
 };
 

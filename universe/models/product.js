@@ -17,7 +17,7 @@ const productSchema = new mongoose.Schema({
     // Reward Type (important)
     type: {
         type: String,
-        enum: ["physical", "voucher"],
+        enum: ["physical", "digital"],
         required: true
     },
 
@@ -28,25 +28,28 @@ const productSchema = new mongoose.Schema({
             "clothing",
             "accessory",
             "stationery",
-            "voucher"
+            "voucher",
+            "other"
         ]
     },
 
     // Points required to redeem
     pointsRequired: {
         type: Number,
-        required: true
+        required: true,
+        min: 0
     },
 
     // Stock management
     stock: {
         type: Number,
-        default: 0
+        default: 0,
+        min: 0
     },
 
     isAvailable: {
         type: Boolean,
-        default: true
+        default: false
     },
 
     // Variants (for T-shirt, Hoodie sizes etc.)
@@ -62,19 +65,18 @@ const productSchema = new mongoose.Schema({
 
     // Voucher specific fields
     voucherDetails: {
-        code: String,
-        expiryDate: Date,
-        brand: String // Amazon, Event etc.
+        brand: String, // Amazon, Event etc.
+        value: {
+            type: Number
+        },
+        type: {
+            type: String,
+            enum: ["percentage", "flat"]
+        }
     },
 
     // Shipping required ?
     requiresShipping: {
-        type: Boolean,
-        default: false
-    },
-
-    // Soft delete
-    isDeleted: {
         type: Boolean,
         default: false
     }
