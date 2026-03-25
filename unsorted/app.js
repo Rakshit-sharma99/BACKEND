@@ -4,7 +4,7 @@ const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
 const http = require("http");
-
+const cookieParser = require("cookie-parser");
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");
 const unsortedRouter = require("./routes/unsortedRouter");
@@ -33,6 +33,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   console.log(
