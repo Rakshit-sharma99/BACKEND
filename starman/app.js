@@ -9,9 +9,24 @@ const server = http.createServer(app);
 
 const starmanRouter = require("./routes/starmanRouter");
 const authenticate = require("./middlewares/authentication");
-
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://app.macbease.com",
+  "https://macbease.com",
+];
 app.set("trust proxy", 1);
-app.use(cors());
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS."));
+      }
+    },
+    credentials: true,
+  }),
+);
 app.use(helmet());
 app.use(express.json());
 
