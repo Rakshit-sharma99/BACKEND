@@ -12,6 +12,7 @@
     "@google/generative-ai": "^0.24.0",
     "axios": "^1.10.0",
     "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",

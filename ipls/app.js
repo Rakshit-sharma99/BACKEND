@@ -3,7 +3,7 @@ const cors = require("cors");
 const express = require("express");
 const http = require("http");
 const connectDB = require("./db/connect");
-
+const cookieParser = require("cookie-parser");
 const app = express();
 const server = http.createServer(app);
 
@@ -33,6 +33,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   console.log(

@@ -3,7 +3,7 @@ const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
 const http = require("http");
-
+const cookieParser = require("cookie-parser");
 const app = express();
 const server = http.createServer(app);
 
@@ -14,6 +14,8 @@ const allowedOrigins = [
   "https://app.macbease.com",
   "https://macbease.com",
 ];
+
+
 app.set("trust proxy", 1);
 app.use(
   cors({
@@ -29,6 +31,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 // Request logger
 app.use((req, res, next) => {
