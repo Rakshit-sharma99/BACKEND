@@ -12,7 +12,11 @@ const {
   getEnrichedUniverseData,
 } = require("../controllers/universeControllers");
 
+const { createCustomUniverse, getAllCustomUniverses } = require("../controllers/customUniverseControllers");
+
 router.post("/createUniverse", authenticate, createUniverse);
+router.post("/createCustomUniverse", createCustomUniverse);
+router.get("/getAllCustomUniverses", authenticate, getAllCustomUniverses);
 router.post("/editUniverse", authenticate, editUniverse);
 router.get("/getAllUniverses", getAllUniverses);
 router.get("/searchUniverse", searchUniverse);

@@ -420,6 +420,27 @@ const fetchSearchedProfileFacets = async (query) => {
   }
 };
 
+const registerCustomUniverse = async (customUniverse, userId) => {
+  try {
+    const config = generateServiceToken();
+    const multiverseUrl = process.env.MULTIVERSE_URL || "http://multiverse:5020";
+    
+    await axios.post(
+      `${multiverseUrl}/multiverse/api/v1/universe/createCustomUniverse`,
+      {
+        ...customUniverse,
+        userId: userId.toString(),
+      },
+      config
+    );
+  } catch (error) {
+    console.error(
+      "Failed to register custom universe to multiverse service:",
+      error.message
+    );
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -437,4 +458,5 @@ module.exports = {
   fetchFeaturedEvent,
   fetchAllowedDomains,
   fetchSearchedProfileFacets,
+  registerCustomUniverse,
 };

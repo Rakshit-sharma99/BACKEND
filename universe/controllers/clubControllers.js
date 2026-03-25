@@ -876,7 +876,10 @@ const removeEvent = async (req, res) => {
     club.upcomingEvent = await Promise.all(
       club.upcomingEvent.map(async (eventPoint) => {
         if (eventPoint.id === eventId && eventPoint.eventId) {
-          const concernedEvent = await fetchEventData({ id: eventPoint.eventId, fields: ["status"] })
+          const concernedEvent = await fetchEventData({
+            id: eventPoint.eventId,
+            fields: ["status"],
+          });
           if (
             concernedEvent &&
             (concernedEvent.status === "featured" ||
@@ -2051,7 +2054,6 @@ const getAllClub = async (req, res) => {
   }
 };
 
-
 //Controller 44
 const getSimilarGroups = async (req, res) => {
   try {
@@ -2559,9 +2561,9 @@ const fetchProposals = async (req, res) => {
       const proposalIds = proposals.map((item) => item.id);
       const proposalsDoc = await fetchInvitationById({
         id: proposalIds,
-        select: ["endoredBy", "expiration"],
+        select: ["endorsedBy", "expiration"],
       });
-      const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+      const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
         return acc;
       }, {});
@@ -2767,7 +2769,7 @@ const searchClubMembers = async (req, res) => {
         _id: { $in: club.members },
         name: regex,
       },
-      { name: 1, image: 1, pushToken: 1 },
+      { name: 1, image: 1, pushToken: 1, uid: 1, universeMetaData: 1 },
     );
 
     const teamIds = club.team.map((e) => e.id);
@@ -2942,7 +2944,7 @@ const searchClubProposals = async (req, res) => {
       id: proposalIds,
       select: ["endorsedBy", "expiration"],
     });
-    const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+    const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
       acc[doc._id.toString()] = doc;
       return acc;
     }, {});
@@ -3082,7 +3084,7 @@ const getProposalsFromIds = async (req, res) => {
 
     // Convert to map for quick lookup
     const dataMap = new Map(
-      invitations.map((doc) => [doc._id.toString(), doc]),
+      (invitations || []).map((doc) => [doc._id.toString(), doc]),
     );
 
     // Merge data while filtering out undefined results
@@ -3136,10 +3138,10 @@ const checkClubExists = async (req, res) => {
 const searchClubs = async (req, res) => {
   try {
     const { query, uid } = req.query;
-    
+
     // Determine the user ID to use for membership checks
     const currentUserId = req.user ? req.user.id : uid;
-    
+
     const clubs = await Club.aggregate([
       {
         $match: {
@@ -3159,9 +3161,15 @@ const searchClubs = async (req, res) => {
           membersCount: { $size: "$members" },
           top5Members: { $slice: ["$members", 5] },
           founderId: { $toObjectId: "$mainAdmin" },
-          isCore: currentUserId ? { $in: [currentUserId, "$team.id"] } : { $literal: false },
-          isAdmin: currentUserId ? { $in: [currentUserId, "$adminId"] } : { $literal: false },
-          isMember: currentUserId ? { $in: [currentUserId, "$members"] } : { $literal: false },
+          isCore: currentUserId
+            ? { $in: [currentUserId, "$team.id"] }
+            : { $literal: false },
+          isAdmin: currentUserId
+            ? { $in: [currentUserId, "$adminId"] }
+            : { $literal: false },
+          isMember: currentUserId
+            ? { $in: [currentUserId, "$members"] }
+            : { $literal: false },
         },
       },
       {

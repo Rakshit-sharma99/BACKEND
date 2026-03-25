@@ -20,6 +20,7 @@ const schedule = require("node-schedule");
 const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { shortcuts } = require("./validators/user.validator");
+const { registerCustomUniverse } = require("./interServiceCalls");
 
 const securePassword = async (password) => {
   try {
@@ -129,19 +130,33 @@ const registerUser = async (req, res) => {
       workingPosition,
       orgMetaData,
       universe,
+      customUniverse,
     } = req.body;
     /* ---------- Platform ---------- */
     const platform = req.body.platform || "app";
 
+    const fallBackUniverse = {
+      _id: "697214a93cc594c4ac0b5c77",
+      callSign: "X",
+      lat: 0,
+      lng: 0,
+      location: "Macbease Co.",
+      logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+      logoKey: "public/universes/lpu_logo-removebg-preview.png",
+      name: "Wild Card",
+    };
+
+    const finalUniverse = customUniverse ? fallBackUniverse : universe;
+
     /* ---------- Build universeMetaData safely ---------- */
     const universeMetaData = {
-      name: universe.name.trim(),
-      callSign: universe.callSign.trim(),
-      location: universe.location.trim(),
-      logo: universe.logo.trim(),
-      logoKey: universe.logoKey?.trim(),
-      lat: Number(universe.lat),
-      lng: Number(universe.lng),
+      name: finalUniverse.name.trim(),
+      callSign: finalUniverse.callSign.trim(),
+      location: finalUniverse.location.trim(),
+      logo: finalUniverse.logo.trim(),
+      logoKey: finalUniverse.logoKey?.trim(),
+      lat: Number(finalUniverse.lat),
+      lng: Number(finalUniverse.lng),
     };
 
     /* ---------- Check existing user ---------- */
@@ -200,7 +215,7 @@ const registerUser = async (req, res) => {
       workingPosition: workingPosition?.trim(),
       incompleteFields,
       universeMetaData,
-      uid: universe._id,
+      uid: finalUniverse._id,
     });
 
     /* ---------- Tokens ---------- */
@@ -220,6 +235,11 @@ const registerUser = async (req, res) => {
       createOrg(orgMetaData, user._id);
     }
 
+    /* ---------- Background: Custom Universe Registration ---------- */
+    if (customUniverse) {
+      registerCustomUniverse(customUniverse, user._id);
+    }
+
     /* ---------- Send onboarding mail ---------- */
     sendOnboardingMail(user);
 
@@ -227,7 +247,7 @@ const registerUser = async (req, res) => {
     try {
       await sendKafkaMessage("USER_SIGNUP", "user", {
         userId: user._id.toString(),
-        uid: universe._id,
+        uid: finalUniverse._id,
         name: user.name,
         interests: user.interests || [],
         profession: user.profession,

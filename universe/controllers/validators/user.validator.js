@@ -30,28 +30,71 @@ const registerUserValidator = [
 
   /* ---------- Universe validation ---------- */
   body("universe")
+    .if(body("customUniverse").not().exists())
     .notEmpty()
     .withMessage("Universe required")
     .isObject()
     .withMessage("Universe must be an object"),
 
-  body("universe._id").isMongoId().withMessage("Invalid universe id"),
+  body("universe._id")
+    .if(body("customUniverse").not().exists())
+    .isMongoId()
+    .withMessage("Invalid universe id"),
 
-  body("universe.name").trim().notEmpty().withMessage("Universe name required"),
+  body("universe.name")
+    .if(body("customUniverse").not().exists())
+    .trim()
+    .notEmpty()
+    .withMessage("Universe name required"),
 
   body("universe.location")
+    .if(body("customUniverse").not().exists())
     .trim()
     .notEmpty()
     .withMessage("Universe location required"),
 
-  body("universe.logo").trim().notEmpty().withMessage("Universe logo required"),
+  body("universe.logo")
+    .if(body("customUniverse").not().exists())
+    .trim()
+    .notEmpty()
+    .withMessage("Universe logo required"),
 
   body("universe.callSign")
+    .if(body("customUniverse").not().exists())
     .trim()
     .notEmpty()
     .withMessage("Universe callSign required"),
 
   body("universe.logoKey").optional().trim(),
+
+  /* ---------- Custom Universe validation ---------- */
+  body("customUniverse")
+    .optional()
+    .isObject()
+    .withMessage("Custom Universe must be an object"),
+
+  body("customUniverse.name")
+    .if(body("customUniverse").exists())
+    .trim()
+    .notEmpty()
+    .withMessage("Custom Universe name required")
+    .isLength({ min: 2, max: 100 }),
+
+  body("customUniverse.country")
+    .if(body("customUniverse").exists())
+    .trim()
+    .notEmpty()
+    .withMessage("Custom Universe country required"),
+
+  body("customUniverse.province")
+    .if(body("customUniverse").exists())
+    .trim()
+    .notEmpty()
+    .withMessage("Custom Universe province required"),
+
+  body("customUniverse.city").optional().trim(),
+  body("customUniverse.contact").optional().trim(),
+  body("customUniverse.images").optional().isArray(),
 ];
 
 const p1 = [
