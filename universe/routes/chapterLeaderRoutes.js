@@ -12,8 +12,7 @@ const {
   addAddress,
   updateAddress,
   deleteAddress,
-  getAllAddresses,
-  claimProduct
+  getAllAddresses
 } = require("../controllers/chapterLeaderControllers.js");
 const authenticate = require("../middlewares/authentication.js");
 
@@ -36,5 +35,5 @@ router.post("/addAddress", authenticate, addAddress);
 router.get("/getAddresses", authenticate, getAllAddresses);
 router.put("/updateAddress/:addressId", authenticate, updateAddress);
 router.delete("/deleteAddress/:addressId", authenticate, deleteAddress);
-router.post("/claimProduct", authenticate, claimProduct);
+
 module.exports = router;

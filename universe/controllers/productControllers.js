@@ -212,6 +212,7 @@ const deleteProduct = async (req, res) => {
             product
         });
     } catch (error) {
+        console.log(error)
         res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ 
             success : false,
             message: "Something went wrong"

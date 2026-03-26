@@ -6,7 +6,7 @@ const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 const { sendMail } = require("./utils");
 const Product = require("../models/product");
-
+const Order = require("../models/order")
 const generateServiceToken = () => {
   const token = jwt.sign(
     { service: "universe", role: "internal" },
@@ -637,7 +637,7 @@ const addAddress = async (req, res) => {
     console.log(address)
     const normalize = (str) => str?.trim().toLowerCase();
 
-    const isSameAddress = leader.address.some((addr) => {
+    const isSameAddress = leader.addresses.some((addr) => {
       return (
         normalize(addr.addressLine1) === normalize(address.addressLine1) &&
         normalize(addr.city) === normalize(address.city) &&
@@ -653,13 +653,13 @@ const addAddress = async (req, res) => {
       });
     }
 
-    leader.address.push(address);
+    leader.addresses.push(address);
     await leader.save();
 
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Address added successfully",
-      address: leader.address
+      address: leader.addresses
     });
 
   } catch (err) {
@@ -682,7 +682,7 @@ const updateAddress = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
     }
 
-    const addressToUpdate = leader.address.id(addressId);
+    const addressToUpdate = leader.addresses.id(addressId);
     if (!addressToUpdate) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Address not found" });
     }
@@ -715,7 +715,7 @@ const deleteAddress = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
     }
 
-    const addressToDelete = leader.address.id(addressId);
+    const addressToDelete = leader.addresses.id(addressId);
     if (!addressToDelete) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Address not found" });
     }
@@ -732,6 +732,7 @@ const deleteAddress = async (req, res) => {
 
 const getAllAddresses = async (req, res) => {
   try {
+    console.log(req.user)
     const leaderId = req.user.id;
     const leader = await ChapterLeader.findById(leaderId);
 
@@ -744,7 +745,7 @@ const getAllAddresses = async (req, res) => {
 
     return res.status(StatusCodes.OK).json({
       success: true,
-      addresses: leader.address || [],
+      addresses: leader.addresses || [],
     });
   } catch (err) {
     console.error("getAllAddresses error:", err);
@@ -755,79 +756,6 @@ const getAllAddresses = async (req, res) => {
   }
 };
 
-const claimProduct = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    const { productId } = req.body;
-    const leaderId = req.user.id;
-    const leader = await ChapterLeader.findById(leaderId).session(session);
-    if (!leader) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(StatusCodes.NOT_FOUND).json({ 
-        success: false, 
-        message: "Leader not found" 
-      });
-    }
-    const product = await Product.findById(productId).session(session);
-    if (!product) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(StatusCodes.NOT_FOUND).json({ 
-        success: false, 
-        message: "Product not found" 
-      });
-    }
-
-    if (!product.isAvailable || product.stock === 0) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(StatusCodes.BAD_REQUEST).json({ 
-        success: false, 
-        message: "Product is not available" 
-      });
-    }
-
-    if (product.requiresShipping && (!leader.address || leader.address.length === 0)) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(StatusCodes.BAD_REQUEST).json({ 
-        success: false, 
-        message: "Address is required for physical product" 
-      });
-    }
-
-    if (leader.totalIpEarned < product.pointsRequired) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(StatusCodes.BAD_REQUEST).json({ 
-        success: false, 
-        message: "Insufficient IP points" 
-      });
-    }
-
-    leader.totalIpEarned -= product.pointsRequired;
-    await leader.save({ session });
-
-    product.stock -= 1;
-    await product.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(StatusCodes.OK).json({
-      success: true,
-      message: "Product claimed successfully",
-      product
-    });
-  } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("claimProduct error:", err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Something went wrong" });
-  }
-}
 module.exports = {
   register,
   login,
@@ -841,7 +769,6 @@ module.exports = {
   addAddress,
   updateAddress,
   deleteAddress,
-  getAllAddresses,
-  claimProduct
+  getAllAddresses
 };
 

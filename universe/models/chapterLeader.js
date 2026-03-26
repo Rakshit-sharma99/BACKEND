@@ -152,7 +152,7 @@ const ChapterLeaderSchema = new mongoose.Schema(
         passwordResetTokenExpire: {
             type: Date,
         },
-        address : [
+        addresses : [
             AddressSchema
         ]
     },
@@ -192,4 +192,4 @@ ChapterLeaderSchema.methods.createRefreshToken = function () {
 
 ChapterLeaderSchema.index({ uid: 1 });
 
-module.exports = mongoose.model("ChapterLeader", ChapterLeaderSchema);
+module.exports = mongoose.model("ChapterLeader", ChapterLeaderSchema)

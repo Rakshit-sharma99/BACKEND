@@ -81,6 +81,7 @@ const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
 const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
 const productRouter = require("./routes/productRouter");
+const orderRouter = require("./routes/orderRouter");
 
 app.set("trust proxy", 1);
 app.use(cors(
@@ -170,6 +171,7 @@ app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
 app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
 app.use("/universe/api/v1/product", authenticate, productRouter)
+app.use("/universe/api/v1/order", authenticate, orderRouter)
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
