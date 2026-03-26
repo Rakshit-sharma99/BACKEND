@@ -25,6 +25,11 @@ const {
   getUserFacetTexts,
 } = require("../controllers/semanticNodeControllers2");
 
+const {
+  createAlumniNodes,
+  refreshAlumniNodes,
+} = require("../controllers/semanticNodeControllers3");
+
 router.post("/createNodesForClubs", createNodesForClubs);
 router.post("/createNodesForCommunities", createNodesForCommunities);
 router.post("/embedAllNodes", embedAllNodes);
@@ -45,5 +50,9 @@ router.post("/refreshProfileFacetNodes", refreshProfileFacetNodes);
 router.post("/vectorSearchProfileFacets", vectorSearchProfileFacets);
 router.post("/metaSearchProfileFacets", metaSearchProfileFacets);
 router.get("/getUserFacetTexts", getUserFacetTexts);
+
+// Alumni Facet Routes
+router.post("/createAlumniNodes", createAlumniNodes);
+router.post("/refreshAlumniNodes", refreshAlumniNodes);
 
 module.exports = router;
