@@ -59,6 +59,8 @@ const chat = async (req, res) => {
   const { message, sessionId, navContext } = req.body;
   const user = req.user; // from JWT middleware: { id, uid, callSign, role }
 
+  console.log("🌟 [STARMAN] Received navContext from frontend:", JSON.stringify(navContext, null, 2));
+
   if (!message || !message.trim()) {
     return res.status(400).json({ error: "Message is required." });
   }
@@ -600,6 +602,21 @@ function extractButtons(toolName, rawResult) {
     }),
 
     navigate_to_user_territory: (item) => ({
+      id: null,
+      type: "auto-navigation",
+      label: item.screen,
+      subtitle: item.tab || "",
+      image: null,
+      meta: {},
+      action: {
+        mode: "navigate",
+        navigateTo: item.screen,
+        tab: item.tab || null,
+        params: item.params || {},
+      },
+    }),
+
+    navigate_to_territory: (item) => ({
       id: null,
       type: "auto-navigation",
       label: item.screen,

@@ -3,10 +3,13 @@
  */
 
 const { getRegistrySummary } = require("./routeRegistry");
+const { interpretContext } = require("./contextInterpreter");
 
 function buildSystemPrompt(navContext, creditBalance) {
   const currentScreen = navContext?.currentScreen || "unknown";
-  const screenParams = navContext?.screenParams || {};
+
+  // ── Context Interpreter ──
+  const { contextBlock, entitySummary } = interpretContext(navContext);
 
   return `You are "The Starman", the AI assistant for macbease – a campus social & networking platform.
 
@@ -32,9 +35,17 @@ CAPABILITIES (use the provided tools):
 - **Search communities** using the search_communities tool when the user asks to find communities related to a topic, interest, or name. Show them matching communities they can tap to visit.
 - **Search events** using the search_events tool when the user wants to find events related to a specific interest, dates, status, place or hosted by specific clubs. IMPORTANT: If the user mentions a location or venue (like "SDMA", "OAT", "Audi"), ALWAYS pass it as the 'place' parameter, NOT 'clubName'. Use 'clubName' only when they mention a specific hosting organization.
 - **Navigate to a user's 3D territory** using the navigate_to_user_territory tool. Pass a name if you don't have the userId. Use this when the user says things like "take me to Amartya's territory" or "show me Amartya's 3d map".
+- **Navigate to a specific territory on the map** using the navigate_to_territory tool. Use this when the user says things like "take me to Alumni territory" or "show me the Tech territory". Pass the territory name and the system will search and navigate there.
 - **Navigate to a user's profile** using the app_navigate tool with 'screen' set to "profile2". Pass the user's name as the 'query'. Use this when the user says "take me to Amartya's profile" or "show me Amartya's profile".
 - **Learn about a user** using the get_user_facet_texts tool. When the user is viewing someone's 3D territory and asks about that person (e.g. "tell me about this user", "what does he like?", "does he play basketball?"), fetch their profile facet texts and use them to answer.
 - **Query campus knowledge** using the query_universe_knowledge tool. When users ask subjective campus questions (e.g. "best momos?", "where to hang out?", "best sunset spot?"), use this tool to get crowdsourced answers from many students. Present the results conversationally with the consensus data.
+
+CONTEXTUAL AWARENESS:
+- You are aware of what the user is currently looking at in the app.
+- Current screen: "${currentScreen}" — ${entitySummary}
+- Use this context to answer implicit questions like "What is this?", "Tell me about this", "Should I join?", "What can I do here?" without needing the user to specify what they're referring to.
+- When the user asks a vague question, assume it's about whatever they are currently viewing.
+- Act as a page-level guide: proactively suggest relevant actions for the current screen.
 
 KNOWLEDGE SEARCH PIPELINE:
 - When a user asks a factual or knowledge question (e.g. "Did X visit campus?", "What is Y?", "When is the next holiday?"), ALWAYS use the search_content_qa tool first.
@@ -66,16 +77,7 @@ ${getRegistrySummary()}
 - For simple screens (no params), just call app_navigate with the screen name.
 - For screens that need params (like club or community), also pass a "query" so the handler can resolve the right entity. For example, for "Open the coding club I'm in", call app_navigate({ screen: "club", query: "coding" }).
 - When the user confirms they want to go somewhere, use app_navigate to trigger auto-navigation.
-${
-  currentScreen === "territory3DOverlay" && screenParams.userId
-    ? `
-TERRITORY CONTEXT:
-- The user is currently viewing someone's 3D territory.
-- The userId of the person being viewed is: "${screenParams.userId}"
-- If the user asks about this person (likes, dislikes, interests, hobbies, etc.), use the get_user_facet_texts tool with this userId to fetch their profile facets and answer based on the facet texts.
-`
-    : ""
-}
+${contextBlock ? `\n${contextBlock}\n` : ""}
 ${
   creditBalance
     ? `
@@ -137,3 +139,4 @@ CONTEXT ABOUT MACBEASE:
 }
 
 module.exports = buildSystemPrompt;
+

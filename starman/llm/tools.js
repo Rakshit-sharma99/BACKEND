@@ -257,6 +257,22 @@ const tools = [
         },
       },
       {
+        name: "navigate_to_territory",
+        description:
+          "Navigate the map to focus on a specific territory by its name. Use this when the user wants to visit, go to, or explore a specific territory (e.g. 'take me to Alumni territory', 'show me the Tech territory'). Searches by territory name and navigates there if found.",
+        parameters: {
+          type: "object",
+          properties: {
+            territoryName: {
+              type: "string",
+              description:
+                "The name of the territory to navigate to, e.g. 'Alumni', 'Tech & Innovation'",
+            },
+          },
+          required: ["territoryName"],
+        },
+      },
+      {
         name: "app_navigate",
         description:
           "Navigate the user to any screen in the app. Use the screen names from your NAVIGATION knowledge. For simple screens (no params), just pass the screen name. For screens needing params (like club or community), also pass a query string so the system can resolve the right entity.",

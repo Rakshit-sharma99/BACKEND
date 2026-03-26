@@ -923,6 +923,43 @@ async function fetch_credit_question(args, user) {
   return [{ success: true, action: "fetch_credit_question" }];
 }
 
+/**
+ * Navigate to a specific territory by name.
+ * Searches territories by name and returns a navigation payload.
+ */
+async function navigate_to_territory({ territoryName }, user) {
+  try {
+    const res = await axios.get(`${MAP_URL}/territory/searchTerritories`, {
+      params: { q: territoryName, limit: 1, uid: user.uid },
+      headers: internalHeaders(),
+    });
+
+    const territories = Array.isArray(res.data) ? res.data : [];
+    if (territories.length === 0) {
+      return {
+        error: true,
+        message: `Could not find a territory named "${territoryName}".`,
+      };
+    }
+
+    const territory = territories[0];
+    return {
+      success: true,
+      screen: "universeTerritoryMap",
+      tab: "Map",
+      params: {
+        selectedTerritory: territory,
+      },
+    };
+  } catch (err) {
+    console.error("navigate_to_territory error:", err.message);
+    return {
+      error: true,
+      message: "Could not navigate to territory right now.",
+    };
+  }
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -950,6 +987,7 @@ const TOOL_HANDLERS = {
   post_question_to_community,
   search_communities,
   navigate_to_user_territory,
+  navigate_to_territory,
   get_user_facet_texts,
   search_events,
   query_universe_knowledge,

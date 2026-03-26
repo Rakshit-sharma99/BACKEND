@@ -73,7 +73,7 @@ const ROUTE_REGISTRY = {
   },
   universeTerritoryMap: {
     tab: "Map",
-    params: ["selectedNodeId", "universe", "uid"],
+    params: ["selectedNodeId", "universe", "uid", "selectedTerritory"],
     description: "Semantic map focused on a specific territory/node",
   },
   yourTickets: {
