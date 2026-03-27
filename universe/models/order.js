@@ -25,6 +25,9 @@ const OrderSchema = new mongoose.Schema(
         },
         addressId: {
             type: String,
+        },
+        variantId: {
+            type: String,
         }
     }
 )

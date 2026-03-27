@@ -9,7 +9,7 @@ const createOrder = async (req, res) => {
     const session = await mongoose.startSession();
     session.startTransaction();
     try {
-        const { productId, quantity, addressId } = req.body;
+        const { productId, quantity, addressId, variantId } = req.body;
         const leaderId = req.user.id;
 
         const leader = await ChapterLeader.findById(leaderId).session(session);
@@ -22,7 +22,7 @@ const createOrder = async (req, res) => {
             });
         }
 
-        const product = await Product.findById(productId).session(session);
+        const product = await Product.findById(productId).select("+stock").session(session);
         if (!product) {
             await session.abortTransaction();
             session.endSession();
@@ -72,13 +72,35 @@ const createOrder = async (req, res) => {
             });
         }
 
-        if (quantity > product.stock) {
-            await session.abortTransaction();
-            session.endSession();
-            return res.status(StatusCodes.BAD_REQUEST).json({
-                success: false,
-                message: "Insufficient stock"
-            });
+        let variant = null;
+        if (variantId) {
+            variant = product.variants.id(variantId);
+            if (!variant) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(StatusCodes.NOT_FOUND).json({
+                    success: false,
+                    message: "Variant not found"
+                });
+            }
+
+            if (quantity > variant.stock) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    success: false,
+                    message: `Insufficient stock for variant ${variant.name}`
+                });
+            }
+        } else {
+            if (quantity > product.stock) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(StatusCodes.BAD_REQUEST).json({
+                    success: false,
+                    message: "Insufficient stock"
+                });
+            }
         }
 
         const totalCost = quantity * product.pointsRequired;
@@ -96,6 +118,7 @@ const createOrder = async (req, res) => {
             productId,
             quantity,
             addressId,
+            variantId,
             ip: totalCost,
             ...(product.requiresShipping ? { status: "pending" } : { status: "delivered" }),
         });
@@ -104,6 +127,9 @@ const createOrder = async (req, res) => {
         leader.totalIpEarned -= totalCost;
         await leader.save({ session });
 
+        if (variant) {
+            variant.stock -= quantity;
+        }
         product.stock -= quantity;
         await product.save({ session });
 
@@ -118,7 +144,7 @@ const createOrder = async (req, res) => {
                     `Hi ${leader.name},`,
                     ``,
                     `<strong>Your reward is ready!</strong>`,
-                    `You've successfully redeemed <strong>${totalCost} IP points</strong> for <strong>${quantity} × ${product.name}</strong>.`,
+                    `You've successfully redeemed <strong>${totalCost} IP points</strong> for <strong>${quantity} × ${product.name}${variant ? ` (${variant.name})` : ""}</strong>.`,
                     ``,
                     ...(product.voucherDetails
                         ? [
@@ -137,7 +163,7 @@ const createOrder = async (req, res) => {
                     `Hi ${leader.name},`,
                     ``,
                     `<strong>Order Confirmed!</strong>`,
-                    `<strong>${quantity} × ${product.name}</strong>.`,
+                    `<strong>${quantity} × ${product.name}${variant ? ` (${variant.name})` : ""}</strong>.`,
                     ``,
                     `<strong>Shipping Update</strong>`,
                     `Our team is preparing your order for shipment. You'll receive tracking details as soon as it's on the way.`,

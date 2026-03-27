@@ -715,12 +715,10 @@ const deleteAddress = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Leader not found" });
     }
 
-    const addressToDelete = leader.addresses.id(addressId);
-    if (!addressToDelete) {
-      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Address not found" });
-    }
+    leader.addresses = leader.addresses.filter(
+      (addr) => addr._id.toString() !== addressId
+    );
 
-    addressToDelete.deleteOne();
     await leader.save();
 
     return res.status(StatusCodes.OK).json({ success: true, message: "Address deleted successfully" });
