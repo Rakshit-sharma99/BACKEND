@@ -40,7 +40,7 @@ const sendMail = async (
     destination,
     action,
     emailHTML,
-  })
+  });
   const mailGenerator = new Mailgen({
     theme: "cerberus",
     product: {
@@ -56,14 +56,14 @@ const sendMail = async (
       intro: intro,
       action: action
         ? {
-          instructions:
-            action.instructions || "Click the button below to proceed:",
-          button: {
-            color: action.color || "#1ea1ed",
-            text: action.text || "View Details",
-            link: action.url,
-          },
-        }
+            instructions:
+              action.instructions || "Click the button below to proceed:",
+            button: {
+              color: action.color || "#1ea1ed",
+              text: action.text || "View Details",
+              link: action.url,
+            },
+          }
         : undefined,
       outro: outro,
     },
@@ -280,13 +280,13 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
   try {
     const targetAdmins = role
       ? await Admin.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await Admin.aggregate([
-        { $match: { _id: { $in: ids } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: ids } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetAdmins
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -300,10 +300,10 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -357,13 +357,13 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
     }
     const targetUsers = role
       ? await User.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await User.aggregate([
-        { $match: { _id: { $in: processedIds } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: processedIds } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetUsers
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -377,10 +377,10 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -1046,10 +1046,10 @@ const secondaryInvitationActions = async ({
             notificationPayload.url
               ? scheduleNotification2(notificationData)
               : scheduleNotification(
-                [target.pushToken],
-                notificationData.title,
-                notificationData.body,
-              );
+                  [target.pushToken],
+                  notificationData.title,
+                  notificationData.body,
+                );
           } else {
             // Function to dispatch notification to admin
           }
@@ -1350,7 +1350,9 @@ const sendOnboardingMail = async (user) => {
 
 async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   uid = uid?.toString();
-  console.log(`[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`);
+  console.log(
+    `[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`,
+  );
 
   const User = require("../models/user");
   const Club = require("../models/club");
@@ -1364,13 +1366,24 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   const matchQuery = { uid };
 
   switch (metric) {
-
     // Club Resolvers
 
     // 1. Total clubs created
     case "clubs_created": {
-      const count = await Club.countDocuments(matchQuery);
-      result = [count];
+      const count = await Club.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
@@ -1385,7 +1398,6 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
       // Extract just the membersCount values
       result = aggregatedClubs.map(c => c.membersCount);
-      console.log(result, "membersCount only");
       break;
     }
 
@@ -1460,8 +1472,20 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
     // 7. Total communities created
     case "communities_created": {
-      const count = await Community.countDocuments(matchQuery);
-      result = [count];
+      const count = await Community.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
       break;
     }
 
@@ -1539,6 +1563,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
     // Event Resolvers
 
+    // 12. Total events created
     case "total_event_created": {
       const count = await Event.aggregate([
         {
@@ -1556,6 +1581,8 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       result = [count[0]?.total || 0];
       break;
     }
+
+    // 13. Total event registrations
     case "total_event_registration": {
       const count = await Event.aggregate([
         {
@@ -1580,8 +1607,9 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
-    case "top_event_registration":
-      result = await Event.aggregate([
+    // 14. Top events by registration
+    case "top_event_registration": {
+      const aggResult = await Event.aggregate([
         {
           $match: {
             uid,
@@ -1603,10 +1631,12 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         }
       ]);
 
-      result = result.map(e => e.bookedCount);
+      result = aggResult.map(e => e.bookedCount);
       break;
+    }
 
-    case "cross_campus_events_registrations":
+    // 15. Cross campus events registrations
+    case "cross_campus_events_registrations": {
       const eventIds = await Event.find({ uid }).distinct("_id");
 
       const count = await Ticket.countDocuments({
@@ -1616,13 +1646,16 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
       result = [count];
       break;
+    }
 
-    case "category_event_combo":
+    case "category_event_combo": {
 
       break;
+    }
 
     // Member Reslover
 
+    // 16. Total members
     case "total_members": {
       const count = await User.aggregate([
         {
@@ -1641,6 +1674,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // // 17. Registered students
     case "registered_students": {
       const count = await User.aggregate([
         {
@@ -1660,6 +1694,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // // 18. Registered professors
     case "registered_professors": {
       const count = await User.aggregate([
         {
@@ -1679,6 +1714,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // // 19. Registered alumni
     case "registered_alumni": {
       const count = await User.aggregate([
         {
@@ -1698,6 +1734,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // // 20. Active member posts
     case "active_member_posts": {
       const topUsers = await User.aggregate([
         {
@@ -1724,31 +1761,53 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       break;
     }
 
+    // 21. Member event attendance
     case "member_event_attendance": {
       const members = await User.aggregate([
         {
-          $match: { uid }
+          $match: { uid }, // fetch users of this universe
         },
         {
-          $project: {
-            totalAttendance: {
-              $size: { $ifNull: ["$ticketsBought", []] }
-            }
-          }
+          $lookup: {
+            from: "tickets",
+            localField: "_id",
+            foreignField: "boughtBy",
+            as: "tickets",
+          },
         },
         {
-          $sort: { totalAttendance: -1 }
+          $unwind: {
+            path: "$tickets",
+            preserveNullAndEmptyArrays: false,
+          },
         },
         {
-          $limit: numOfEntities
-        }
+          $group: {
+            _id: {
+              userId: "$_id",
+              eventId: "$tickets.eventId",
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.userId",
+            totalAttendance: { $sum: 1 }, // unique events per user
+          },
+        },
+        {
+          $sort: { totalAttendance: -1 },
+        },
+        {
+          $limit: numOfEntities,
+        },
       ]);
-      result = members.map(m => m.totalAttendance);
+
+      result = members.map((m) => m.totalAttendance);
       break;
     }
 
     default:
-      console.warn(`[MetricResolver] Unsupported metric: ${metric}`);
       result = [0];
   }
 
@@ -1756,8 +1815,6 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     result = result.slice(0, numOfEntities);
   }
 
-  const loggedResult = result.length > 10 ? [...result.slice(0, 10), `...and ${result.length - 10} more`] : result;
-  console.log(`[MetricResolver] Result for ${metric}: ${JSON.stringify(loggedResult)}`);
   return result;
 }
 
@@ -1788,5 +1845,5 @@ module.exports = {
   fetchBags,
   fetchRightSequence,
   sendOnboardingMail,
-  resolveMetricValue
+  resolveMetricValue,
 };

@@ -21,12 +21,14 @@ services:
       dockerfile: Dockerfile
     image: spargens/universe
     env_file:
-      - ./env/universe/.env
+      - ./universe/.env
     depends_on:
       - kafka
       - redis
     networks:
       - app-network
+    ports:
+      - "5050:5050"
     restart: unless-stopped
 
   multiverse:
@@ -425,6 +427,22 @@ services:
       - ./deploy/nginx/dev/conf.d:/etc/nginx/conf.d:ro
     networks:
       - app-network
+    restart: unless-stopped
+  
+  quest1:
+    build:
+      context: ./quest1
+      dockerfile: Dockerfile
+    image: spargens/quest1
+    env_file:
+      - ./quest1/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    ports:
+      - "6010:6010"
     restart: unless-stopped
 
 volumes:
