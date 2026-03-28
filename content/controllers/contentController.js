@@ -193,7 +193,7 @@ const comment = async (req, res) => {
   try {
     const user_query = {
       id: req.user.id,
-      fields: ["name", "image", "pushToken", "_id"],
+      fields: ["name", "image", "pushToken", "_id", "uid", "universeMetaData"],
     };
 
     const [user, content] = await Promise.all([
@@ -223,6 +223,8 @@ const comment = async (req, res) => {
       pushToken: user.pushToken,
       _id: user._id,
       createdAt: new Date(),
+      uid: user.uid,
+      universeMetaData: user.universeMetaData,
     };
 
     content.comments.unshift(newComment);

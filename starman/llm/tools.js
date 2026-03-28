@@ -483,6 +483,27 @@ const tools = [
           required: ["query"],
         },
       },
+      {
+        name: "search_whatsapp_context",
+        description:
+          "Search the user's linked WhatsApp university community messages for relevant context. Use this when the user asks about announcements, deadlines, assignments, shared resources, class discussions, or any information that might have been shared in their WhatsApp university/class groups. Returns relevant message fragments with source attribution (community name, sender, date).",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "The search query to find relevant messages across linked WhatsApp communities, e.g. 'CS301 assignment deadline', 'exam schedule', 'notes shared'",
+            },
+            communityFilter: {
+              type: "string",
+              description:
+                "Optional: specific WhatsApp community/group name to restrict search to, e.g. 'CS301 Class Group'",
+            },
+          },
+          required: ["query"],
+        },
+      },
     ],
   },
 ];

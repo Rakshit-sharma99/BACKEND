@@ -1,5 +1,18 @@
 const mongoose = require("mongoose");
 
+const universeMetaDataSchema = new mongoose.Schema(
+  {
+    name: { type: String },
+    location: { type: String },
+    logo: { type: String },
+    callSign: { type: String },
+    logoKey: { type: String },
+    lat: { type: Number },
+    lng: { type: Number },
+  },
+  { _id: false },
+);
+
 const commentSchema = new mongoose.Schema({
   cid: {
     type: String,
@@ -47,19 +60,11 @@ const commentSchema = new mongoose.Schema({
       _id: false,
     },
   ],
+  uid: {
+    type: String,
+  },
+  universeMetaData: universeMetaDataSchema,
 });
-
-const universeMetaDataSchema = new mongoose.Schema({
-  name: { type: String },
-  location: { type: String },
-  logo: { type: String },
-  callSign: { type: String },
-  logoKey: { type: String },
-  lat: { type: Number },
-  lng: { type: Number },
-},
-  { _id: false },
-);
 
 const contentSchema = new mongoose.Schema({
   contentType: {
@@ -161,7 +166,7 @@ const contentSchema = new mongoose.Schema({
 
 // Indexes for Feed Generation Strategy
 contentSchema.index({ belongsTo: 1, timeStamp: -1 }); // For Followed Content
-contentSchema.index({ tags: 1, timeStamp: -1 });      // For Suggested Content
-contentSchema.index({ timeStamp: -1 });               // Global fallback
+contentSchema.index({ tags: 1, timeStamp: -1 }); // For Suggested Content
+contentSchema.index({ timeStamp: -1 }); // Global fallback
 
 module.exports = mongoose.model("Content", contentSchema);

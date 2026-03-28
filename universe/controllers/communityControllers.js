@@ -1496,7 +1496,7 @@ const getFastNativeFeed = async (req, res) => {
           ...doc,
           irrelevanceVote: matchedContent.irrelevanceVote,
           flaggedBy: matchedContent.flaggedBy,
-          commentsNum: doc.comments.length,
+          commentsNum: doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length,
           comments: doc.comments.slice(0, 6),
         };
       });
@@ -1571,7 +1571,7 @@ const getBatchedContent = async (req, res) => {
       const id = content[i].contentId;
       let doc = await fetchContent({ contentId: id });
       if (doc) {
-        let commentsNum = doc.comments.length;
+        let commentsNum = doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length;
         doc.comments = doc.comments.slice(0, 6);
         let point = {
           ...doc,
@@ -2544,7 +2544,7 @@ const searchCommunityContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2583,7 +2583,7 @@ const searchCommunityFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 

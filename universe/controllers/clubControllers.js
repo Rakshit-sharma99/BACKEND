@@ -1892,7 +1892,7 @@ const getFastNativeFeed = async (req, res) => {
         if (content) {
           return {
             ...content,
-            commentsNum: content.comments.length,
+            commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length,
             comments: content.comments.slice(0, 6),
           };
         }
@@ -1917,7 +1917,7 @@ const getFastNativeFeed = async (req, res) => {
       if (snippets) {
         processedSnippets = snippets.map((snippet) => ({
           ...snippet,
-          commentsNum: snippet.comments.length, // Store total comment count
+          commentsNum: snippet.commentsNum !== undefined ? snippet.commentsNum : snippet.comments.length, // Store total comment count
           comments: snippet.comments.slice(0, 6), // Get only first 6 comments
         }));
       }
@@ -2814,7 +2814,7 @@ const searchClubContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2850,7 +2850,7 @@ const searchClubFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 

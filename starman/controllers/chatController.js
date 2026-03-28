@@ -680,6 +680,30 @@ function extractButtons(toolName, rawResult) {
         actionName: "fetch_credit_question",
       },
     }),
+
+    search_whatsapp_context: (item) => ({
+      id: item.id || null,
+      type: "wa-source",
+      label: item.communityName || "WhatsApp",
+      subtitle: [
+        item.senderName,
+        item.timestamp
+          ? new Date(item.timestamp * 1000).toLocaleDateString()
+          : item.tier === "warm"
+            ? "Distilled"
+            : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: null,
+      meta: {
+        text: item.text,
+        community: item.communityName,
+        sender: item.senderName,
+        tier: item.tier,
+        category: item.category || null,
+      },
+    }),
   };
 
   const extractor = extractors[toolName];
