@@ -129,7 +129,6 @@ app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
-app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
 app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
 app.use("/universe/api/v1/product", authenticate, productRouter)
 app.use("/universe/api/v1/order", authenticate, orderRouter)
