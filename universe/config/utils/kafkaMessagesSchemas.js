@@ -358,6 +358,55 @@ const USER_SIGNUP = {
   },
 };
 
+/**
+ * @typedef {Object} CREATE_UNIVERSE_PAYLOAD
+ * @property {String} name
+ * @property {String} callSign
+ * @property {String} logo
+ * @property {String} logoKey
+ * @property {String} location
+ * @property {Number} lat
+ * @property {Number} lng
+ */
+
+const CREATE_UNIVERSE = {
+  CREATE_UNIVERSE: {
+    topicSuffix: "_create_universe",
+
+    validate: (data) => {
+      if (!data || typeof data !== "object") {
+        throw new Error("Payload must be an object");
+      }
+
+      const requiredStringFields = [
+        "name",
+        "callSign",
+        "logo",
+        "logoKey",
+        "location"
+      ];
+
+      for (const field of requiredStringFields) {
+        if (typeof data[field] !== "string" || !data[field].trim()) {
+          throw new Error(`'${field}' must be a non-empty string`);
+        }
+      }
+
+      if (typeof data.lat !== "number") {
+        throw new Error("'lat' must be a number");
+      }
+
+      if (typeof data.lng !== "number") {
+        throw new Error("'lng' must be a number");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  }
+}
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -368,4 +417,5 @@ module.exports = {
   ...CREATE_MEMORY,
   ...USER_ACTIVITY,
   ...USER_SIGNUP,
+  ...CREATE_UNIVERSE
 }

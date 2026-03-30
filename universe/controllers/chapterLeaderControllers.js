@@ -5,6 +5,7 @@ const Admin = require("../models/admin")
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 const { sendMail } = require("./utils");
+const { sendKafkaMessage } = require('../config/utils/sendKafkaMessage');
 
 const generateServiceToken = () => {
   const token = jwt.sign(
@@ -146,7 +147,7 @@ const register = async (req, res) => {
 
           ses.sendEmail(params, (err) => {
             if (err) console.error("[ChapterLeader.register] SES sendEmail error:", err);
-            else console.log(`[ChapterLeader.register] Order confirmation email sent to ${admin.email}`);
+            else console.log(`[ChapterLeader.register] admin email sent to ${admin.email}`);
           });
         } catch (mailErr) {
           console.error("Mail failed:", mailErr.message);
@@ -282,7 +283,16 @@ const verifyChapterLeader = async (req, res) => {
       });
     }
 
-    const { chapterLeaderId } = req.body;
+    const {
+      chapterLeaderId,
+      name,
+      callSign,
+      location,
+      lat,
+      lng,
+      logo,
+      logoKey,
+    } = req.body;
 
     if (!chapterLeaderId) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -313,7 +323,7 @@ const verifyChapterLeader = async (req, res) => {
 
     try {
       const response = await axios.get(
-        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getAllQuests`,
+        `${process.env.QUEST_SERVICE_URL}/quest1/api/v1/getAllQuests`,
         { timeout: 5000, ...config }
       );
       quests = response.data?.quests || [];
@@ -347,10 +357,50 @@ const verifyChapterLeader = async (req, res) => {
 
     chapterLeader.progress.push(...newProgressEntries);
     chapterLeader.isVerified = true;
-    chapterLeader.approvedBy = "691c24284045605396274042";
+    chapterLeader.approvedBy = req.user.id;
 
     await chapterLeader.save();
 
+    // emit event to create universe
+    await sendKafkaMessage(
+      "CREATE_UNIVERSE",
+      "universe",
+      {
+        name,
+        location,
+        callSign,
+        lat,
+        lng,
+        logo,
+        logoKey
+      }
+    );
+
+    // secondary Actions send mail to chapter leader
+    try {
+      const intro = `Congratulations! Your chapter leader account has been verified.`;
+      const outro = `Click the button below to access your dashboard and get started.`;
+      const recipientEmail = chapterLeader.email;
+
+      try {
+        const { ses, params } = await sendMail(
+          chapterLeader.name,
+          intro,
+          outro,
+          subject,
+          [recipientEmail],
+          null
+        );
+        await ses.sendEmail(params).promise();
+        console.log(`[ChapterLeader.verify] Verification email successfully sent to: ${recipientEmail}`);
+
+      } catch (err) {
+        console.error(`[ChapterLeader.verify] Failed to send email to ${recipientEmail}:`, err.message);
+      }
+    }
+    catch (err) {
+      console.error("Failed to send mail to chapter leader:", err.message);
+    }
     return res.status(StatusCodes.OK).json({
       success: true,
       message: `Chapter leader verified. ${newProgressEntries.length} quest(s) assigned.`,
