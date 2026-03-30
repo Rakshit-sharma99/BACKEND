@@ -1,7 +1,9 @@
 require("dotenv").config();
-require("./config/kafka_producer");
-require("./config/kafka_listener");
+// require("./config/kafka_producer");
+// require("./config/kafka_listener");
 require("./config/snapshotCron");
+
+
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
@@ -21,10 +23,10 @@ const redis = new Redis({
   port: 6379,
 });
 
-redis.on("connect", () => console.log("✅ Connected to Redis!"));
-redis.on("error", (err) => {
-  console.error("🚨 Redis Error:", err.message);
-});
+// redis.on("connect", () => console.log("✅ Connected to Redis!"));
+// redis.on("error", (err) => {
+//   console.error("🚨 Redis Error:", err.message);
+// });
 
 const {
   SecretsManagerClient,
@@ -58,27 +60,18 @@ const awardRouter = require("./routes/awardRouter");
 const blockRouter = require("./routes/blockRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
-const pushRouter = require("./routes/pushRouter");
+const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
+const productRouter = require("./routes/productRouter");
+const orderRouter = require("./routes/orderRouter");
 
 app.set("trust proxy", 1);
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://app.macbease.com",
-  "https://macbease.com",
-];
-
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS."));
-      }
-    },
+app.use(cors(
+  {
+    origin: ["http://localhost:5173", "https://macbease.com", "https://www.macbease.com"],
     credentials: true,
-  }),
-);
+  }
+));
+const pushRouter = require("./routes/pushRouter");
 app.use(helmet());
 app.use(express.json());
 app.use(cookieParser());
@@ -134,6 +127,12 @@ app.use("/universe/api/v1/alumni", authenticate, alumniRouter);
 app.use("/universe/api/v1/award", authenticate, awardRouter);
 app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
+// app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
+
+app.use("/universe/api/v1/unsorted", authenticate, unsortedRouter);
+app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
+app.use("/universe/api/v1/product", authenticate, productRouter)
+app.use("/universe/api/v1/order", authenticate, orderRouter)
 app.use("/universe/api/v1/push", authenticate, pushRouter);
 
 app.use((req, res) => {
@@ -214,8 +213,10 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}!`);
+      console.log(`✅ Server is listening to port ${port}.`);
+      require("./jobs/updateProgress");
     });
+
   } catch (error) {
     console.log(error);
   }

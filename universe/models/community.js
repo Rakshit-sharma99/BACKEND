@@ -153,5 +153,7 @@ const communitySchema = new mongoose.Schema({
     default: [],
   },
 });
+const Community = mongoose.model('Community', communitySchema);
 
-module.exports = mongoose.model("Community", communitySchema);
+
+module.exports = Community;
