@@ -10,7 +10,7 @@ const QuestProgressSchema = new mongoose.Schema({
 
     // for discrete will stroe the number of entities completed like 3 clubs completed the target
     // for continuous will stroe the total value like 10 clubs created out of 30. Here 10 is the value
-    
+
     value: {
         type: Number,
         default: 0
@@ -138,6 +138,12 @@ const ChapterLeaderSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
         },
+        college: {
+            type: String,
+        },
+        socialLink: {
+            type: String,
+        },
         uid: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Universe",
@@ -152,7 +158,7 @@ const ChapterLeaderSchema = new mongoose.Schema(
         passwordResetTokenExpire: {
             type: Date,
         },
-        addresses : [
+        addresses: [
             AddressSchema
         ]
     },

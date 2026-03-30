@@ -134,7 +134,7 @@ async function updateAllLeadersProgress() {
 schedule.scheduleJob('*/10 * * * * *', async () => {
     const start = Date.now();
     try {
-        await updateAllLeadersProgress();
+        // await updateAllLeadersProgress();
         const duration = Date.now() - start;
         console.log(`✅ Progress update completed in ${duration} ms (${(duration / 1000).toFixed(2)} sec)`);
     } catch (err) {
