@@ -9,9 +9,9 @@ const UniverseMetaDataSchema = new mongoose.Schema(
     callSign: { type: String },
     logoKey: { type: String },
     lat: { type: Number },
-    lng: { type: Number }
+    lng: { type: Number },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Sub-schema for authorized person
@@ -28,7 +28,7 @@ const AuthorizedPersonSchema = new mongoose.Schema(
       default: "people",
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Sub-schema for belongsTo
@@ -51,7 +51,7 @@ const BelongsToSchema = new mongoose.Schema(
       required: true,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 // Sub-schema for FAQ
@@ -96,7 +96,7 @@ const FAQSchema = new mongoose.Schema(
       position: { type: String },
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const postProductionSchema = new mongoose.Schema(
@@ -118,7 +118,7 @@ const postProductionSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { _id: false }
+  { _id: false },
 );
 
 const eventSchema = new mongoose.Schema(
@@ -158,7 +158,13 @@ const eventSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "featured", "past and unclear", "past and clear"],
+      enum: [
+        "expired",
+        "pending",
+        "featured",
+        "past and unclear",
+        "past and clear",
+      ],
       default: "pending",
     },
 
@@ -337,7 +343,7 @@ const eventSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 // Indexes

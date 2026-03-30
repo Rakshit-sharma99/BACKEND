@@ -295,44 +295,6 @@ const fetchRelatedTags = async (tag) => {
   }
 };
 
-const fetchMacbeaseContentFromLastTimeStamp = async ({
-  timeStamp,
-  operator,
-  sort,
-  limit,
-  rangeStart,
-  rangeEnd,
-  sample,
-}) => {
-  try {
-    const config = generateServiceToken();
-    const macbeaseContent = await axios.get(
-      `http://macbeaseContent:5070/macbeaseContent/api/v1/getContentFromLastTimeStamp?timeStamp=${timeStamp}&operator=${operator}&sort=${sort}&limit=${limit}&rangeStart=${rangeStart}&rangeEnd=${rangeEnd}&sample=${sample}`,
-      config
-    );
-    return macbeaseContent.data;
-  } catch (error) {
-    console.log(error);
-    return [];
-  }
-};
-
-const fetchMacbeaseContentFromIds = async ({ ids, select }) => {
-  try {
-    const config = generateServiceToken();
-    const body = { ids, select };
-    const macbeaseContent = await axios.post(
-      `http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByIds`,
-      body,
-      config
-    );
-    return macbeaseContent.data;
-  } catch (error) {
-    console.log(error);
-    return [];
-  }
-};
-
 const fetchCardsFromIds = async ({ ids, select }) => {
   try {
     const config = generateServiceToken();
@@ -393,8 +355,6 @@ module.exports = {
   scheduleNotification2,
   lemmatize,
   fetchRelatedTags,
-  fetchMacbeaseContentFromLastTimeStamp,
-  fetchMacbeaseContentFromIds,
   fetchCardsFromIds,
   fetchRandomCardsForFeed,
   checkUserBookmarks,

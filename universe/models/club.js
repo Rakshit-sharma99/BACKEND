@@ -175,6 +175,10 @@ const clubSchema = new mongoose.Schema(
       lat: { type: Number },
       lng: { type: Number },
     },
+    scope: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true },
 );

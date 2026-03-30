@@ -9,7 +9,7 @@ const ADD_USERTO_ORG = {
     topicSuffix: "_add_userto_org",
 
     validate: (data) => {
-  
+
       if (typeof data.orgId !== "string") {
         throw new Error("'orgId' must be a string");
       }
@@ -159,7 +159,7 @@ const CREATE_COMMUNITY = {
         throw new Error("'universeMetaData' must be a valid object");
       }
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -199,47 +199,7 @@ const UPDATE_CONTENT = {
         throw new Error("'updatedFields' must be a valid object");
       }
     },
-      
-    build: (payload) => ({
-      value: JSON.stringify(payload),
-    }),
-  }
-}
 
-/**
- * @typedef {Object} UPDATE_MACBEASE_CONTENT_PAYLOAD
- * @property {String} contentId
- * @property {Object} updatedFields
- */
-
-const UPDATE_MACBEASE_CONTENT = {
-  UPDATE_MACBEASE_CONTENT: {
-    topicSuffix: "_update_macbease_content",
-
-    validate: (data) => {
-      if (!data || typeof data !== "object") {
-        throw new Error("Payload must be an object");
-      }
-
-      const requiredStringFields = [
-        "contentId"
-      ];
-
-      for (const field of requiredStringFields) {
-        if (typeof data[field] !== "string" || !data[field].trim()) {
-          throw new Error(`'${field}' must be a non-empty string`);
-        }
-      }
-
-      if (
-        typeof data.updatedFields !== "object" ||
-        data.updatedFields === null ||
-        Array.isArray(data.updatedFields)
-      ) {
-        throw new Error("'updatedFields' must be a valid object");
-      }
-    },
-      
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -279,7 +239,7 @@ const UPDATE_INVITATION = {
         throw new Error("'updatedFields' must be a valid object");
       }
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -313,7 +273,7 @@ const UPDATE_JOINLINK = {
       }
 
     },
-      
+
     build: (payload) => ({
       value: JSON.stringify(payload),
     }),
@@ -331,8 +291,64 @@ const CREATE_MEMORY = {
 
     validate: (data) => {
 
-      if (!data.memoryData || !typeof data.memoryData==='object') {
+      if (!data.memoryData || !typeof data.memoryData === 'object') {
         throw new Error('memoryData must be object');
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} USER_ACTIVITY_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} activityType - one of: club_join, event_attend, memory_upload, first_post, assets_added
+ * @property {string} [ref] - optional reference ID (clubId, eventId, etc.)
+ */
+
+const USER_ACTIVITY = {
+  USER_ACTIVITY: {
+    topicSuffix: ".activity",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.activityType !== "string") {
+        throw new Error("'activityType' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
+/**
+ * @typedef {Object} USER_SIGNUP_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} name
+ * @property {string[]} interests
+ * @property {string} profession
+ * @property {Object} universeMetaData
+ */
+
+const USER_SIGNUP = {
+  USER_SIGNUP: {
+    topicSuffix: ".signup",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.name !== "string") {
+        throw new Error("'name' must be a string");
       }
     },
 
@@ -347,8 +363,9 @@ module.exports = {
   ...CREATE_USER,
   ...CREATE_COMMUNITY,
   ...UPDATE_CONTENT,
-  ...UPDATE_MACBEASE_CONTENT,
   ...UPDATE_INVITATION,
   ...UPDATE_JOINLINK,
-  ...CREATE_MEMORY
+  ...CREATE_MEMORY,
+  ...USER_ACTIVITY,
+  ...USER_SIGNUP,
 }

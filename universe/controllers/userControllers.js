@@ -4,7 +4,6 @@ const Admin = require("../models/admin");
 const bcrypt = require("bcryptjs");
 const Community = require("../models/community");
 const Club = require("../models/club");
-const Quest = require("../models/quest");
 const Bookmark = require("../models/bookmark");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -12,14 +11,16 @@ const {
   scheduleNotification,
   scheduleNotification2,
   updateUserIP,
+  lemmatize,
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
-const { lemmatize } = require("./commonControllers");
 const {
   fetchSearchedEvents,
   fetchSearchedCards,
   getMemoryCount,
   fetchAllowedDomains,
+  fetchMultipleAssets,
+  fetchSearchedProfileFacets,
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
@@ -53,7 +54,7 @@ const searchUserByName = async (req, res) => {
 
 //Controller 2
 const getUserBio = async (req, res) => {
-  console.log("user bio")
+  console.log("user bio");
   try {
     const user = await User.findById(req.user.id, {
       course: 1,
@@ -75,7 +76,7 @@ const getUserBio = async (req, res) => {
       notifications: 1,
       shortCuts: 1,
       incompleteFields: 1,
-      universeMetaData: 1
+      universeMetaData: 1,
     });
     if (!user) {
       return res
@@ -101,7 +102,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
-      universeMetaData
+      universeMetaData,
     } = user;
 
     return res.status(StatusCodes.OK).json({
@@ -123,7 +124,7 @@ const getUserBio = async (req, res) => {
       incompleteProfile,
       shortCuts,
       incompleteFields,
-      universeMetaData
+      universeMetaData,
     });
   } catch (err) {
     console.error(err);
@@ -360,14 +361,11 @@ const advanceSearch = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const { profession } = req.query;
-    console.log("profession", profession);
     // Build query dynamically
     const query = {};
     if (profession && profession !== "All") {
       query.profession = profession;
     }
-
-    console.log("query", query);
 
     const users = await User.find(query, {
       name: 1,
@@ -595,7 +593,6 @@ const getBasicUserBio = async (req, res) => {
       deactivated: 1,
       communitiesPartOf: 1,
       tunedIn_By: 1,
-      macbeaseContentContribution: 1,
       creatorPost: 1,
       profession: 1,
       interests: 1,
@@ -607,8 +604,8 @@ const getBasicUserBio = async (req, res) => {
       universeMetaData: 1,
       gender: 1,
       emailVerified: 1,
-      cards: 1
-
+      cards: 1,
+      vicinityAsset: 1,
     }).lean();
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
@@ -649,7 +646,6 @@ const getBasicUserBio = async (req, res) => {
       batch: user.passoutYear,
       role: user.role,
       creatorPost: user.creatorPost,
-      posts: user.macbeaseContentContribution.length,
       tunedIn_By: user.tunedIn_By ? user.tunedIn_By.length : 0,
       tunerGraphics,
       organisationData: [
@@ -1453,7 +1449,7 @@ const changeIp = async (req, res) => {
 
     // Validate required fields
     if (ip === undefined || ip === null || !description) {
-      return res.status(StatusCodes.BAD_REQUEST).json({
+      return res.status(Sta0tusCodes.BAD_REQUEST).json({
         message:
           "Incomplete data provided. Both 'ip' and 'description' are required.",
       });
@@ -1478,11 +1474,12 @@ const changeIp = async (req, res) => {
 
     const user = await User.findById(userId, { ip: 1 }).lean();
 
-    if (questId) {
-      await Quest.findByIdAndUpdate(questId, {
-        $push: { completedBy: mongoose.Types.ObjectId(userId) },
-      });
-    }
+    // TODO: Add quest completion logic in quest service
+    // if (questId) {
+    //   await Quest.findByIdAndUpdate(questId, {
+    //     $push: { completedBy: mongoose.Types.ObjectId(userId) },
+    //   });
+    // }
 
     return res
       .status(StatusCodes.OK)
@@ -2611,7 +2608,386 @@ const checkBookmarks = async (req, res) => {
   }
 };
 
+const saveUserAsset = async (req, res) => {
+  try {
+    const asset = req.body.asset || req.body;
+    const userId = req.user.id;
+
+    if (!asset || !asset.assetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $push: { vicinityAsset: asset } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset saved successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error saving user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while saving the asset." });
+  }
+};
+
+const editUserAsset = async (req, res) => {
+  try {
+    const { assetId, updates, assets } = req.body;
+    const userId = req.user.id;
+
+    if (assets && Array.isArray(assets)) {
+      if (assets.length === 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Assets array cannot be empty." });
+      }
+
+      // Build $set query and arrayFilters for multiple updates
+      const setQuery = {};
+      const arrayFilters = [];
+
+      assets.forEach((item, index) => {
+        const identifier = `elem${index}`;
+        if (item.assetId && item.updates) {
+          for (const key in item.updates) {
+            setQuery[`vicinityAsset.$[${identifier}].${key}`] =
+              item.updates[key];
+          }
+          arrayFilters.push({ [`${identifier}.assetId`]: item.assetId });
+        }
+      });
+
+      if (Object.keys(setQuery).length === 0) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "No valid updates provided in assets array." });
+      }
+
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: userId },
+        { $set: setQuery },
+        { arrayFilters, new: true },
+      );
+
+      if (!updatedUser) {
+        return res
+          .status(StatusCodes.NOT_FOUND)
+          .json({ error: "User not found." });
+      }
+
+      return res.status(StatusCodes.OK).json({
+        message: "Assets updated successfully.",
+        vicinityAsset: updatedUser.vicinityAsset,
+      });
+    }
+
+    // Single update logic (legacy/fallback)
+    if (!assetId || !updates) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    // Build $set query for the specific fields matching in the updates object
+    const setQuery = {};
+    for (const key in updates) {
+      setQuery[`vicinityAsset.$.${key}`] = updates[key];
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId, "vicinityAsset.assetId": assetId },
+      { $set: setQuery },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset or User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset updated successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error editing user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while editing the asset." });
+  }
+};
+
+const deleteUserAsset = async (req, res) => {
+  try {
+    const { assetId } = req.body;
+    const userId = req.user.id;
+
+    if (!assetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing required fields." });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $pull: { vicinityAsset: { assetId: assetId } } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      message: "Asset deleted successfully.",
+      vicinityAsset: updatedUser.vicinityAsset,
+    });
+  } catch (error) {
+    console.error("Error deleting user asset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while deleting the asset." });
+  }
+};
+
+const getUserAssets = async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing userId query parameter." });
+    }
+
+    const user = await User.findById(userId, { vicinityAsset: 1 }).lean();
+
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    const vicinityAssets = user.vicinityAsset || [];
+
+    if (vicinityAssets.length === 0) {
+      return res.status(StatusCodes.OK).json({ vicinityAsset: [] });
+    }
+
+    const assetIds = vicinityAssets.map((asset) => asset.assetId);
+
+    // Fetch full asset data from the map service
+    const fetchedAssets = await fetchMultipleAssets({ ids: assetIds });
+
+    // Merge user schema properties (x, z, dx, dy, payload) with full asset definition
+    const populatedAssets = vicinityAssets
+      .map((vcAsset) => {
+        const fullAsset = fetchedAssets.find(
+          (fa) => String(fa._id) === String(vcAsset.assetId),
+        );
+        if (fullAsset) {
+          const { payload, ...rest } = vcAsset;
+          const filteredPayload = payload?.customLabel
+            ? { customLabel: payload.customLabel }
+            : undefined;
+
+          return {
+            ...fullAsset, // the actual asset properties (name, url, etc)
+            ...rest, // the user vicinity specific positioning (excluding payload)
+            ...(filteredPayload && { payload: filteredPayload }),
+          };
+        }
+        return null; // Handle if asset got deleted entirely from the map db
+      })
+      .filter(Boolean);
+
+    return res.status(StatusCodes.OK).json({
+      vicinityAsset: populatedAssets,
+    });
+  } catch (error) {
+    console.error("Error fetching user assets:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while fetching the assets." });
+  }
+};
+
+const getUserAssetById = async (req, res) => {
+  try {
+    const { userId, vicinityAssetId } = req.query;
+
+    if (!userId || !vicinityAssetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Missing userId or vicinityAssetId query parameter." });
+    }
+
+    const user = await User.findById(userId, { vicinityAsset: 1 }).lean();
+
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    const vcAsset = (user.vicinityAsset || []).find(
+      (asset) => String(asset._id) === String(vicinityAssetId),
+    );
+
+    if (!vcAsset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset not found in user's vicinity." });
+    }
+
+    // Fetch full asset data from the map service
+    const fetchedAssets = await fetchMultipleAssets({ ids: [vcAsset.assetId] });
+    const fullAsset = fetchedAssets.find(
+      (fa) => String(fa._id) === String(vcAsset.assetId),
+    );
+
+    if (!fullAsset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "Asset not found in map service." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      ...fullAsset,
+      ...vcAsset,
+    });
+  } catch (error) {
+    console.error("Error fetching user asset by id:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while fetching the asset." });
+  }
+};
+
+const searchUsersByFacet = async (req, res) => {
+  try {
+    const { query } = req.query;
+    if (!query) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Query string is required" });
+    }
+
+    const facetResponse = await fetchSearchedProfileFacets(query);
+
+    if (
+      !facetResponse ||
+      !facetResponse.success ||
+      !facetResponse.data ||
+      !facetResponse.data.length
+    ) {
+      return res.status(StatusCodes.OK).json([]);
+    }
+
+    const parentIds = facetResponse.data.map((item) => item._id);
+
+    const users = await User.find(
+      { _id: { $in: parentIds } },
+      {
+        name: 1,
+        image: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        interests: 1,
+        deactivated: 1,
+        email: 1,
+        profession: 1,
+        field: 1,
+      },
+    ).lean();
+
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const sortedUsers = parentIds
+      .map((id) => userMap.get(String(id)))
+      .filter(Boolean);
+
+    const results = sortedUsers.map((user) => {
+      const facetData = facetResponse.data.find(
+        (f) => String(f._id) === String(user._id),
+      );
+      return {
+        ...user,
+        matchedFacets: facetData ? facetData.facets : [],
+      };
+    });
+
+    return res.status(StatusCodes.OK).json(results);
+  } catch (error) {
+    console.error("searchUsersByFacet error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
+  }
+};
+
+const getAlumniByCompany = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ message: "Unauthorized" });
+    }
+    const alumniStats = await User.aggregate([
+      {
+        $match: {
+          profession: "Alumni",
+        },
+      },
+      {
+        $group: {
+          _id: "$company",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          company: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ]);
+
+    return res.status(StatusCodes.OK).json(alumniStats);
+  } catch (error) {
+    console.error("Error fetching alumni by company:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
+  }
+};
+
 module.exports = {
+  getUserAssets,
+  getUserAssetById,
+  saveUserAsset,
+  editUserAsset,
+  deleteUserAsset,
   getUser,
   updateUser,
   deleteUser,
@@ -2671,4 +3047,6 @@ module.exports = {
   checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
+  searchUsersByFacet,
+  getAlumniByCompany,
 };

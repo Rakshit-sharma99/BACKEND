@@ -3,12 +3,21 @@ const mongoose = require("mongoose");
 const semanticNodeSchema = new mongoose.Schema(
   {
     entityId: mongoose.Types.ObjectId,
+    parentEntityId: mongoose.Types.ObjectId, // For multi-facet nodes (e.g. profile -> facets)
+
+    uid: {
+      type: String,
+      index: true,
+      required: true,
+    },
 
     entityType: {
       type: String,
-      enum: ["club", "community", "profile", "event"],
-      index: true, // small but useful filter
+      enum: ["club", "community", "profile", "event", "profile_facet", "alumni_facet"],
+      index: true,
     },
+
+    facetId: String, // e.g. "coding", "fitness"
 
     text: String, // canonical text used for embedding
 
@@ -56,7 +65,7 @@ const semanticNodeSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("SemanticNode", semanticNodeSchema);

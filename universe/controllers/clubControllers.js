@@ -1,12 +1,8 @@
 const { StatusCodes } = require("http-status-codes");
 const Club = require("../models/club");
-const Event = require("../models/event");
 const User = require("../models/user");
 const Admin = require("../models/admin");
 const Community = require("../models/community");
-const MacbeaseContent = require("../models/macbeaseContent");
-const Invitation = require("../models/invitation");
-const Itinerary = require("../models/itinerary");
 const Award = require("../models/award");
 const schedule = require("node-schedule");
 const {
@@ -16,7 +12,6 @@ const {
   updateDynamicIsland,
   scheduleNotification2,
   generateUri,
-  fetchMacbeaseContentFromIds,
   fetchInvitationById,
   fetchItineraryFromIds,
 } = require("../controllers/utils");
@@ -26,6 +21,7 @@ const {
   fetchContent,
   fetchMultipleContents,
   searchContentsFromIds,
+  fetchEventData,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -291,6 +287,19 @@ const joinAsMember = async (req, res) => {
         club.yAxisData.push(new Date());
         club.save((err, update) => {
           if (err) return console.error(err);
+
+          // Publish user.activity event for SERE
+          try {
+            sendKafkaMessage("USER_ACTIVITY", "user", {
+              userId: req.user.id,
+              uid: req.user.uid,
+              activityType: "club_join",
+              ref: clubId,
+            });
+          } catch (kafkaErr) {
+            console.error("user.activity publish failed:", kafkaErr.message);
+          }
+
           return res
             .status(StatusCodes.OK)
             .send("You have successfully joined as the member of the club.");
@@ -867,7 +876,10 @@ const removeEvent = async (req, res) => {
     club.upcomingEvent = await Promise.all(
       club.upcomingEvent.map(async (eventPoint) => {
         if (eventPoint.id === eventId && eventPoint.eventId) {
-          const concernedEvent = await Event.findById(eventPoint.eventId);
+          const concernedEvent = await fetchEventData({
+            id: eventPoint.eventId,
+            fields: ["status"],
+          });
           if (
             concernedEvent &&
             (concernedEvent.status === "featured" ||
@@ -876,7 +888,8 @@ const removeEvent = async (req, res) => {
             cantDelete = true;
             return eventPoint; // Keep the event
           }
-          await Event.findByIdAndDelete(eventPoint.eventId);
+          // TODO: Delete event from event service
+          // await Event.findByIdAndDelete(eventPoint.eventId);
           return null; // Remove event
         }
         return eventPoint;
@@ -1865,6 +1878,11 @@ const getFastNativeFeed = async (req, res) => {
       ids: contents,
       userId: req.user ? req.user.id : undefined,
     });
+
+    if (!actualContent) {
+      actualContent = [];
+    }
+
     actualContent = actualContent.reverse();
 
     // Map to maintain order and insert `commentsNum`
@@ -2033,46 +2051,6 @@ const getAllClub = async (req, res) => {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .send("An error occurred while fetching the club data.");
-  }
-};
-
-//Controller 43
-const getAllLikedPins = async (req, res) => {
-  const { key, mode, batch, batchSize, id } = req.query;
-  const skip = (batch - 1) * batchSize;
-  const limit = parseInt(batchSize);
-  try {
-    let likedContents = await User.findById(id || req.user.id, {
-      likedContents: 1,
-      taggedContents: 1,
-      _id: 0,
-    });
-    if (!likedContents)
-      return res.status(StatusCodes.OK).json({ likedSocialPins: [] });
-    likedContents =
-      mode === "liked"
-        ? likedContents.likedContents.reverse()
-        : likedContents.taggedContents.reverse();
-    const selectedBatch = likedContents.slice(skip, skip + limit);
-    const macbeaseIds = selectedBatch
-      .filter((item) => item.type === "macbease" && key === "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const contentIds = selectedBatch
-      .filter((item) => item.type !== "macbease" || key !== "all")
-      .map((item) => mongoose.Types.ObjectId(item.contentId));
-    const [macbeaseData, contentData] = await Promise.all([
-      fetchMacbeaseContentFromIds({ ids: macbeaseIds }),
-      fetchMultipleContents({ ids: contentIds }),
-    ]);
-    const data = [...macbeaseData, ...contentData].sort(
-      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
-    );
-    return res.status(StatusCodes.OK).json({ likedSocialPins: data });
-  } catch (error) {
-    console.error(error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Error fetching liked pins.");
   }
 };
 
@@ -2583,9 +2561,9 @@ const fetchProposals = async (req, res) => {
       const proposalIds = proposals.map((item) => item.id);
       const proposalsDoc = await fetchInvitationById({
         id: proposalIds,
-        select: ["endoredBy", "expiration"],
+        select: ["endorsedBy", "expiration"],
       });
-      const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+      const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
         return acc;
       }, {});
@@ -2791,7 +2769,7 @@ const searchClubMembers = async (req, res) => {
         _id: { $in: club.members },
         name: regex,
       },
-      { name: 1, image: 1, pushToken: 1 },
+      { name: 1, image: 1, pushToken: 1, uid: 1, universeMetaData: 1 },
     );
 
     const teamIds = club.team.map((e) => e.id);
@@ -2966,7 +2944,7 @@ const searchClubProposals = async (req, res) => {
       id: proposalIds,
       select: ["endorsedBy", "expiration"],
     });
-    const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+    const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
       acc[doc._id.toString()] = doc;
       return acc;
     }, {});
@@ -3106,7 +3084,7 @@ const getProposalsFromIds = async (req, res) => {
 
     // Convert to map for quick lookup
     const dataMap = new Map(
-      invitations.map((doc) => [doc._id.toString(), doc]),
+      (invitations || []).map((doc) => [doc._id.toString(), doc]),
     );
 
     // Merge data while filtering out undefined results
@@ -3159,7 +3137,11 @@ const checkClubExists = async (req, res) => {
 
 const searchClubs = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, uid } = req.query;
+
+    // Determine the user ID to use for membership checks
+    const currentUserId = req.user ? req.user.id : uid;
+
     const clubs = await Club.aggregate([
       {
         $match: {
@@ -3179,9 +3161,15 @@ const searchClubs = async (req, res) => {
           membersCount: { $size: "$members" },
           top5Members: { $slice: ["$members", 5] },
           founderId: { $toObjectId: "$mainAdmin" },
-          isCore: { $in: [req.user.id, "$team.id"] },
-          isAdmin: { $in: [req.user.id, "$adminId"] },
-          isMember: { $in: [req.user.id, "$members"] },
+          isCore: currentUserId
+            ? { $in: [currentUserId, "$team.id"] }
+            : { $literal: false },
+          isAdmin: currentUserId
+            ? { $in: [currentUserId, "$adminId"] }
+            : { $literal: false },
+          isMember: currentUserId
+            ? { $in: [currentUserId, "$members"] }
+            : { $literal: false },
         },
       },
       {
@@ -4189,7 +4177,6 @@ module.exports = {
   getCreatorId,
   getStatus,
   getFastNativeFeed,
-  getAllLikedPins,
   getSimilarGroups,
   getEveryoneOfClub,
   getPushTokenChunk,

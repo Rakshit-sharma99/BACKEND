@@ -14,7 +14,7 @@ const createQuest = async (req, res) => {
       visibleTo,
       mode,
       payload,
-      universeMetaData
+      universeMetaData,
     } = req.body;
 
     // Validate required fields
@@ -36,7 +36,7 @@ const createQuest = async (req, res) => {
       mode,
       payload: payload || {},
       uid: req.user.uid,
-      universeMetaData
+      universeMetaData,
     });
 
     // Save to database
@@ -56,10 +56,7 @@ const createQuest = async (req, res) => {
 };
 
 const getValidQuestsForUser = async (userId, options = {}) => {
-  const {
-    fallbackToCompleted = true,
-    fallbackLimit = 3,
-  } = options;
+  const { fallbackToCompleted = true, fallbackLimit = 3 } = options;
 
   let validQuests = await Quest.find({
     $and: [
@@ -102,7 +99,9 @@ const findValidQuests = async (req, res) => {
     const userId = new mongoose.Types.ObjectId(req.user.id); // Ensure correct ObjectId format
 
     // Find quests that meet the conditions
-    const validQuests = await getValidQuestsForUser(userId, { fallbackToCompleted: false });
+    const validQuests = await getValidQuestsForUser(userId, {
+      fallbackToCompleted: false,
+    });
 
     return res.status(StatusCodes.OK).json({
       message: "Valid quests retrieved successfully.",
@@ -125,14 +124,18 @@ const fetchQuests = async (req, res) => {
       return res.status(400).json({ error: "Invalid user ID." });
     }
 
-    const quests = await getValidQuestsForUser(new mongoose.Types.ObjectId(userId));
+    const quests = await getValidQuestsForUser(
+      new mongoose.Types.ObjectId(userId),
+    );
 
     return res.status(200).json({ data: quests });
   } catch (error) {
     console.error("❌ Error in fetchQuests:", error);
-    return res.status(500).json({ error: "Something went wrong while fetching quests." });
+    return res
+      .status(500)
+      .json({ error: "Something went wrong while fetching quests." });
   }
-}
+};
 
 const insertNewFields = async (req, res) => {
   try {
@@ -151,11 +154,11 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
-      }
+      },
     }));
 
     const result = await Quest.bulkWrite(bulkOps);
@@ -163,17 +166,19 @@ const insertNewFields = async (req, res) => {
 
     res.status(StatusCodes.OK).json({
       message: "Quests updated successfully.",
-      modifiedCount: result.modifiedCount
+      modifiedCount: result.modifiedCount,
     });
   } catch (err) {
     console.log("Error updating quests:", err);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ error: "Internal server error" });
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Internal server error" });
   }
-}
+};
 
 module.exports = {
   createQuest,
   findValidQuests,
   fetchQuests,
-  insertNewFields
+  insertNewFields,
 };

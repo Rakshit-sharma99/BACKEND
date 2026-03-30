@@ -137,11 +137,38 @@ const UPDATE_USER_PINNED_MEMORY = {
     }),
   },
 };
+/**
+ * @typedef {Object} USER_ACTIVITY_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} activityType
+ * @property {string} [ref]
+ */
+
+const USER_ACTIVITY = {
+  USER_ACTIVITY: {
+    topicSuffix: ".activity",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.activityType !== "string") {
+        throw new Error("'activityType' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
 
 module.exports = {
   ...UPDATE_USER_MEMORY_LIST,
   ...UPDATE_CLUB_MEMORY_LIST,
   ...UPDATE_MEMORY_LIST,
   ...UPDATE_USER_MEMORY_NOTICE,
-  ...UPDATE_USER_PINNED_MEMORY
+  ...UPDATE_USER_PINNED_MEMORY,
+  ...USER_ACTIVITY,
 };

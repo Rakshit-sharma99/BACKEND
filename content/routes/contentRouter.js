@@ -14,7 +14,6 @@ const {
   getRandomContent,
   editContent,
   searchContentByTag,
-  loadMoreContent,
   replyToComment,
   searchContent,
   searchByCommunity,
@@ -29,6 +28,7 @@ const {
   uploadMiddleware,
   insertNewFields,
   getUserCommunityPosts,
+  searchContentQA,
 } = require("../controllers/contentController");
 const {
   bulkUpdateContentParams,
@@ -46,12 +46,10 @@ router.get("/unLikeAComment", unLikeAComment);
 router.get("/getRandomContent", getRandomContent);
 router.patch("/editContent", editContent);
 router.get("/searchContentByTag", searchContentByTag);
-router.get("/loadMoreContent", loadMoreContent);
 router.post("/replyToComment", replyToComment);
 router.get("/searchContent", searchContent);
 router.post("/searchByCommunity", searchByCommunity);
 router.post("/generateHashTags", generateHashTags);
-router.post("/getEngagementData", getEngagementData);
 router.get("/searchContentByText", searchContentByText);
 router.get("/getContentForLanding", getContentForLanding);
 router.post("/getMultipleContents", getMultipleContents);
@@ -61,4 +59,5 @@ router.post("/uploadToS3", uploadMiddleware, uploadToS3);
 router.post("/insertNewFields", insertNewFields);
 router.post("/bulkUpdateContentParams", bulkUpdateContentParams);
 router.get("/getUserCommunityPosts", getUserCommunityPosts);
+router.post("/searchContentQA", searchContentQA);
 module.exports = router;

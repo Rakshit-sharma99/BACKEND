@@ -247,7 +247,14 @@ const likedContentsSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["usercommunity", "club", "Macbease", "community", "macbease", "Club"],
+      enum: [
+        "usercommunity",
+        "club",
+        "Macbease",
+        "community",
+        "macbease",
+        "Club",
+      ],
       required: true,
     },
   },
@@ -313,6 +320,21 @@ const communityContributionSchema = new mongoose.Schema(
   },
   { _id: false },
 );
+
+const assetItemSchema = new mongoose.Schema({
+  assetId: {
+    type: String,
+    required: true,
+  },
+  x: { type: Number, default: 0 },
+  z: { type: Number, default: 0 },
+  dx: { type: Number, default: 0 },
+  dy: { type: Number, default: 0 },
+  payload: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {},
+  },
+});
 
 const userSchema = new mongoose.Schema(
   {
@@ -457,13 +479,6 @@ const userSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.Mixed,
         default: {},
-      },
-    ],
-
-    macbeaseContentContribution: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "MacbeaseContent",
       },
     ],
 
@@ -626,6 +641,8 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Universe",
     },
+
+    vicinityAsset: [assetItemSchema],
 
     universeMetaData: universeSchema,
   },

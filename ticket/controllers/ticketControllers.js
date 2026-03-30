@@ -75,19 +75,19 @@ const processRefund = async ({
 
     if (existingTicket) {
       console.log(
-        `Payment ID ${razorpay_payment_id} is already used for a ticket. No refund needed.`
+        `Payment ID ${razorpay_payment_id} is already used for a ticket. No refund needed.`,
       );
       return;
     }
 
     // Step 2: Verify payment status from Razorpay API
     const authHeader = `Basic ${Buffer.from(
-      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
     ).toString("base64")}`;
 
     const paymentResponse = await axios.get(
       `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
-      { headers: { Authorization: authHeader } }
+      { headers: { Authorization: authHeader } },
     );
 
     const payment = paymentResponse.data;
@@ -97,7 +97,7 @@ const processRefund = async ({
       const refundResponse = await axios.post(
         `https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`,
         { amount: 100 }, // Refund full amount
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader } },
       );
 
       // Step 4: Log the refund
@@ -112,7 +112,7 @@ const processRefund = async ({
       console.log(`Refund initiated successfully.`);
     } else {
       console.log(
-        `Payment ID ${razorpay_payment_id} is not captured. Refund not possible.`
+        `Payment ID ${razorpay_payment_id} is not captured. Refund not possible.`,
       );
     }
   } catch (error) {
@@ -177,12 +177,12 @@ const generateTicket = async (req, res) => {
 
       // Razorpay API verification
       const authHeader = `Basic ${Buffer.from(
-        `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+        `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
       ).toString("base64")}`;
 
       const { data: payment } = await axios.get(
         `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader } },
       );
 
       if (payment.status !== "captured") {
@@ -212,7 +212,7 @@ const generateTicket = async (req, res) => {
           couponId,
         },
       ],
-      { session }
+      { session },
     );
 
     // Fetch event & user data
@@ -258,6 +258,18 @@ const generateTicket = async (req, res) => {
       userField: user.field,
     });
 
+    // Publish user.activity event for SERE onboarding tracking
+    try {
+      await sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId: req.user.id,
+        uid: req.user.uid,
+        activityType: "event_attend",
+        ref: eventId,
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
+    }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -280,7 +292,7 @@ const generateTicket = async (req, res) => {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .send(
-        "Something went wrong. If money was deducted, a refund will be processed."
+        "Something went wrong. If money was deducted, a refund will be processed.",
       );
   }
 };
@@ -300,11 +312,13 @@ const markAllItineraries = async ({ ticketId, eventId, userId }) => {
 
     const { itineraries } = await fetchEventData(event_query);
 
-    const itinerariesData = await fetchItineraries({ itineraryIds: itineraries });
+    const itinerariesData = await fetchItineraries({
+      itineraryIds: itineraries,
+    });
 
     // filter itineraries where this ticket type is allowed
     const allowedItineraries = itinerariesData.filter((i) =>
-      i.allowed.includes(ticketData.type)
+      i.allowed.includes(ticketData.type),
     );
 
     const allowedItinerariesIds = allowedItineraries.map((a) => a._id);
@@ -319,8 +333,8 @@ const markAllItineraries = async ({ ticketId, eventId, userId }) => {
       targetType: "MULTIPLE",
       field: "attendanceList",
       value: userId,
-      itineraryIds: allowedItinerariesIds
-    })
+      itineraryIds: allowedItinerariesIds,
+    });
 
     return { success: true };
   } catch (error) {
@@ -430,7 +444,7 @@ const scanTicket = async (req, res) => {
         const userInfo = await fetchUserData({
           id: ticket.boughtBy,
           fields: ["name", "reg", "image", "pushToken"],
-        })
+        });
         if (
           ticket.status === "active" &&
           ticket.eventId.toString() === eventId
@@ -449,7 +463,7 @@ const scanTicket = async (req, res) => {
             scheduleNotification(
               [userInfo.pushToken],
               `Welcome to ${eventData.name}`,
-              `Enjoy the event and Carpe Diem!`
+              `Enjoy the event and Carpe Diem!`,
             );
           });
           io.emit(`ticketScan_${ticketId}`, {
@@ -493,11 +507,13 @@ const findAllAllowedItineraries = async ({ ticketId, eventId }) => {
 
     const { itineraries } = await fetchEventData(event_query);
 
-    const itinerariesData = await fetchItineraries({ itineraryIds: itineraries });
+    const itinerariesData = await fetchItineraries({
+      itineraryIds: itineraries,
+    });
 
     // filter itineraries where this ticket type is allowed
     const allowedItineraries = itinerariesData.filter((i) =>
-      i.allowed.includes(ticketData.type)
+      i.allowed.includes(ticketData.type),
     );
 
     return allowedItineraries.length;
@@ -514,19 +530,14 @@ const checkPointScan = async (req, res) => {
     const isAuthorized = await checkAuthorization(
       ticketId,
       req.user.role,
-      req.user.id
+      req.user.id,
     );
 
     if (!isAuthorized) {
       return res.status(StatusCodes.FORBIDDEN).send("You are not authorized.");
     }
 
-    const [
-      eventData,
-      itineraryData,
-      ticketData,
-      userData
-    ] = await Promise.all([
+    const [eventData, itineraryData, ticketData, userData] = await Promise.all([
       fetchEventData({ id: eventId, fields: ["name", "itineraries"] }),
       fetchItinerary({ id: itineraryId, fields: ["allowed", "title"] }),
       Ticket.findById(ticketId, {
@@ -537,7 +548,7 @@ const checkPointScan = async (req, res) => {
       fetchUserData({
         id: ticketData.boughtBy,
         fields: ["name", "reg", "image", "pushToken"],
-      })
+      }),
     ]);
 
     if (!eventData || !itineraryData || !ticketData) {
@@ -546,7 +557,7 @@ const checkPointScan = async (req, res) => {
 
     // Check if event includes the itinerary
     const validItinerary = eventData.itineraries.some((id) =>
-      id.equals(itineraryId)
+      id.equals(itineraryId),
     );
     if (!validItinerary) {
       return res
@@ -564,7 +575,7 @@ const checkPointScan = async (req, res) => {
 
     // Check if the ticket is already scanned for that check point
     const validCheckPoint = !(ticketData.checkPoints ?? []).some((id) =>
-      id.equals(itineraryId)
+      id.equals(itineraryId),
     );
 
     if (!validCheckPoint) {
@@ -579,7 +590,7 @@ const checkPointScan = async (req, res) => {
     // Atomically update ticket (prevent race condition & duplicates)
     const ticketUpdate = await Ticket.updateOne(
       { _id: ticketId },
-      { $addToSet: { checkPoints: itineraryId } }
+      { $addToSet: { checkPoints: itineraryId } },
     );
 
     const maxItineraiesAllowed = await findAllAllowedItineraries({
@@ -601,14 +612,13 @@ const checkPointScan = async (req, res) => {
         .send("Ticket already scanned for this purpose.");
     }
 
-    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION", "itinerary",
-      {
-        operation: "PUSH",
-        targetType: "SINGLE",
-        field: "attendanceList",
-        value: ticketData.boughtBy,
-        itineraryId
-      })
+    await sendKafkaMessage("ITINERARY_UPDATE_OPERATION", "itinerary", {
+      operation: "PUSH",
+      targetType: "SINGLE",
+      field: "attendanceList",
+      value: ticketData.boughtBy,
+      itineraryId,
+    });
 
     io.emit(`ticketScan_${ticketId}`, {
       itinerary: itineraryData.title,
@@ -686,7 +696,7 @@ const likeReview = async (req, res) => {
     const isAuthorized = await checkAuthorization(
       ticketId,
       req.user.role,
-      req.user.id
+      req.user.id,
     );
 
     if (!isAuthorized) {
@@ -731,7 +741,7 @@ const unLikeReview = async (req, res) => {
     const isAuthorized = await checkAuthorization(
       ticketId,
       req.user.role,
-      req.user.id
+      req.user.id,
     );
 
     if (!isAuthorized) {
@@ -774,14 +784,14 @@ const verifyUPIPayment = async (req, res) => {
     const razorpayKeyId = process.env.RAZOR_PAY_KEY;
     const razorpayKeySecret = process.env.RAZOR_PAY_SECRET;
     const authHeader = `Basic ${Buffer.from(
-      `${razorpayKeyId}:${razorpayKeySecret}`
+      `${razorpayKeyId}:${razorpayKeySecret}`,
     ).toString("base64")}`;
 
     const response = await axios.get(
       `https://api.razorpay.com/v1/payments/${paymentId}`,
       {
         headers: { Authorization: authHeader },
-      }
+      },
     );
 
     return res.status(200).json({
@@ -791,7 +801,7 @@ const verifyUPIPayment = async (req, res) => {
   } catch (error) {
     console.error(
       "Error fetching Razorpay payment:",
-      error.response?.data || error.message
+      error.response?.data || error.message,
     );
     return res.status(500).json({
       success: false,
@@ -814,7 +824,7 @@ const getTicketsByIds = async (req, res) => {
 
     //Validate ObjectId format
     const validIds = ticketIds.filter((id) =>
-      mongoose.Types.ObjectId.isValid(id)
+      mongoose.Types.ObjectId.isValid(id),
     );
 
     if (validIds.length === 0) {
@@ -978,7 +988,7 @@ const getReviewedTickets = async (req, res) => {
         reviewUrls: 1,
         boughtBy: 1,
         reviewLiked: 1,
-      }
+      },
     )
       .skip(skipInt)
       .limit(limitInt)
@@ -1004,7 +1014,7 @@ const getRedeemedTickets = async (req, res) => {
 
     const tickets = await Ticket.find(
       { eventId, status: "redeemed" },
-      { type: 1, boughtBy: 1 }
+      { type: 1, boughtBy: 1 },
     ).lean();
 
     return res.status(StatusCodes.OK).json({ tickets });
@@ -1054,7 +1064,11 @@ const getTicketFieldsByQuery = async (req, res) => {
   try {
     const { searchBy, fields, single = false } = req.body;
 
-    if (!searchBy || typeof searchBy !== "object" || !Object.keys(searchBy).length) {
+    if (
+      !searchBy ||
+      typeof searchBy !== "object" ||
+      !Object.keys(searchBy).length
+    ) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         error: "searchBy must be a non-empty object",
       });
@@ -1102,7 +1116,7 @@ const getTicketFieldsByQuery = async (req, res) => {
 
 async function fetchPayments(paymentIds) {
   const authHeader = `Basic ${Buffer.from(
-    `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+    `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
   ).toString("base64")}`;
 
   const results = [];
@@ -1111,7 +1125,7 @@ async function fetchPayments(paymentIds) {
     try {
       const response = await axios.get(
         `https://api.razorpay.com/v1/payments/${paymentId}`,
-        { headers: { Authorization: authHeader } }
+        { headers: { Authorization: authHeader } },
       );
       results.push({ id: paymentId, status: "success", data: response.data });
     } catch (err) {
@@ -1173,7 +1187,10 @@ const fetchPaymentDetails = async (req, res) => {
     const ticket = await Ticket.findOne({ paymentId });
 
     // Fetch event data
-    const eventData = await fetchEventData({ id: ticket.eventId, fields: ["platformFeeEnabled"] });
+    const eventData = await fetchEventData({
+      id: ticket.eventId,
+      fields: ["platformFeeEnabled"],
+    });
 
     if (!payments || payments.length === 0) {
       return res.status(404).json({ error: "Payment not found" });
@@ -1204,6 +1221,118 @@ const fetchPaymentDetails = async (req, res) => {
   }
 };
 
+/**
+ * GET /searchMyTickets?userId=...&eventName=...&status=...&upcoming=true
+ *
+ * Returns all tickets bought by a user, enriched with event metadata.
+ * Designed for the Starman AI service (internal token auth).
+ *
+ * Optional filters:
+ *   - eventName : fuzzy match on event name
+ *   - status    : exact match (active | redeemed | refunded | expired)
+ *   - upcoming  : "true" → only tickets whose event date is in the future
+ */
+const searchMyTickets = async (req, res) => {
+  try {
+    const { userId, eventName, status, upcoming } = req.query;
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "A valid userId query param is required." });
+    }
+
+    // ── 1. Fetch all tickets for this user ──
+    const filter = { boughtBy: new mongoose.Types.ObjectId(userId) };
+    if (status) filter.status = status;
+
+    const tickets = await Ticket.find(filter, {
+      _id: 1,
+      eventId: 1,
+      amtPaid: 1,
+      status: 1,
+      type: 1,
+      generatedAt: 1,
+    })
+      .sort({ generatedAt: -1 })
+      .lean();
+
+    if (tickets.length === 0) {
+      return res.status(StatusCodes.OK).json({ tickets: [], totalCount: 0 });
+    }
+
+    // ── 2. Batch-fetch event metadata for each unique eventId ──
+    const uniqueEventIds = [
+      ...new Set(tickets.map((t) => t.eventId.toString())),
+    ];
+
+    const eventMap = {};
+    await Promise.all(
+      uniqueEventIds.map(async (eid) => {
+        const eventData = await fetchEventData({
+          id: eid,
+          fields: [
+            "name",
+            "eventDate",
+            "eventEndDate",
+            "place",
+            "url",
+            "status",
+            "belongsTo",
+            "startTime",
+            "endTime",
+          ],
+        });
+        if (eventData) eventMap[eid] = eventData;
+      }),
+    );
+
+    // ── 3. Merge & apply optional filters ──
+    let enriched = tickets.map((t) => {
+      const evt = eventMap[t.eventId.toString()] || {};
+      return {
+        ticketId: t._id,
+        eventId: t.eventId,
+        eventName: evt.name || "Unknown event",
+        eventDate: evt.eventDate || null,
+        eventEndDate: evt.eventEndDate || null,
+        startTime: evt.startTime || null,
+        endTime: evt.endTime || null,
+        eventPlace: evt.place || null,
+        eventUrl: evt.url || null,
+        eventStatus: evt.status || null,
+        belongsTo: evt.belongsTo || null,
+        type: t.type || null,
+        amtPaid: t.amtPaid,
+        ticketStatus: t.status,
+        generatedAt: t.generatedAt,
+      };
+    });
+
+    // Fuzzy match on event name
+    if (eventName) {
+      const regex = new RegExp(eventName, "i");
+      enriched = enriched.filter((t) => regex.test(t.eventName));
+    }
+
+    // Only upcoming events (eventDate >= now)
+    if (upcoming === "true") {
+      const now = new Date();
+      enriched = enriched.filter(
+        (t) => t.eventDate && new Date(t.eventDate) >= now,
+      );
+    }
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ tickets: enriched, totalCount: enriched.length });
+  } catch (error) {
+    console.error("❌ Error in searchMyTickets:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong while searching tickets." });
+  }
+};
 
 module.exports = {
   generateTicket,
@@ -1222,5 +1351,6 @@ module.exports = {
   getTicketFieldsByQuery,
   checkPointScan,
   checkIncompleteTickets,
-  fetchPaymentDetails
+  fetchPaymentDetails,
+  searchMyTickets,
 };

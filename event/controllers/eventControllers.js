@@ -21,7 +21,7 @@ const {
   autoGenEventMemoryHTML,
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
-  fetchTicketFieldsByQuery
+  fetchTicketFieldsByQuery,
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
@@ -99,7 +99,7 @@ const fetchRightSequence = async (events) => {
     const clubs = await fetchMultipleClubsData({
       ids: clubIds,
       fields: ["_id", "rating"],
-    })
+    });
 
     // Create lookup for club ratings
     const clubRatings = {};
@@ -201,7 +201,7 @@ const getAllEvents = async (req, res) => {
           },
         },
         { $project: { bookedBy: 0, isFeatured: 0 } }, // hide helper field
-      ])
+      ]);
 
       let finalEvents = events;
       if (finalEvents.length < batchSize) {
@@ -312,7 +312,7 @@ const changeEventStatus = async (req, res) => {
           eventName: event.name,
           eventPoster: event.url,
           eventManagerMail: event.eventManagerMail,
-        }
+        },
       );
     }
 
@@ -367,8 +367,9 @@ const deleteEvent = async (req, res) => {
 //Controller 6
 const getTicketsBought = async (req, res) => {
   try {
+    const userId = req.query.userId || req.user.id;
     const user_query = {
-      id: req.user.id,
+      id: userId,
       fields: ["ticketsBought"],
       callSign: "universe",
     };
@@ -380,6 +381,10 @@ const getTicketsBought = async (req, res) => {
 
     const tickets = await fetchTicketsByIds({ ticketIds: user.ticketsBought });
 
+    if (!Array.isArray(tickets) || tickets.length === 0) {
+      return res.status(StatusCodes.OK).json({ arr: [], length: 0 });
+    }
+
     const eventIds = tickets.map((ticket) => ticket.eventId);
     const events = await Event.find(
       { _id: { $in: eventIds } },
@@ -389,8 +394,7 @@ const getTicketsBought = async (req, res) => {
         ticketSellingDays: 0,
         courseAnalytics: 0,
         faq: 0,
-        description: 0,
-      }
+      },
     ).lean();
 
     const eventMap = {};
@@ -446,14 +450,14 @@ const getEventAnalytics = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
 
-    const canSeeStats = Array.isArray(event.permissions?.whoCanSeeStats) ?
-      event.permissions.whoCanSeeStats.includes(req.user.id) :
-      false;
+    const canSeeStats = Array.isArray(event.permissions?.whoCanSeeStats)
+      ? event.permissions.whoCanSeeStats.includes(req.user.id)
+      : false;
 
     if (!canSeeStats && req.user.role !== "admin") {
       return res.status(StatusCodes.FORBIDDEN).json({
         msg: "You do not have access",
-      })
+      });
     }
 
     // Revenue graph data
@@ -468,7 +472,7 @@ const getEventAnalytics = async (req, res) => {
     // Course analytics (Top 3)
     const courseAnalytics = event.courseAnalytics || [];
     const sortedCourses = [...courseAnalytics].sort(
-      (a, b) => b.count - a.count
+      (a, b) => b.count - a.count,
     );
     const courseAnalyticsData = sortedCourses
       .slice(0, 3)
@@ -528,12 +532,12 @@ const getCustomAnalytics = async (req, res) => {
     }));
 
     const ticketPromises = bookedBy.map((ticketId) =>
-      fetchTicketFieldsById({ ticketId, fields: [] })
+      fetchTicketFieldsById({ ticketId, fields: [] }),
     );
     const tickets = await Promise.all(ticketPromises);
 
     const userPromises = tickets.map((ticket) =>
-      fetchUserData({ id: ticket.boughtBy, fields: ["level", "passoutYear"] })
+      fetchUserData({ id: ticket.boughtBy, fields: ["level", "passoutYear"] }),
     );
     const users = await Promise.all(userPromises);
 
@@ -557,7 +561,7 @@ const getCustomAnalytics = async (req, res) => {
           yearArr[index].value++;
         } else {
           console.warn(
-            `User ${user._id} has invalid passoutYear ${passoutYear}`
+            `User ${user._id} has invalid passoutYear ${passoutYear}`,
           );
         }
       }
@@ -590,7 +594,7 @@ const addPredefinedQues = async (req, res) => {
       req.user.id,
       req.user.role,
       event.belongsTo,
-      "universe"
+      "universe",
     );
 
     if (!ques || !ans || !authorized) {
@@ -615,7 +619,7 @@ const addPredefinedQues = async (req, res) => {
       event.faq = event.faq.map((f) =>
         f.id?.toString() === faqId
           ? { ...f.toObject(), setAsPredefined: true }
-          : f
+          : f,
       );
     }
 
@@ -645,7 +649,7 @@ const removePredefinedQues = async (req, res) => {
       req.user.id,
       req.user.role,
       event?.belongsTo,
-      "universe"
+      "universe",
     );
 
     if (!authorized) {
@@ -751,16 +755,16 @@ const askQuestion = async (req, res) => {
             intro,
             outro,
             subject,
-            destination
+            destination,
           );
           await ses.sendEmail(params).promise();
         } catch (emailError) {
           console.error(
             "Failed to send FAQ notification email:",
-            emailError.message
+            emailError.message,
           );
         }
-      }
+      },
     );
 
     return res.status(StatusCodes.OK).json({ dataPoint });
@@ -788,9 +792,9 @@ const answerTheQuestion = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
 
-    const authorized = Array.isArray(event.permissions?.whoCanAnswerFAQ) ?
-      event.permissions.whoCanAnswerFAQ.includes(req.user.id) :
-      false;
+    const authorized = Array.isArray(event.permissions?.whoCanAnswerFAQ)
+      ? event.permissions.whoCanAnswerFAQ.includes(req.user.id)
+      : false;
 
     if (!authorized) {
       return res.status(StatusCodes.FORBIDDEN).send("Not authorized.");
@@ -843,7 +847,7 @@ const answerTheQuestion = async (req, res) => {
                 intro,
                 "This email contains confidential info. If you are not the intended recipient, ignore it.",
                 `Your question about ${event.name} has been answered`,
-                [seeker.email]
+                [seeker.email],
               );
 
               await ses.sendEmail(params).promise();
@@ -851,12 +855,12 @@ const answerTheQuestion = async (req, res) => {
               scheduleNotification(
                 [seeker.pushToken],
                 `Your question on ${event.name} was answered`,
-                `Check out the FAQ section for the reply.`
+                `Check out the FAQ section for the reply.`,
               );
             } catch (notifyErr) {
               console.error("Error notifying the seeker:", notifyErr.message);
             }
-          }
+          },
         );
 
         break; // only update one
@@ -883,7 +887,11 @@ const getFaq = async (req, res) => {
   const { eventId } = req.query;
 
   try {
-    const event = await Event.findById(eventId, { faq: 1, belongsTo: 1, permissions: 1 });
+    const event = await Event.findById(eventId, {
+      faq: 1,
+      belongsTo: 1,
+      permissions: 1,
+    });
     if (!event) {
       return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
     }
@@ -962,7 +970,7 @@ const getTickets = async (req, res) => {
         ticketAvailable: true,
         eventDate: { $gte: new Date() },
       },
-      projection
+      projection,
     );
 
     const expiredEvents = await Event.find(
@@ -970,7 +978,7 @@ const getTickets = async (req, res) => {
         status: "past and unclear",
         ticketAvailable: true,
       },
-      projection
+      projection,
     ).limit(2);
 
     const attachItineraries = async (events) => {
@@ -985,7 +993,7 @@ const getTickets = async (req, res) => {
           } catch (e) {
             console.error(
               `Failed to fetch itineraries for event ${event._id}`,
-              e.message
+              e.message,
             );
             event = event.toObject();
             event.itineraryDetails = [];
@@ -1033,7 +1041,7 @@ const generateTicketListPdf = async (req, res) => {
       req.user.id,
       "user",
       event.belongsTo._id || event.belongsTo,
-      "universe"
+      "universe",
     );
 
     if (!hasAccess) {
@@ -1106,7 +1114,9 @@ const generateTicketListPdf = async (req, res) => {
     }
 
     console.log("PDF report generated:", pdfUrl);
-    return res.status(StatusCodes.OK).json({ reportURL: format === "PDF file" ? pdfUrl : excelUrl });
+    return res
+      .status(StatusCodes.OK)
+      .json({ reportURL: format === "PDF file" ? pdfUrl : excelUrl });
   } catch (error) {
     console.error("Error in generating ticket list PDF:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Server error");
@@ -1187,7 +1197,7 @@ const checkTicketAvailability = async (req, res) => {
     });
 
     const enrichedItineraries = itineraryIds.map(
-      (id) => itinerariesMap[id] || null
+      (id) => itinerariesMap[id] || null,
     );
 
     // Initialize ticket type sales
@@ -1208,7 +1218,10 @@ const checkTicketAvailability = async (req, res) => {
       }
     });
 
-    const coupons = await fetchAvailableCoupon({ eventId, userId: req.user.id })
+    const coupons = await fetchAvailableCoupon({
+      eventId,
+      userId: req.user.id,
+    });
 
     return res
       .status(StatusCodes.OK)
@@ -1260,10 +1273,10 @@ const checkLiveAttendance = async (req, res) => {
         .catch((error) => {
           console.error(
             `Error fetching user with ID: ${ticket.boughtBy}`,
-            error
+            error,
           );
           return null;
-        })
+        }),
     );
 
     const users = await Promise.all(userPromises);
@@ -1303,11 +1316,11 @@ const askForReviewSubmission = async (req, res) => {
     const allTickets = await fetchTicketsByIds({ ticketIds: event.bookedBy });
 
     const notReviewedTickets = allTickets.filter(
-      (ticket) => !ticket.reviewMsg || ticket.reviewMsg === null
+      (ticket) => !ticket.reviewMsg || ticket.reviewMsg === null,
     );
 
     const notReviewedUserIds = notReviewedTickets.map(
-      (ticket) => ticket.boughtBy
+      (ticket) => ticket.boughtBy,
     );
 
     const notReviewedUserMetaMap = await getUserMetaMap(notReviewedUserIds, [
@@ -1343,7 +1356,7 @@ const askForReviewSubmission = async (req, res) => {
           userId: notReviewedUser.userId,
           eventName: event.name,
           eventPoster: event.url,
-        }
+        },
       );
 
       // Push Notification
@@ -1368,7 +1381,7 @@ const askForReviewSubmission = async (req, res) => {
         intro,
         outro,
         subject,
-        destination
+        destination,
       );
 
       // ses.sendEmail(params, function (err, data) {
@@ -1460,7 +1473,7 @@ const getEvents = async (req, res) => {
         startTime: 1,
         endTime: 1,
         place: 1,
-      }
+      },
     )
       .sort({ eventDate: -1 })
       .skip(skip)
@@ -1506,7 +1519,7 @@ const checkEventStatus = async (req, res) => {
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
       fields: ["adminId", "mainAdmin"],
-      callSign: event.universeMetaData.callSign,
+      callSign: "universe",
     });
 
     if (!club) {
@@ -1557,16 +1570,16 @@ const checkEventStatus = async (req, res) => {
       hasAdminAccess,
       hasFullAccess: club.mainAdmin === req.user.id,
       canSeeStats: (event.permissions.whoCanSeeStats || []).includes(
-        req.user.id
+        req.user.id,
       ),
       canScanTickets: (event.permissions.whoCanScanTickets || []).includes(
-        req.user.id
+        req.user.id,
       ),
       canEditEvent: (event.permissions.whoCanEditEvent || []).includes(
-        req.user.id
+        req.user.id,
       ),
       canAnswerFAQ: (event.permissions.whoCanAnswerFAQ || []).includes(
-        req.user.id
+        req.user.id,
       ),
       eventData: event,
     });
@@ -1633,7 +1646,7 @@ const editEventDetails = async (req, res) => {
         ...(description !== undefined && { description }),
         ...(ticketTypes !== undefined && { ticketTypes }),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedEvent) {
@@ -1643,7 +1656,7 @@ const editEventDetails = async (req, res) => {
     await sendKafkaMessage(
       "EDIT_EVENT",
       updatedEvent.universeMetaData.callSign,
-      { clubId, eventId, newData: { url, description, ticketTypes } }
+      { clubId, eventId, newData: { url, description, ticketTypes } },
     );
 
     res
@@ -1658,39 +1671,52 @@ const editEventDetails = async (req, res) => {
 //Controller 26
 const searchEvents = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, status, date, clubName, place } = req.query;
 
-    if (!q || typeof q !== "string") {
-      return res
-        .status(400)
-        .send("q parameter is required and must be a string");
+    const query = {};
+
+    if (q && typeof q === "string") {
+      const keywords = q.split(",").map((word) => word.trim());
+      const regexes = keywords.map((kw) => new RegExp(kw, "i"));
+      query.$or = [
+        { name: { $in: regexes } },
+        { description: { $in: regexes } },
+        { place: { $in: regexes } },
+      ];
     }
 
-    // Convert comma-separated string to array
-    const keywords = q.split(",").map((word) => word.trim());
+    if (place && typeof place === "string") {
+      query.place = new RegExp(place, "i");
+    }
 
-    // Build regex patterns
-    const regexes = keywords.map((kw) => new RegExp(kw, "i"));
+    if (status && typeof status === "string") {
+      query.status = status;
+    }
 
-    const events = await Event.find(
-      {
-        $or: [
-          { name: { $in: regexes } },
-          { description: { $in: regexes } },
-          { place: { $in: regexes } },
-        ],
-      },
-      {
-        _id: 1,
-        name: 1,
-        belongsTo: 1,
-        url: 1,
-        eventDate: 1,
-        startTime: 1,
-        endTime: 1,
-        place: 1,
+    if (date && typeof date === "string") {
+      const parsedDate = new Date(date);
+      if (!isNaN(parsedDate.getTime())) {
+        const startOfDay = new Date(parsedDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(parsedDate.setHours(23, 59, 59, 999));
+        query.eventDate = { $gte: startOfDay, $lte: endOfDay };
       }
-    );
+    }
+
+    if (clubName && typeof clubName === "string") {
+      query["belongsTo.name"] = new RegExp(clubName, "i");
+    }
+
+    const events = await Event.find(query, {
+      _id: 1,
+      name: 1,
+      belongsTo: 1,
+      url: 1,
+      eventDate: 1,
+      startTime: 1,
+      endTime: 1,
+      place: 1,
+      status: 1,
+    }).sort({ eventDate: -1 });
 
     return res.status(StatusCodes.OK).json(events);
   } catch (error) {
@@ -1731,7 +1757,9 @@ const mailEventStats = async (req, res) => {
     const intro = "";
     const outro = "";
     const subject = "Event report";
-    const destination = [event.authorizedPerson?.email || event.eventManagerMail];
+    const destination = [
+      event.authorizedPerson?.email || event.eventManagerMail,
+    ];
     // const destination = ["amartyasingh1010@gmail.com"];
 
     // Fetch ticket details
@@ -1744,7 +1772,7 @@ const mailEventStats = async (req, res) => {
       <tr>
         <td>${label}</td>
         <td>₹${value}</td>
-      </tr>`
+      </tr>`,
       )
       .join("");
 
@@ -1774,7 +1802,7 @@ const mailEventStats = async (req, res) => {
       subject,
       destination,
       {},
-      emailHTML
+      emailHTML,
     );
     await ses.sendEmail(params).promise();
     return res.status(StatusCodes.OK).send("Report successfully mailed!");
@@ -1810,8 +1838,9 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${field.type
-            }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${
+            field.type
+          }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -1956,7 +1985,9 @@ const getEventPermissions = async (req, res) => {
     const { eventId } = req.query;
 
     // Fetch permissions + members/admins/team info
-    const event = await Event.findById(eventId).select("permissions belongsTo universeMetaData");
+    const event = await Event.findById(eventId).select(
+      "permissions belongsTo universeMetaData",
+    );
     if (!event) {
       return res.status(404).json({ message: "Event not found" });
     }
@@ -1979,7 +2010,11 @@ const getEventPermissions = async (req, res) => {
 
     const uniqueUserIds = [...new Set(allUserIds.map((id) => id.toString()))];
 
-    const userMap = await getUserMetaMap(uniqueUserIds, ["name", "image", "pushToken"]);
+    const userMap = await getUserMetaMap(uniqueUserIds, [
+      "name",
+      "image",
+      "pushToken",
+    ]);
 
     // Build role lookup sets
     const adminSet = new Set(club.adminId.map((id) => id.toString()));
@@ -2031,7 +2066,9 @@ const assignDefaultPermissions = async (req, res) => {
       });
     }
 
-    const events = await Event.find().select("belongsTo permissions universeMetaData");
+    const events = await Event.find().select(
+      "belongsTo permissions universeMetaData",
+    );
     if (!events.length) {
       return res.status(404).json({ message: "No events found" });
     }
@@ -2059,7 +2096,7 @@ const assignDefaultPermissions = async (req, res) => {
 
       await Event.updateOne(
         { _id: event._id },
-        { $set: { permissions: newPermissions } }
+        { $set: { permissions: newPermissions } },
       );
 
       updatedEvents.push({
@@ -2144,7 +2181,11 @@ const updateEventPermission = async (req, res) => {
     event.permissions[permissionKey] = uniqueIds;
     await event.save();
 
-    const userMap = await getUserMetaMap(uniqueIds, ["name", "image", "pushToken"])
+    const userMap = await getUserMetaMap(uniqueIds, [
+      "name",
+      "image",
+      "pushToken",
+    ]);
 
     // Helper to determine role inside the club
     const getRole = (id) => {
@@ -2184,7 +2225,7 @@ const getPastOrFutureEvents = async (req, res) => {
           $match: {
             $or: [
               { status: "featured" }, // always include featured
-              { eventDate: { $gte: new Date() } } // include future events
+              { eventDate: { $gte: new Date() } }, // include future events
             ],
           },
         },
@@ -2201,9 +2242,9 @@ const getPastOrFutureEvents = async (req, res) => {
         },
         { $limit: limitSize },
         { $project: { bookedBy: 0, isFeatured: 0 } }, // hide helper field
-      ])
+      ]);
 
-      return res.status(StatusCodes.OK).json(events)
+      return res.status(StatusCodes.OK).json(events);
     }
 
     const matchStage =
@@ -2239,8 +2280,7 @@ const getEventFieldsById = async (req, res) => {
         .json({ error: "Event ID or array of Event IDs is required." });
     }
 
-    const isArrayProjection =
-      Array.isArray(fields) && fields.length > 0;
+    const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
       fields &&
@@ -2430,7 +2470,7 @@ const addToGallery = async (req, res) => {
     const hasTicket = await fetchTicketFieldsByQuery({
       searchBy: { eventId: mongoose.Types.ObjectId(eventId), boughtBy: userId },
       fields: ["boughtBy"],
-      single: true
+      single: true,
     });
 
     // if (!hasTicket) {
@@ -2454,7 +2494,6 @@ const addToGallery = async (req, res) => {
     };
     const userData = await fetchUserData(user_query);
 
-
     // Add postedBy field to each media item
     const formattedMedia = media.map((item) => ({
       ...item,
@@ -2470,13 +2509,13 @@ const addToGallery = async (req, res) => {
     const updatedEvent = await Event.findByIdAndUpdate(
       eventId,
       { $push: { gallery: { $each: formattedMedia } } },
-      { new: true }
+      { new: true },
     );
 
     if (updatedEvent) {
       // Create a memory
       let tags = formattedMedia.flatMap((media) =>
-        (media.tags ?? []).map((tag) => ({ ...tag.user, type: "people" }))
+        (media.tags ?? []).map((tag) => ({ ...tag.user, type: "people" })),
       );
       tags = tags.filter((t) => t._id !== userId);
       const memoryData = {
@@ -2492,7 +2531,7 @@ const addToGallery = async (req, res) => {
           name: userData.name,
           image: userData.image,
         },
-        callSign: "universe"
+        callSign: "universe",
       };
       await sendKafkaMessage("CREATE_MEMORY", "memory", { memoryData });
     }
@@ -2656,7 +2695,7 @@ const getEventGalleryContributors = async (req, res) => {
 
     // Step 2: Fetch user profiles
     const userPromises = contributorIds.map((id) =>
-      fetchUserData({ id, fields: ["name", "image"] })
+      fetchUserData({ id, fields: ["name", "image"] }),
     );
     const users = await Promise.all(userPromises);
 
@@ -2714,7 +2753,7 @@ const sendEventMemoryEmail = async (insertedMemories, userMap, eventData) => {
         user.name,
         "A new event memory was added to your Memory Lane.",
         `${eventData.name} held on ${formatDateReadable(
-          new Date(eventData.eventDate)
+          new Date(eventData.eventDate),
         )}.`,
         "A new memory added!",
         user.email,
@@ -2725,7 +2764,7 @@ const sendEventMemoryEmail = async (insertedMemories, userMap, eventData) => {
           eventDate: formatDateReadable(new Date(eventData.eventDate)),
           eventName: eventData.name,
           userName: user.name,
-        })
+        }),
       )
         .then(({ ses, params }) => {
           ses.sendEmail(params, (err) => {
@@ -2760,7 +2799,7 @@ const changeGalleryFeatured = async (req, res) => {
     // Find the specific event and gallery item
     const event = await Event.findOne(
       { _id: eventId, "gallery._id": galleryId },
-      { "gallery.$": 1 }
+      { "gallery.$": 1 },
     );
 
     if (!event) {
@@ -2774,7 +2813,7 @@ const changeGalleryFeatured = async (req, res) => {
     const updatedEvent = await Event.findOneAndUpdate(
       { _id: eventId, "gallery._id": galleryId },
       { $set: { "gallery.$.featured": featured } },
-      { new: true }
+      { new: true },
     );
 
     return res.status(StatusCodes.OK).json({
@@ -2814,7 +2853,7 @@ const addTagsToEvent = async (req, res) => {
           },
         },
       },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     return res
@@ -3042,7 +3081,7 @@ const getLatestEvents = async (req, res) => {
         permissions: 0,
         gallery: 0,
         postProduction: 0,
-      }
+      },
     )
       .sort({ eventDate: -1 }) // newest first
       .skip(skip)
@@ -3156,12 +3195,13 @@ const getSearchedEvents = async (req, res) => {
     ]);
 
     return res.status(StatusCodes.OK).json({ success: true, data: events });
-
   } catch (err) {
     console.log("Error fetching searched events:", err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, msg: "Something went wrong!" });
   }
-}
+};
 
 const insertNewFields = async (req, res) => {
   try {
@@ -3180,7 +3220,7 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
@@ -3204,8 +3244,7 @@ const getFeaturedEvents = async (req, res) => {
   try {
     const { fields } = req.body;
 
-    const isArrayProjection =
-      Array.isArray(fields) && fields.length > 0;
+    const isArrayProjection = Array.isArray(fields) && fields.length > 0;
 
     const isObjectProjection =
       fields &&
@@ -3222,7 +3261,9 @@ const getFeaturedEvents = async (req, res) => {
     // Convert array of fields to space-separated string for Mongoose projection
     const projection = isArrayProjection ? fields.join(" ") : fields;
 
-    const events = await Event.find({ status: "featured" }).select(projection).lean();
+    const events = await Event.find({ status: "featured" })
+      .select(projection)
+      .lean();
 
     if (!events) {
       return res.status(404).json({ error: "Event not found." });
@@ -3247,7 +3288,9 @@ const getFeaturedEventsForFeed = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
     const interestTags = user.interests || [];
@@ -3257,26 +3300,26 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-          {
-            $match: {
-              status: "featured",
-              eventDate: { $gte: now },
-              tags: { $in: interestTags },
+            {
+              $match: {
+                status: "featured",
+                eventDate: { $gte: now },
+                tags: { $in: interestTags },
+              },
             },
-          },
-          { $limit: limit },
-          {
-            $project: {
-              bookedBy: 0,
-              amtPaid: 0,
-              amtPaidTo: 0,
-              ticketSellingDays: 0,
-              cumulativeRevenue: 0,
-              courseAnalytics: 0,
-              faq: 0,
+            { $limit: limit },
+            {
+              $project: {
+                bookedBy: 0,
+                amtPaid: 0,
+                amtPaidTo: 0,
+                ticketSellingDays: 0,
+                cumulativeRevenue: 0,
+                courseAnalytics: 0,
+                faq: 0,
+              },
             },
-          },
-        ])
+          ])
         : [];
 
     let finalEvents = [...suggestedEvents];
@@ -3311,9 +3354,9 @@ const getFeaturedEventsForFeed = async (req, res) => {
       finalEvents = [...finalEvents, ...fallbackEvents];
     }
 
-    console.log('final events', finalEvents.length);
+    console.log("final events", finalEvents.length);
     if (finalEvents.length === 0) {
-      return res.status(StatusCodes.OK).json({ events: [] })
+      return res.status(StatusCodes.OK).json({ events: [] });
     }
 
     // Sequence them using existing helper
@@ -3380,5 +3423,5 @@ module.exports = {
   getSearchedEvents,
   insertNewFields,
   getFeaturedEvents,
-  getFeaturedEventsForFeed
+  getFeaturedEventsForFeed,
 };

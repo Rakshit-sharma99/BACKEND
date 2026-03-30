@@ -17,7 +17,7 @@ const services = {
 const generateServiceToken = () => {
   const token = jwt.sign(
     {
-      service: "macbeaseContent",
+      service: "offer",
       role: "internal",
     },
     process.env.ACCESS_TOKEN_SECRET,

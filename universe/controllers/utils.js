@@ -10,6 +10,7 @@ const { io } = require("../app");
 const { default: mongoose } = require("mongoose");
 const jwt = require("jsonwebtoken");
 const axios = require("axios");
+const nlp = require("compromise");
 
 const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
@@ -1175,20 +1176,7 @@ const fetchContentFromIds = async (query) => {
     return null;
   }
 };
-const fetchMacbeaseContentFromIds = async (query) => {
-  try {
-    const config = generateServiceToken();
-    const macbeaseContents = await axios.post(
-      "http://macbeaseContent:5070/macbeaseContent/api/v1/getMacbeaseContentByIds",
-      query,
-      config,
-    );
-    return macbeaseContents.data;
-  } catch (error) {
-    console.log(error.message);
-    return null;
-  }
-};
+
 const fetchItineraryFromIds = async (query) => {
   try {
     const config = generateServiceToken();
@@ -1838,7 +1826,6 @@ module.exports = {
   fetchOrgData,
   createNewOrg,
   fetchContentFromIds,
-  fetchMacbeaseContentFromIds,
   fetchItineraryFromIds,
   fetchInvitationById,
   fetchJoinLinkById,

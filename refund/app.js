@@ -7,15 +7,32 @@ const http = require("http");
 
 const app = express();
 const server = http.createServer(app);
-
+const cookieParser = require("cookie-parser");
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");
 
 app.set("trust proxy", 1);
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://app.macbease.com",
+  "https://macbease.com"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(helmet());
 app.use(express.json());
-
+app.use(cookieParser());
 app.use((req, res, next) => {
   console.log(
     `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`

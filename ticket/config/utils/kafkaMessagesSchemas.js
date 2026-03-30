@@ -282,6 +282,88 @@ const UPDATE_COUPON = {
   },
 };
 
+/**
+ * @typedef {Object} CREDIT_TICKET_SALE_PAYLOAD
+ * @property {String} clubId
+ * @property {String} eventId
+ * @property {String} eventName
+ * @property {String} ticketId
+ * @property {String} paymentId
+ * @property {Number} grossChargePaise
+ * @property {Number} platformFeePaise
+ * @property {Number} clubNetCreditPaise
+ * @property {String} currency
+ * @property {String} ticketType
+ * @property {String} userId
+ */
+
+const CREDIT_TICKET_SALE = {
+  CREDIT_TICKET_SALE: {
+    topicSuffix: "_credit_ticket_sale",
+
+    validate: (data) => {
+      const requiredStringFields = [
+        "clubId",
+        "eventId",
+        "eventName",
+        "ticketId",
+        "paymentId",
+        "currency",
+        "ticketType",
+        "userId",
+      ];
+
+      for (const field of requiredStringFields) {
+        if (typeof data[field] !== "string" || !data[field].trim()) {
+          throw new Error(`'${field}' must be a non-empty string`);
+        }
+      }
+
+      const requiredNumberFields = [
+        "grossChargePaise",
+        "platformFeePaise",
+        "clubNetCreditPaise",
+      ];
+
+      for (const field of requiredNumberFields) {
+        if (!Number.isInteger(data[field]) || data[field] < 0) {
+          throw new Error(`'${field}' must be a non-negative integer`);
+        }
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+/**
+ * @typedef {Object} USER_ACTIVITY_PAYLOAD
+ * @property {string} userId
+ * @property {string} uid
+ * @property {string} activityType
+ * @property {string} [ref]
+ */
+
+const USER_ACTIVITY = {
+  USER_ACTIVITY: {
+    topicSuffix: ".activity",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.activityType !== "string") {
+        throw new Error("'activityType' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_TICKET_TO_USER_SCHEMA,
   ...ADD_TICKET_TO_EVENT_SCHEMA,
@@ -291,4 +373,6 @@ module.exports = {
   ...ADD_TICKET_TO_EVENT,
   ...ADD_TICKET_TO_USER,
   ...UPDATE_COUPON,
+  ...CREDIT_TICKET_SALE,
+  ...USER_ACTIVITY,
 };

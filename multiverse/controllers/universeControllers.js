@@ -298,6 +298,7 @@ const searchUniverse = async (req, res) => {
 
 const getPopularUniverses = async (req, res) => {
   try {
+    const { limit = 5 } = req.query;
     const universes = await Universe.find()
       .sort({
         traffic: -1,
@@ -305,7 +306,7 @@ const getPopularUniverses = async (req, res) => {
         ip: -1,
         rank: 1, // lower rank is better
       })
-      .limit(10);
+      .limit(Number(limit));
 
     return res.status(200).json({
       success: true,

@@ -7,15 +7,7 @@ const {
   scheduleNotification2,
   lemmatize,
   fetchRelatedTags,
-  fetchMacbeaseContentFromLastTimeStamp,
   fetchNativeUserData,
-  fetchMacbeaseContentFromIds,
-  fetchCardsFromIds,
-  fetchNativeRandomCommunities,
-  fetchNativeRandomClubs,
-  fetchRandomCardsForFeed,
-  fetchClubsRecommendations,
-  fetchCommunitiesRecommendations,
   checkUserBookmarks,
 } = require("./utilControllers");
 const Content = require("../models/content");
@@ -673,89 +665,6 @@ const searchContentByTag = async (req, res) => {
   }
 };
 
-//Controller 13
-const loadMoreContent = async (req, res) => {
-  try {
-    const { lastTimeStamp } = req.query;
-    const parsedTimeStamp = lastTimeStamp
-      ? new Date(lastTimeStamp)
-      : new Date();
-
-    // Fetch Macbease content using the timestamp
-    const macbeaseContents = await fetchMacbeaseContentFromLastTimeStamp({
-      timeStamp: parsedTimeStamp,
-      operator: "lt",
-      sort: "desc",
-      limit: 12,
-    });
-
-    if (macbeaseContents.length === 0) {
-      return res.status(StatusCodes.OK).json([]);
-    }
-
-    // Determine the timestamp range from macbease contents
-    const startRange = macbeaseContents[0].timeStamp;
-    const endRange = macbeaseContents[macbeaseContents.length - 1].timeStamp;
-
-    // Fetch user's communities and clubs
-    const userInfo = await fetchNativeUserData({
-      id: req.user.id,
-      fields: ["communitiesPartOf", "clubs"],
-      callSign: "universe",
-    });
-
-    const belongsToArray = [
-      ...new Set([
-        ...userInfo.communitiesPartOf.map((c) => c.communityId),
-        ...userInfo.clubs.map((c) => c.clubId),
-      ]),
-    ];
-
-    // Query for older content
-    const contents = await Content.find({
-      belongsTo: { $in: belongsToArray },
-      timeStamp: { $lt: new Date(startRange), $gte: new Date(endRange) },
-    })
-      .sort({ timeStamp: -1 })
-      .limit(24)
-      .select("-vector")
-      .lean();
-
-    const modifiedContents = contents.map((content) => ({
-      ...content,
-      commentsNum: content.comments.length,
-      comments: content.comments.slice(0, 6),
-    }));
-
-    //getting some random feed
-    // const randomFeed = await Content.find(
-    //   { belongsTo: { $nin: belongsToArray } },
-    //   { vector: 0 }
-    // )
-    //   .limit(6)
-    //   .lean();
-    // const modifiedRandomFeed = randomFeed.map((content) => ({
-    //   ...content,
-    //   commentsNum: content.comments.length,
-    //   comments: content.comments.slice(0, 6),
-    // }));
-
-    // Combine and sort
-    const combinedFeed = [
-      ...macbeaseContents,
-      ...modifiedContents,
-      // ...modifiedRandomFeed,
-    ].sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
-
-    return res.status(StatusCodes.OK).json(combinedFeed);
-  } catch (error) {
-    console.error("Error in loadMoreContent:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Failed to retrieve content.");
-  }
-};
-
 //Controller 14
 const replyToComment = async (req, res) => {
   const { contentId, cid } = req.query;
@@ -953,68 +862,6 @@ const generateHashTags = async (req, res) => {
   }
 };
 
-//Controller 18
-const getEngagementData = async (req, res) => {
-  try {
-    const { contentIds = [], macbeaseContentIds = [], cardIds = [] } = req.body;
-
-    if (!Array.isArray(contentIds)) {
-      return res.status(400).json({ error: "contentIds must be an array." });
-    }
-
-    // Run all 3 fetches in parallel (if arrays are non-empty)
-    const [contentData, macbeaseContentData, cardsData] = await Promise.all([
-      contentIds.length
-        ? Content.find({ _id: { $in: contentIds } })
-          .select("likes comments")
-          .lean()
-        : [],
-      macbeaseContentIds.length
-        ? fetchMacbeaseContentFromIds({
-          ids: macbeaseContentIds,
-          select: "likes comments",
-        })
-        : [],
-      cardIds.length
-        ? fetchCardsFromIds({ ids: cardIds, select: "likedBy" })
-        : [],
-    ]);
-
-    console.log("cards data", cardsData);
-
-    // Aggregate all into one array
-    const allData = [...contentData, ...macbeaseContentData, ...cardsData];
-
-    // Transform into a map of engagement data
-    const engagementMap = {};
-
-    for (const item of allData) {
-      const { _id } = item;
-
-      if (!_id) continue;
-
-      engagementMap[_id] = {};
-
-      if ("likes" in item || "comments" in item) {
-        engagementMap[_id] = {
-          likes: item.likes || [],
-          comments: (item.comments || []).slice(0, 6),
-          commentsNum: (item.comments || []).length,
-        };
-      } else if ("likedBy" in item) {
-        engagementMap[_id] = {
-          likedBy: item.likedBy || [],
-        };
-      }
-    }
-
-    return res.json(engagementMap);
-  } catch (error) {
-    console.error("Error fetching engagement data:", error);
-    return res.status(500).json({ error: "Internal server error" });
-  }
-};
-
 //Controller 19
 const searchContentByText = async (req, res) => {
   try {
@@ -1039,61 +886,6 @@ const searchContentByText = async (req, res) => {
   } catch (error) {
     console.error("Error searching content:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).send("Server error");
-  }
-};
-
-//helper function
-const getSecondaryFeed = async (cachedEndTimeStamp, clubs) => {
-  try {
-    const clubIds = (clubs || []).map((item) => item.clubId);
-    const oneMonthBefore = new Date(cachedEndTimeStamp);
-    oneMonthBefore.setMonth(oneMonthBefore.getMonth() - 1);
-    const createAggregationPipeline = (matchCriteria) => [
-      {
-        $match: {
-          ...matchCriteria,
-          timeStamp: {
-            $gte: oneMonthBefore,
-            $lt: new Date(cachedEndTimeStamp),
-          },
-        },
-      },
-      {
-        $addFields: {
-          commentsNum: { $size: "$comments" },
-          comments: { $slice: ["$comments", 6] },
-        },
-      },
-      { $project: { vector: 0 } },
-      { $sample: { size: 3 } },
-    ];
-    const commContentsMatch = {
-      contentType: "image",
-      sendBy: "userCommunity",
-    };
-    const clubContentsMatch = {
-      contentType: "image",
-      belongsTo: { $in: clubIds },
-    };
-    const [macbeaseContents, commContents, clubContents] =
-      await Promise.allSettled([
-        fetchMacbeaseContentFromLastTimeStamp({
-          rangeStart: oneMonthBefore,
-          rangeEnd: new Date(cachedEndTimeStamp),
-          sample: 3,
-        }),
-        Content.aggregate(createAggregationPipeline(commContentsMatch)),
-        Content.aggregate(createAggregationPipeline(clubContentsMatch)),
-        fetchRandomCardsForFeed(),
-      ]).then((results) =>
-        results.map((r) => (r.status === "fulfilled" ? r.value : [])),
-      );
-
-    const result = [...macbeaseContents, ...commContents, ...clubContents];
-    return result;
-  } catch (error) {
-    console.error("Error fetching secondary feed:", error);
-    return null;
   }
 };
 
@@ -1177,28 +969,28 @@ const getContentForLanding = async (req, res) => {
     const suggestedQuery =
       interestTags.length > 0
         ? Content.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              _id: { $nin: seenIds },
-              timeStamp: { $lt: parsedCursor },
-              contentType: { $in: ["image", "video"] },
+            {
+              $match: {
+                tags: { $in: interestTags },
+                _id: { $nin: seenIds },
+                timeStamp: { $lt: parsedCursor },
+                contentType: { $in: ["image", "video"] },
+              },
             },
-          },
-          { $sort: { timeStamp: -1 } },
-          { $limit: parsedLimit },
-          {
-            $addFields: {
-              feedType: "suggested",
-              commentsNum: { $size: "$comments" },
-              comments: { $slice: ["$comments", 6] },
-              likeCount: { $size: { $ifNull: ["$likes", []] } },
-              isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
-              bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
+            { $sort: { timeStamp: -1 } },
+            { $limit: parsedLimit },
+            {
+              $addFields: {
+                feedType: "suggested",
+                commentsNum: { $size: "$comments" },
+                comments: { $slice: ["$comments", 6] },
+                likeCount: { $size: { $ifNull: ["$likes", []] } },
+                isLiked: { $in: [userId, { $ifNull: ["$likes", []] }] },
+                bookmarkCount: { $ifNull: ["$bookmarkCount", 0] },
+              },
             },
-          },
-          { $project: { vector: 0, likes: 0 } },
-        ])
+            { $project: { vector: 0, likes: 0 } },
+          ])
         : Promise.resolve([]);
 
     // Execute Initial Queries
@@ -1209,10 +1001,14 @@ const getContentForLanding = async (req, res) => {
 
     // Merge & Deduplicate (in case overlap between followed/suggested)
     let combined = [...followedContent, ...suggestedContent];
-    const uniqueCombined = Array.from(new Map(combined.map(item => [item._id.toString(), item])).values());
+    const uniqueCombined = Array.from(
+      new Map(combined.map((item) => [item._id.toString(), item])).values(),
+    );
 
     // Sort by Time
-    uniqueCombined.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    uniqueCombined.sort(
+      (a, b) => new Date(b.timeStamp) - new Date(a.timeStamp),
+    );
 
     // 4. Fallback Mechanism
     // If we don't have enough content, fetch popular/random content
@@ -1222,11 +1018,17 @@ const getContentForLanding = async (req, res) => {
       const needed = parsedLimit - finalFeed.length;
 
       // IDs to exclude in fallback (Seen + Just Fetched)
-      const currentFetchedIds = finalFeed.map(c => c._id);
+      const currentFetchedIds = finalFeed.map((c) => c._id);
       const excludeIdsForFallback = [...seenIds, ...currentFetchedIds];
 
       const fallbackContent = await Content.aggregate([
-        { $match: { _id: { $nin: excludeIdsForFallback }, timeStamp: { $lt: parsedCursor }, contentType: { $in: ["image", "video"] } } },
+        {
+          $match: {
+            _id: { $nin: excludeIdsForFallback },
+            timeStamp: { $lt: parsedCursor },
+            contentType: { $in: ["image", "video"] },
+          },
+        },
         { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
         {
           $addFields: {
@@ -1239,7 +1041,7 @@ const getContentForLanding = async (req, res) => {
           },
         },
         { $project: { vector: 0, likes: 0 } },
-        { $limit: needed }
+        { $limit: needed },
       ]);
 
       finalFeed = [...finalFeed, ...fallbackContent];
@@ -1254,7 +1056,10 @@ const getContentForLanding = async (req, res) => {
     let finalFeedWithBookmarks = finalFeed;
     if (finalFeed.length > 0) {
       const contentIds = finalFeed.map((c) => c._id.toString());
-      const bookmarkedIdsArray = await checkUserBookmarks({ userId, contentIds });
+      const bookmarkedIdsArray = await checkUserBookmarks({
+        userId,
+        contentIds,
+      });
       const bookmarkedIdsSet = new Set(bookmarkedIdsArray);
 
       finalFeedWithBookmarks = finalFeed.map((item) => ({
@@ -1284,7 +1089,11 @@ const getContentForLanding = async (req, res) => {
 
     // Update Short-term Cache
     if (!cursor) {
-      await redis.setex(`landing_feed:${userId}`, 60, JSON.stringify(responsePayload));
+      await redis.setex(
+        `landing_feed:${userId}`,
+        60,
+        JSON.stringify(responsePayload),
+      );
     }
 
     return res.status(StatusCodes.OK).json(responsePayload);
@@ -1627,6 +1436,264 @@ const getUserCommunityPosts = async (req, res) => {
   }
 };
 
+/**
+ * Hybrid search for Starman Q&A — combines vector search (semantic)
+ * with regex text search to find relevant posts for a user question.
+ */
+const searchContentQA = async (req, res) => {
+  try {
+    const { query, uid } = req.body;
+
+    if (!query || typeof query !== "string" || !query.trim()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Query is required.", found: false });
+    }
+
+    // 1. Generate embedding for semantic search
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query.trim(),
+      encoding_format: "float",
+    });
+
+    const embeddingVector = embeddingResponse?.data?.[0]?.embedding;
+
+    // 2. Run vector search + text search in parallel
+    // Extract meaningful keywords (strip stop words) for text search
+    const STOP_WORDS = new Set([
+      "did",
+      "does",
+      "do",
+      "is",
+      "are",
+      "was",
+      "were",
+      "will",
+      "would",
+      "can",
+      "could",
+      "should",
+      "has",
+      "have",
+      "had",
+      "been",
+      "being",
+      "the",
+      "a",
+      "an",
+      "and",
+      "or",
+      "but",
+      "in",
+      "on",
+      "at",
+      "to",
+      "for",
+      "of",
+      "with",
+      "by",
+      "from",
+      "it",
+      "its",
+      "this",
+      "that",
+      "what",
+      "when",
+      "where",
+      "who",
+      "how",
+      "why",
+      "which",
+      "i",
+      "me",
+      "my",
+      "we",
+      "our",
+      "you",
+      "your",
+      "he",
+      "she",
+      "they",
+      "about",
+      "any",
+      "tell",
+      "know",
+      "find",
+      "show",
+      "get",
+      "visit",
+      "visited",
+      "come",
+      "came",
+      "going",
+      "go",
+      "went",
+      "next",
+      "last",
+      "new",
+      "like",
+      "also",
+      "just",
+      "very",
+    ]);
+
+    const keywords = query
+      .trim()
+      .replace(/[?!.,;:'"()]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length > 1 && !STOP_WORDS.has(w.toLowerCase()));
+
+    // Build aggregation that scores posts by how many keywords they match
+    const minMatches = keywords.length > 1 ? 2 : 1;
+
+    const keywordMatchFields = keywords.map((kw, i) => ({
+      [`_kw${i}`]: {
+        $cond: [
+          {
+            $regexMatch: {
+              input: {
+                $concat: [
+                  { $ifNull: ["$text", ""] },
+                  " ",
+                  { $ifNull: ["$title", ""] },
+                  " ",
+                  { $ifNull: ["$metaData.name", ""] },
+                ],
+              },
+              regex: kw,
+              options: "i",
+            },
+          },
+          1,
+          0,
+        ],
+      },
+    }));
+
+    const scoreExpr =
+      keywords.length > 0
+        ? { $add: keywords.map((_, i) => `$_kw${i}`) }
+        : { $literal: 0 };
+
+    const textSearchPipeline =
+      keywords.length > 0
+        ? Content.aggregate([
+            {
+              $match: {
+                $or: keywords.map((kw) => ({
+                  $or: [
+                    { text: { $regex: new RegExp(kw, "i") } },
+                    { title: { $regex: new RegExp(kw, "i") } },
+                    { "metaData.name": { $regex: new RegExp(kw, "i") } },
+                  ],
+                })),
+              },
+            },
+            { $addFields: Object.assign({}, ...keywordMatchFields) },
+            { $addFields: { _kwScore: scoreExpr } },
+            { $match: { _kwScore: { $gte: minMatches } } },
+            { $sort: { _kwScore: -1 } },
+            { $limit: 10 },
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+                ...Object.fromEntries(keywords.map((_, i) => [`_kw${i}`, 0])),
+              },
+            },
+          ])
+        : Content.find(
+            {
+              $or: [
+                { text: { $regex: new RegExp(query.trim(), "i") } },
+                { title: { $regex: new RegExp(query.trim(), "i") } },
+                { "metaData.name": { $regex: new RegExp(query.trim(), "i") } },
+              ],
+            },
+            { vector: 0, comments: 0 },
+          )
+            .limit(10)
+            .lean();
+
+    const [vectorResults, textResults] = await Promise.all([
+      // Semantic / vector search
+      embeddingVector && Array.isArray(embeddingVector)
+        ? Content.aggregate([
+            {
+              $vectorSearch: {
+                queryVector: embeddingVector,
+                path: "vector",
+                numCandidates: 200,
+                limit: 10,
+                index: "vector_index",
+              },
+            },
+            {
+              $addFields: {
+                searchScore: { $meta: "vectorSearchScore" },
+                commentsNum: { $size: "$comments" },
+              },
+            },
+            {
+              $project: {
+                vector: 0,
+                comments: 0,
+              },
+            },
+          ])
+        : Promise.resolve([]),
+
+      // Text / keyword search — ranked by keyword match count
+      textSearchPipeline,
+    ]);
+
+    // 3. Merge and deduplicate — text matches first (exact), then vector (semantic)
+    const seen = new Set();
+    const merged = [];
+
+    // Text results first (exact keyword matches, always relevant)
+    for (const doc of textResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id)) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "text" });
+      }
+    }
+    // Then vector results (only if score is high enough to be truly relevant)
+    for (const doc of vectorResults) {
+      const id = doc._id.toString();
+      if (!seen.has(id) && (doc.searchScore || 0) >= 0.75) {
+        seen.add(id);
+        merged.push({ ...doc, _source: "vector" });
+      }
+    }
+
+    // 4. Trim to top 3 most relevant — return full docs for expandPost navigation
+    const results = merged.slice(0, 3).map((doc) => {
+      const cleaned = { ...doc };
+      delete cleaned.vector;
+      delete cleaned._source;
+      delete cleaned._kwScore;
+      // Add commentsNum convenience field
+      if (!cleaned.commentsNum && cleaned.comments) {
+        cleaned.commentsNum = cleaned.comments.length;
+      }
+      return cleaned;
+    });
+
+    return res.status(StatusCodes.OK).json({
+      results,
+      found: results.length > 0,
+    });
+  } catch (error) {
+    console.error("searchContentQA error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong.", found: false });
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1640,12 +1707,10 @@ module.exports = {
   getRandomContent,
   editContent,
   searchContentByTag,
-  loadMoreContent,
   replyToComment,
   searchContent,
   searchByCommunity,
   generateHashTags,
-  getEngagementData,
   searchContentByText,
   getContentForLanding,
   getMultipleContents,
@@ -1655,4 +1720,5 @@ module.exports = {
   uploadToS3,
   insertNewFields,
   getUserCommunityPosts,
+  searchContentQA,
 };

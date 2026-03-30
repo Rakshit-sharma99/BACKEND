@@ -73,20 +73,6 @@ services:
       - app-network
     restart: unless-stopped
 
-  resource:
-    build:
-      context: ./resource
-      dockerfile: Dockerfile
-    image: spargens/resource
-    env_file:
-      - ./env/resource/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
   event:
     build:
       context: ./event
@@ -129,20 +115,6 @@ services:
       - app-network
     restart: unless-stopped
 
-  macbeaseContent:
-    build:
-      context: ./macbease_content
-      dockerfile: Dockerfile
-    image: spargens/macbease-content
-    env_file:
-      - ./env/macbease_content/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
   offer:
     build:
       context: ./offer
@@ -178,20 +150,6 @@ services:
     image: spargens/invitation
     env_file:
       - ./env/invitation/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  project:
-    build:
-      context: ./project
-      dockerfile: Dockerfile
-    image: spargens/project
-    env_file:
-      - ./env/project/.env
     depends_on:
       - kafka
       - redis
@@ -360,6 +318,76 @@ services:
     image: spargens/map
     env_file:
       - ./env/map/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  starman:
+    build:
+      context: ./starman
+      dockerfile: Dockerfile
+    image: spargens/starman
+    env_file:
+      - ./env/starman/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  credit:
+    build:
+      context: ./credit
+      dockerfile: Dockerfile
+    image: spargens/credit
+    env_file:
+      - ./env/credit/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  question:
+    build:
+      context: ./question
+      dockerfile: Dockerfile
+    image: spargens/question
+    env_file:
+      - ./env/question/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  knowledge:
+    build:
+      context: ./knowledge
+      dockerfile: Dockerfile
+    image: spargens/knowledge
+    env_file:
+      - ./env/knowledge/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  sere:
+    build:
+      context: ./sere
+      dockerfile: Dockerfile
+    image: spargens/sere
+    env_file:
+      - ./env/sere/.env
     depends_on:
       - kafka
       - redis

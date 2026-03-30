@@ -2,9 +2,6 @@ const { StatusCodes } = require("http-status-codes");
 const { validationResult } = require("express-validator");
 const User = require("../models/user");
 const Session = require("../models/session");
-const Community = require("../models/community");
-const Club = require("../models/club");
-const Org = require("../models/org");
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -23,6 +20,7 @@ const schedule = require("node-schedule");
 const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { shortcuts } = require("./validators/user.validator");
+const { registerCustomUniverse } = require("./interServiceCalls");
 
 const securePassword = async (password) => {
   try {
@@ -46,7 +44,6 @@ const createOrg = async (orgMetaData, userId) => {
           orgName: orgMetaData.name,
         };
         const org = await fetchOrgData(org_query);
-        // const org = await Org.findOne({ orgName: orgMetaData.name });
         const user = await User.findById(userId, { orgId: 1 });
         if (org) {
           sendKafkaMessage("ADD_USERTO_ORG", "org", {
@@ -133,19 +130,33 @@ const registerUser = async (req, res) => {
       workingPosition,
       orgMetaData,
       universe,
+      customUniverse,
     } = req.body;
     /* ---------- Platform ---------- */
     const platform = req.body.platform || "app";
 
+    const fallBackUniverse = {
+      _id: "697214a93cc594c4ac0b5c77",
+      callSign: "X",
+      lat: 0,
+      lng: 0,
+      location: "Macbease Co.",
+      logo: "https://onlytemptestingmacbease.s3.ap-south-1.amazonaws.com/public/universes/lpu_logo-removebg-preview.png",
+      logoKey: "public/universes/lpu_logo-removebg-preview.png",
+      name: "Wild Card",
+    };
+
+    const finalUniverse = customUniverse ? fallBackUniverse : universe;
+
     /* ---------- Build universeMetaData safely ---------- */
     const universeMetaData = {
-      name: universe.name.trim(),
-      callSign: universe.callSign.trim(),
-      location: universe.location.trim(),
-      logo: universe.logo.trim(),
-      logoKey: universe.logoKey?.trim(),
-      lat: Number(universe.lat),
-      lng: Number(universe.lng),
+      name: finalUniverse.name.trim(),
+      callSign: finalUniverse.callSign.trim(),
+      location: finalUniverse.location.trim(),
+      logo: finalUniverse.logo.trim(),
+      logoKey: finalUniverse.logoKey?.trim(),
+      lat: Number(finalUniverse.lat),
+      lng: Number(finalUniverse.lng),
     };
 
     /* ---------- Check existing user ---------- */
@@ -204,7 +215,7 @@ const registerUser = async (req, res) => {
       workingPosition: workingPosition?.trim(),
       incompleteFields,
       universeMetaData,
-      uid: universe._id,
+      uid: finalUniverse._id,
     });
 
     /* ---------- Tokens ---------- */
@@ -224,8 +235,28 @@ const registerUser = async (req, res) => {
       createOrg(orgMetaData, user._id);
     }
 
+    /* ---------- Background: Custom Universe Registration ---------- */
+    if (customUniverse) {
+      registerCustomUniverse(customUniverse, user._id);
+    }
+
     /* ---------- Send onboarding mail ---------- */
     sendOnboardingMail(user);
+
+    /* ---------- Publish user.signup event for SERE ---------- */
+    try {
+      await sendKafkaMessage("USER_SIGNUP", "user", {
+        userId: user._id.toString(),
+        uid: finalUniverse._id,
+        name: user.name,
+        interests: user.interests || [],
+        profession: user.profession,
+        universeMetaData,
+      });
+      console.log("📤 Published user.signup for SERE");
+    } catch (kafkaErr) {
+      console.error("user.signup publish failed:", kafkaErr.message);
+    }
 
     /* ---------- Cookies ---------- */
     res.cookie("access_token", accessToken, {
@@ -250,8 +281,8 @@ const registerUser = async (req, res) => {
         reg: user.reg,
         profession: user.profession,
         universeMetaData,
-      }
-    }
+      },
+    };
     if (platform === "app") {
       res_payload.token = accessToken;
       res_payload.refreshToken = refreshToken;
@@ -493,6 +524,8 @@ const regenerateAccessToken = async (req, res) => {
     const user = await User.findById(payload.id, {
       refreshTokens: 1,
       appVersion: 1,
+      uid: 1,
+      universeMetaData: 1,
     });
 
     if (!user) {

@@ -65,6 +65,37 @@ new Worker(
       console.error("Stats update failed (non-fatal):", err);
     }
 
+    // A1) Wallet credit
+    try {
+      const clubIdFromNotes = typeof notes.clubId === "string" ? notes.clubId : "";
+      const belongsToClubId =
+        eventData?.belongsTo?.type === "Club" ? eventData?.belongsTo?.id : null;
+
+      if (
+        clubIdFromNotes &&
+        belongsToClubId &&
+        clubIdFromNotes === belongsToClubId &&
+        Number.isInteger(Number(notes.clubNetCreditPaise)) &&
+        Number(notes.clubNetCreditPaise) > 0
+      ) {
+        await sendKafkaMessage("CREDIT_TICKET_SALE", "universe", {
+          clubId: clubIdFromNotes,
+          eventId,
+          eventName: eventData?.name || "Club event",
+          ticketId: ticket._id.toString(),
+          paymentId: payment.id,
+          grossChargePaise: Number(notes.grossChargePaise) || 0,
+          platformFeePaise: Number(notes.platformFeePaise) || 0,
+          clubNetCreditPaise: Number(notes.clubNetCreditPaise) || 0,
+          currency: "INR",
+          ticketType: notes.type || "General",
+          userId,
+        });
+      }
+    } catch (err) {
+      console.error("Wallet credit dispatch failed (non-fatal):", err);
+    }
+
     // B) Notifications
     try {
       scheduleTicketNotification(ticket, eventData, userData);

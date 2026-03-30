@@ -8,7 +8,7 @@ const {
   getMonthlyMediaPaginated,
   getLatestTwoImages,
 } = require("./memoryControllersUtility/utility");
-const { fetchNativeUserData, fetchClubData, getUserMetaMap, fetchMacbeaseContentByField } = require("./interServiceCall");
+const { fetchNativeUserData, fetchClubData, getUserMetaMap } = require("./interServiceCall");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 
 /**
@@ -239,6 +239,18 @@ const createMemory = async (req, res) => {
         createdBy: memoryData.createdBy,
         memoryId: memory._id,
       });
+    }
+
+    // Publish user.activity event for SERE onboarding tracking
+    try {
+      await sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId,
+        uid: req.user.uid,
+        activityType: "memory_upload",
+        ref: memory._id.toString(),
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
     }
 
     return res.status(StatusCodes.CREATED).json({
@@ -919,19 +931,6 @@ const fetchMemoryCollections = async (req, res) => {
       "course"
     ]);
 
-    //fetching macbease contributions
-    let macbeaseContributions = [];
-    if (user.role === "Creator") {
-      macbeaseContributions = await fetchMacbeaseContentByField(
-        {
-          "searchBy": {
-            "contentType": "image",
-            "idOfSender": userId
-          },
-          "limit": 2,
-        })
-    }
-
     //fetching template folders
     const folderResult = generateFolderCover
       ? await fetchTemplateCover({ userId })
@@ -951,7 +950,6 @@ const fetchMemoryCollections = async (req, res) => {
       memoryList: memoryUsers.slice(0, 6),
       folders: folderResult,
       certificates,
-      macbeaseContributions,
     });
   } catch (error) {
     console.error("Error fetching collections:", error);
