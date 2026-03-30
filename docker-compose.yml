@@ -21,14 +21,12 @@ services:
       dockerfile: Dockerfile
     image: spargens/universe
     env_file:
-      - ./universe/.env
+      - ./env/universe/.env
     depends_on:
       - kafka
       - redis
     networks:
       - app-network
-    ports:
-      - "5050:5050"
     restart: unless-stopped
 
   multiverse:
