@@ -1,12 +1,11 @@
 const axios = require("axios");
 const jwt = require("jsonwebtoken");
-const mongoose = require("mongoose");
 const ChapterLeader = require("../models/chapterLeader");
+const Admin = require("../models/admin")
 const bcrypt = require("bcryptjs");
 const { StatusCodes } = require("http-status-codes");
 const { sendMail } = require("./utils");
-const Product = require("../models/product");
-const Order = require("../models/order")
+
 const generateServiceToken = () => {
   const token = jwt.sign(
     { service: "universe", role: "internal" },
@@ -50,64 +49,113 @@ const register = async (req, res) => {
       socialLink,
     });
 
-    const admins = await User.find({ role: "admin" },
-      {
-        name: 1,
-        email: 1
-      }
-    )
+    // secondary actions
+    try {
+      // 1. Chapter Leader mail
+      const intro = [
+        `Hi ${user.name},`,
+        ``,
+        `<div style="font-size:16px; line-height:1.7;">`,
+        `  <strong>Welcome to the Macbease Chapter Leader community!</strong>`,
+        `</div>`,
+        ``,
+        `We're excited to have you on board. Your journey as a Chapter Leader begins now.`,
+        ``,
+        `<div style="background:#f4f7ff; padding:16px; border-radius:10px; border-left:4px solid #4f46e5;">`,
+        `  <strong>What Happens Next:</strong><br/>`,
+        `  Our team will review your application and get in touch with you soon.`,
+        `</div>`,
+      ]
 
-    admins.forEach(async (admin) => {
-      try {
-        const intro = [
-          `Hi ${admin.name},`,
-          ``,
-          `<div style="font-size:16px; line-height:1.7;">`,
-          `  <strong>A new Chapter Leader has stepped into the Macbease universe!</strong>`,
-          `</div>`,
-          ``,
-          `A fresh spark has joined the community and is ready to lead, inspire, and build something remarkable.`,
-          ``,
-          `<div style="background:#f4f7ff; padding:16px; border-radius:10px; border-left:4px solid #4f46e5;">`,
-          `  <strong>Action Required:</strong><br/>`,
-          `  Visit your Admin Dashboard to review the new Chapter Leader application and decide whether to welcome them aboard.`,
-          `</div>`,
-        ]
+      const outro = [
+        ``,
+        `Get ready to lead, inspire, and make a difference in your community.`,
+        ``,
+        `<a href="https://macbease.com" 
+          style="display:inline-block; margin-top:10px; padding:12px 22px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:8px; font-weight:600;">
+          Visit Macbease Website
+      </a>`,
+        ``,
+        `We're looking forward to seeing the great things you'll do.`,
+        ``,
+        `Best regards,`,
+        `<strong>Macbease Team</strong>`
+      ]
 
-        const outro = [
-          ``,
-          `The next great chapter might just begin with this approval.`,
-          ``,
-          `<a href="https://macbease.com" 
+      const subject = "Welcome to Macbease - Chapter Leader Registration"
+
+      const { ses: ses1, params: params1 } = await sendMail(
+        user.name,
+        intro,
+        outro,
+        subject,
+        [user.email],
+        null
+      );
+
+      ses1.sendEmail(params1, (err) => {
+        if (err) console.error("[ChapterLeader.register] SES sendEmail error:", err);
+        else console.log(`[ChapterLeader.register] Welcome email sent to ${user.email}`);
+      });
+
+      // 2. Admin notification
+      const admins = await Admin.find({ chapterLeaderReview: true })
+
+      admins.forEach(async (admin) => {
+        try {
+          const intro = [
+            `Hi ${admin.name},`,
+            ``,
+            `<div style="font-size:16px; line-height:1.7;">`,
+            `  <strong>A new Chapter Leader has stepped into the Macbease universe!</strong>`,
+            `</div>`,
+            ``,
+            `A fresh spark has joined the community and is ready to lead, inspire, and build something remarkable.`,
+            ``,
+            `<div style="background:#f4f7ff; padding:16px; border-radius:10px; border-left:4px solid #4f46e5;">`,
+            `  <strong>Action Required:</strong><br/>`,
+            `  Visit your Admin Dashboard to review the new Chapter Leader application and decide whether to welcome them aboard.`,
+            `</div>`,
+          ]
+
+          const outro = [
+            ``,
+            `The next great chapter might just begin with this approval.`,
+            ``,
+            `<a href="https://macbease.com" 
               style="display:inline-block; margin-top:10px; padding:12px 22px; background:#4f46e5; color:#fff; text-decoration:none; border-radius:8px; font-weight:600;">
               Review in Admin Dashboard
           </a>`,
-          ``,
-          `Thanks for keeping the Macbease galaxy running smoothly.`,
-          ``,
-          `Best regards,`,
-          `<strong>Macbease Team</strong>`
-        ]
+            ``,
+            `Thanks for keeping the Macbease galaxy running smoothly.`,
+            ``,
+            `Best regards,`,
+            `<strong>Macbease Team</strong>`
+          ]
 
-        const subject = "New Chapter Leader Ready for Review"
+          const subject = "New Chapter Leader Ready for Review"
 
-        const { ses, params } = await sendMail(
-          admin.name,
-          intro,
-          outro,
-          subject,
-          [admin.email],
-          null
-        );
+          const { ses, params } = await sendMail(
+            admin.name,
+            intro,
+            outro,
+            subject,
+            [admin.email],
+            null
+          );
 
-        ses.sendEmail(params, (err) => {
-          if (err) console.error("[createOrder] SES sendEmail error:", err);
-          else console.log(`[createOrder] Order confirmation email sent to ${leader.email}`);
-        });
-      } catch (mailErr) {
-        console.error("Mail failed:", mailErr.message);
-      }
-    })
+          ses.sendEmail(params, (err) => {
+            if (err) console.error("[ChapterLeader.register] SES sendEmail error:", err);
+            else console.log(`[ChapterLeader.register] Order confirmation email sent to ${admin.email}`);
+          });
+        } catch (mailErr) {
+          console.error("Mail failed:", mailErr.message);
+        }
+      })
+    }
+    catch (error) {
+      console.error("Secondary actions failed:", error);
+    }
     return res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Registration successful. Your account is pending verification.",
@@ -227,12 +275,12 @@ const regenerateAccessToken = async (req, res) => {
 const verifyChapterLeader = async (req, res) => {
   try {
     // Admin guard
-    // if (req.user.role === "admin") {
-    //   return res.status(StatusCodes.FORBIDDEN).json({
-    //     success: false,
-    //     message: "Unauthorized: admin access required",
-    //   });
-    // }
+    if (req.user.role === "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Unauthorized: admin access required",
+      });
+    }
 
     const { chapterLeaderId } = req.body;
 
@@ -316,13 +364,12 @@ const verifyChapterLeader = async (req, res) => {
 const getChapterLeaderProgresses = async (req, res) => {
   try {
     // Role guard
-    // if (req.user.role !== "chapter_leader") {
-    //   return res.status(StatusCodes.FORBIDDEN).json({
-    //     success: false,
-    //     message: "Unauthorized access",
-    //   });
-    // }
-    console.log(req.query)
+    if (req.user.role !== "chapter_leader") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
 
     const { entity } = req.query; // optional filter (formerly category)
 
@@ -789,6 +836,78 @@ const getAllAddresses = async (req, res) => {
   }
 };
 
+const sendMailForApply = async (req, res) => {
+  try {
+    const { mailIds } = req.body;
+
+    const subject = "It's Live! Your Macbase Chapter Leader Journey Starts Now";
+
+    const intro = (name) => `
+Hi ${name},
+
+Great news!
+
+You recently showed interest in the Macbase Chapter Leader Program—and we're excited to tell you that the program is now officially LIVE!
+
+This is your chance to step up as a leader, build an amazing community, host impactful events, and represent Macbase in your region. We truly believe you have the potential to make a difference, and we’d love to see you take this forward.
+`;
+
+    const outro = `
+You can now register and begin your journey here: https://admin.macbease.com/apply
+
+Don't miss this opportunity to be part of something exciting and meaningful.
+
+If you have any questions, feel free to reach out—we're here to help!
+
+Looking forward to seeing you as a Macbase Chapter Leader 🚀
+
+Best regards,  
+The Macbase Team
+`;
+
+    const leaders = await ChapterLeader.find({
+      email: { $nin: mailIds }
+    });
+
+    const finalMails = mailIds.filter((mailId) => {
+      return !leaders.some((leader) => leader.email === mailId);
+    });
+
+    for (const mailId of finalMails) {
+      const name = mailId.split("@")[0];
+
+      const { ses, params } = await sendMail(
+        name,
+        intro(name),
+        outro,
+        subject,
+        [mailId],
+        null
+      );
+
+      ses.sendEmail(params, (err) => {
+        if (err) {
+          console.error("[sendMailForApply] SES error:", err);
+        } else {
+          console.log(`Email sent to ${mailId}`);
+        }
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Mails sent successfully",
+    });
+
+  } catch (err) {
+    console.error("sendMailForApply error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -802,6 +921,7 @@ module.exports = {
   addAddress,
   updateAddress,
   deleteAddress,
-  getAllAddresses
+  getAllAddresses,
+  sendMailForApply
 };
 

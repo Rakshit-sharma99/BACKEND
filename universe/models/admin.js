@@ -87,6 +87,10 @@ const adminSchema = new mongoose.Schema({
   pushToken: {
     type: String,
   },
+  chapterLeaderReview: {
+    type: Boolean,
+    default: false,
+  }
 });
 
 adminSchema.methods.createAccessToken = function () {
