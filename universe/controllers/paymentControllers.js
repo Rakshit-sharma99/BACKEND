@@ -170,7 +170,7 @@ const createOrder = async (req, res) => {
   });
 
   try {
-    const { amount, productName, description, notes, couponId } = req.body;
+    const { amount, productName, description, notes, couponId, uid, universeMetaData } = req.body;
 
     if (!notes || !notes.eventId || !notes.userId || !notes.amtPaid) {
       console.log(1);
@@ -214,7 +214,10 @@ const createOrder = async (req, res) => {
       platformFeePaise: breakdown.platformFeePaise,
       clubNetCreditPaise: breakdown.clubNetCreditPaise,
       feePercent: breakdown.feePercent,
+      uid,
+      universeMetaData,
       ...(couponId && { couponId }), // include only if present
+
     };
 
     const options = {
