@@ -25,14 +25,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/quest/api/v1/hello", (req, res) => {
+app.get("/quest1/api/v1/hello", (req, res) => {
   res.send("Quest service responding!");
 });
 
-app.use("/quest/api/v1", questRouter);
+app.use("/quest1/api/v1", questRouter);
 
 
-const port = process.env.PORT || 6010;
+const port = process.env.PORT || 7110;
 
 const start = async () => {
   try {

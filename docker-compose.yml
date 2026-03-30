@@ -428,21 +428,19 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-  
+
   quest1:
     build:
       context: ./quest1
       dockerfile: Dockerfile
     image: spargens/quest1
     env_file:
-      - ./quest1/.env
+      - ./env/quest1/.env
     depends_on:
       - kafka
       - redis
     networks:
       - app-network
-    ports:
-      - "6010:6010"
     restart: unless-stopped
 
 volumes:
