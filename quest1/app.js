@@ -20,7 +20,7 @@ app.use(express.json());
 
 app.use((req, res, next) => {
   console.log(
-    `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`
+    `[${new Date().toISOString()}] ${req.ip} ${req.method} ${req.originalUrl}`,
   );
   next();
 });
@@ -31,8 +31,7 @@ app.get("/quest1/api/v1/hello", (req, res) => {
 
 app.use("/quest1/api/v1", questRouter);
 
-
-const port = process.env.PORT || 7110;
+const port = process.env.PORT || 7120;
 
 const start = async () => {
   try {

@@ -53,8 +53,7 @@ const CONTENT_URL =
   process.env.CONTENT_URL || "http://content:5000/content/api/v1";
 const KNOWLEDGE_URL =
   process.env.KNOWLEDGE_URL || "http://knowledge:7080/knowledge/api/v1";
-const UNIQUERY_URL =
-  process.env.UNIQUERY_BRIDGE_URL || "http://localhost:3100";
+
 
 // ────────────────────────────────────────────────
 // Tool Handlers
@@ -963,31 +962,26 @@ async function navigate_to_territory({ territoryName }, user) {
 }
 
 /**
- * Search WhatsApp community context via UniQuery bridge.
+ * Search external network knowledge base via the knowledge service.
  * Called when users ask about class announcements, deadlines, assignments, etc.
  */
-async function search_whatsapp_context({ query, communityFilter }, user) {
+async function search_external_context({ query, communityFilter, userOnly }, user) {
   try {
-    const res = await axios.post(`${UNIQUERY_URL}/search`, {
-      query,
-      communityFilter: communityFilter || null,
-      userId: user.id,
+    const params = { query, uid: user.uid };
+    if (communityFilter) params.entityFilter = communityFilter;
+    if (userOnly) params.contributorId = user.id;
+
+    const res = await axios.get(`${KNOWLEDGE_URL}/external/search`, {
+      params,
+      headers: internalHeaders(),
     });
     return res.data;
   } catch (err) {
-    if (err.code === "ECONNREFUSED") {
-      return {
-        error: true,
-        found: false,
-        message:
-          "WhatsApp bridge is not running. Ask the user to start their UniQuery bridge.",
-      };
-    }
-    console.error("search_whatsapp_context error:", err.message);
+    console.error("search_external_context error:", err.message);
     return {
       error: true,
       found: false,
-      message: "Could not search WhatsApp context right now.",
+      message: "Could not search external network context right now.",
     };
   }
 }
@@ -1023,7 +1017,7 @@ const TOOL_HANDLERS = {
   get_user_facet_texts,
   search_events,
   query_universe_knowledge,
-  search_whatsapp_context,
+  search_external_context,
 };
 
 /**

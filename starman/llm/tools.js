@@ -484,21 +484,26 @@ const tools = [
         },
       },
       {
-        name: "search_whatsapp_context",
+        name: "search_external_context",
         description:
-          "Search the user's linked WhatsApp university community messages for relevant context. Use this when the user asks about announcements, deadlines, assignments, shared resources, class discussions, or any information that might have been shared in their WhatsApp university/class groups. Returns relevant message fragments with source attribution (community name, sender, date).",
+          "Search the user's linked external network knowledge base (WhatsApp communities, Discord servers, Telegram channels) for relevant information. Use this when the user asks about announcements, deadlines, assignments, shared resources, class discussions, or any information that might have been shared in their linked external communities. Returns relevant entries from both recent messages and distilled long-term knowledge with source attribution.",
         parameters: {
           type: "object",
           properties: {
             query: {
               type: "string",
               description:
-                "The search query to find relevant messages across linked WhatsApp communities, e.g. 'CS301 assignment deadline', 'exam schedule', 'notes shared'",
+                "The search query to find relevant information across linked communities, e.g. 'CS301 assignment deadline', 'exam schedule', 'notes shared'",
             },
             communityFilter: {
               type: "string",
               description:
-                "Optional: specific WhatsApp community/group name to restrict search to, e.g. 'CS301 Class Group'",
+                "Optional: specific community/group name to restrict search to, e.g. 'CS301 Class Group'",
+            },
+            userOnly: {
+              type: "boolean",
+              description:
+                "Optional: if true, only returns entries contributed by the current user. Default false (returns all university-level context).",
             },
           },
           required: ["query"],

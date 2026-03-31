@@ -1,0 +1,28 @@
+{
+  "name": "social-claw",
+  "version": "1.0.0",
+  "description": "Social Claw – Multi-tenant external network bridge (WhatsApp, Telegram, Discord)",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "Amartya Ayush",
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.16",
+    "better-sqlite3": "^11.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "helmet": "^8.1.0",
+    "http": "^0.0.1-security",
+    "http-status-codes": "^2.3.0",
+    "ioredis": "^5.6.0",
+    "jsonwebtoken": "^9.0.2",
+    "kafkajs": "^2.2.4",
+    "nodemon": "^3.1.11",
+    "pino": "^9.6.0",
+    "qrcode": "^1.5.4"
+  }
+}
