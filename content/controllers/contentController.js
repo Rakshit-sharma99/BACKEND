@@ -976,6 +976,7 @@ const getContentForLanding = async (req, res) => {
             {
               $match: {
                 tags: { $in: interestTags },
+                belongsTo: { $nin: belongsToIds },
                 _id: { $nin: seenIds },
                 timeStamp: { $lt: parsedCursor },
                 contentType: { $in: ["image", "video"] },
@@ -1028,6 +1029,7 @@ const getContentForLanding = async (req, res) => {
       const fallbackContent = await Content.aggregate([
         {
           $match: {
+            belongsTo: { $nin: belongsToIds },
             _id: { $nin: excludeIdsForFallback },
             timeStamp: { $lt: parsedCursor },
             contentType: { $in: ["image", "video"] },
