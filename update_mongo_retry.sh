@@ -1,3 +1,7 @@
+#!/bin/bash
+for svc in credit question knowledge universe; do
+  if [ -f "$svc/db/connect.js" ]; then
+    cat << 'INNER_EOF' > "$svc/db/connect.js"
 const mongoose = require("mongoose");
 
 const connectDB = async (url) => {
@@ -23,3 +27,7 @@ const connectDB = async (url) => {
 };
 
 module.exports = connectDB;
+INNER_EOF
+    echo "Updated $svc/db/connect.js"
+  fi
+done

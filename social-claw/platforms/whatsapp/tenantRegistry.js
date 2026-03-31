@@ -10,10 +10,15 @@
  * Idle sessions are cleaned up after IDLE_TIMEOUT_MS to conserve memory.
  */
 
+const fs = require("fs");
+const path = require("path");
 const { createSession } = require("./sessionManager");
 const { createDatabase } = require("./storage/database");
 const { createContextManager } = require("./storage/contextFileManager");
 const { processMessages } = require("./messageHandler");
+
+const BASE_AUTH_DIR = path.join(__dirname, "../../auth_info");
+const BASE_DATA_DIR = path.join(__dirname, "../../data");
 
 const IDLE_TIMEOUT_MS = parseInt(
   process.env.IDLE_TIMEOUT_MS || "1800000",
@@ -71,8 +76,11 @@ function getTenant(userId) {
 async function connectTenant(userId, uid) {
   const tenant = getTenant(userId);
 
-  // Store uid for later use in message forwarding
-  if (uid) tenant.uid = uid;
+  // Store uid for later use in message forwarding, and persist it
+  if (uid) {
+    tenant.uid = uid;
+    try { tenant.db.setMeta("uid", uid); } catch (_) {}
+  }
 
   if (tenant.connected && tenant.session) {
     const status = tenant.session.getStatus();
@@ -173,6 +181,20 @@ async function getTenantGroups(userId) {
 }
 
 /**
+ * Get WhatsApp channels (newsletters) for a user's session.
+ */
+async function getTenantChannels(userId) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+
+  if (!tenant || !tenant.session) {
+    return [];
+  }
+
+  tenant.lastActivity = Date.now();
+  return await tenant.session.getChannels();
+}
+
+/**
  * Get the database instance for a user.
  */
 function getTenantDB(userId) {
@@ -246,6 +268,76 @@ function getTenantHistoricalMessages(userId, communityId, limit = 500) {
   return tenant.session.getHistoricalMessages(communityId, limit);
 }
 
+/**
+ * Restore all previously-connected tenants on service startup.
+ * Scans auth_info/ for user directories that also have a SQLite DB
+ * with selected communities, and re-establishes their Baileys sessions.
+ */
+async function restoreAllTenants() {
+  if (!fs.existsSync(BASE_AUTH_DIR)) {
+    console.log("🔄 [TenantRegistry] No auth_info directory — nothing to restore.");
+    return;
+  }
+
+  const userDirs = fs.readdirSync(BASE_AUTH_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory())
+    .map((d) => d.name);
+
+  if (userDirs.length === 0) {
+    console.log("🔄 [TenantRegistry] No existing tenants to restore.");
+    return;
+  }
+
+  console.log(`🔄 [TenantRegistry] Found ${userDirs.length} auth directories. Checking for restorable tenants...`);
+
+  let restored = 0;
+
+  for (const userId of userDirs) {
+    try {
+      // Check if a SQLite DB exists for this user
+      const dbPath = path.join(BASE_DATA_DIR, userId, "uniquery.db");
+      if (!fs.existsSync(dbPath)) {
+        console.log(`⏭️  [TenantRegistry] Skipping ${userId} — no database found.`);
+        continue;
+      }
+
+      // Open the database to check for selected communities or channels
+      const db = createDatabase(userId);
+      const selected = db.getSelectedCommunities();
+      const selectedChannels = db.getSelectedChannels();
+
+      if (selected.length === 0 && selectedChannels.length === 0) {
+        console.log(`⏭️  [TenantRegistry] Skipping ${userId} — no selected communities or channels.`);
+        db.close();
+        continue;
+      }
+
+      // Retrieve persisted uid
+      const uid = db.getMeta("uid") || null;
+
+      console.log(
+        `🔄 [TenantRegistry] Restoring tenant: ${userId} (${selected.length} communities, ${selectedChannels.length} channels, uid: ${uid ? "yes" : "none"})`
+      );
+
+      // connectTenant will call getTenant which creates a fresh DB handle,
+      // so close this one to avoid holding two handles.
+      db.close();
+
+      // Stagger reconnections to avoid thundering herd
+      if (restored > 0) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      await connectTenant(userId, uid);
+      restored++;
+    } catch (err) {
+      console.error(`❌ [TenantRegistry] Failed to restore tenant ${userId}:`, err.message);
+    }
+  }
+
+  console.log(`🔄 [TenantRegistry] Restoration complete. ${restored} tenant(s) reconnected.`);
+}
+
 module.exports = {
   getTenant,
   connectTenant,
@@ -253,8 +345,10 @@ module.exports = {
   getTenantStatus,
   getTenantQR,
   getTenantGroups,
+  getTenantChannels,
   getTenantDB,
   getTenantContextManager,
   getActiveTenantCount,
   getTenantHistoricalMessages,
+  restoreAllTenants,
 };

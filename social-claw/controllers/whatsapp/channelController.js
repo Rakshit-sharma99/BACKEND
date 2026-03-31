@@ -1,5 +1,5 @@
 /**
- * WhatsApp Community Controller — manage selected communities.
+ * WhatsApp Channel Controller — manage selected channels (newsletters).
  * All operations scoped to the authenticated user via req.user.id.
  */
 
@@ -20,35 +20,35 @@ function getInternalToken() {
 }
 
 /**
- * GET /whatsapp/communities
- * Lists communities. Filters by ?q= query and caps at 50 to prevent huge payloads,
- * but ALWAYS includes selected communities so the frontend can retrieve their names.
+ * GET /whatsapp/channels
+ * Lists channels. Filters by ?q= query and caps at 50 to prevent huge payloads,
+ * but ALWAYS includes selected channels so the frontend can retrieve their names.
  */
-const getCommunities = async (req, res) => {
+const getChannels = async (req, res) => {
   try {
     const userId = req.user.id;
     const query = req.query.q?.toLowerCase() || "";
     
-    const groups = await registry.getTenantGroups(userId);
+    const channels = await registry.getTenantChannels(userId);
     const db = registry.getTenantDB(userId);
-    const selected = db.getSelectedCommunities();
+    const selected = db.getSelectedChannels();
     const selectedIds = new Set(selected.map((s) => s.id));
 
-    const selectedGroups = [];
-    const unselectedGroups = [];
+    const selectedChannels = [];
+    const unselectedChannels = [];
 
-    for (const g of groups) {
-      if (selectedIds.has(g.id)) {
-        selectedGroups.push({ ...g, isSelected: true });
+    for (const c of channels) {
+      if (selectedIds.has(c.id)) {
+        selectedChannels.push({ ...c, isSelected: true });
       } else {
-        unselectedGroups.push({ ...g, isSelected: false });
+        unselectedChannels.push({ ...c, isSelected: false });
       }
     }
 
-    let filteredUnselected = unselectedGroups;
+    let filteredUnselected = unselectedChannels;
     if (query) {
-      filteredUnselected = unselectedGroups.filter((g) =>
-        g.name?.toLowerCase().includes(query)
+      filteredUnselected = unselectedChannels.filter((c) =>
+        c.name?.toLowerCase().includes(query)
       );
     }
 
@@ -56,21 +56,22 @@ const getCommunities = async (req, res) => {
     filteredUnselected = filteredUnselected.slice(0, 50);
 
     // Combine and return
-    res.json([...selectedGroups, ...filteredUnselected]);
+    res.json([...selectedChannels, ...filteredUnselected]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 };
 
 /**
- * GET /whatsapp/communities/selected
+ * GET /whatsapp/channels/selected
+ * Lists selected channels with hot/warm tier stats.
  */
-const getSelectedCommunities = (req, res) => {
+const getSelectedChannels = (req, res) => {
   const userId = req.user.id;
   const db = registry.getTenantDB(userId);
   const contextManager = registry.getTenantContextManager(userId);
 
-  const selected = db.getSelectedCommunities();
+  const selected = db.getSelectedChannels();
   const stats = db.getStats();
   const contextStats = contextManager.getAllContextStats();
 
@@ -101,37 +102,37 @@ const getSelectedCommunities = (req, res) => {
 };
 
 /**
- * POST /whatsapp/communities/select
- * Links selected communities to the knowledge service with historical data.
+ * POST /whatsapp/channels/select
+ * Links selected channels to the knowledge service with historical data.
  */
-const selectCommunities = async (req, res) => {
-  const { communities } = req.body;
-  if (!Array.isArray(communities)) {
+const selectChannels = async (req, res) => {
+  const { channels } = req.body;
+  if (!Array.isArray(channels)) {
     return res
       .status(400)
-      .json({ error: "communities must be an array of { id, name }" });
+      .json({ error: "channels must be an array of { id, name }" });
   }
 
   const userId = req.user.id;
   const uid = req.user.uid;
   const db = registry.getTenantDB(userId);
 
-  db.setSelectedCommunities(communities);
+  db.setSelectedChannels(channels);
 
-  // Buffer historical messages from Baileys into SQLite now that communities are selected
-  for (const community of communities) {
-    const historical = registry.getTenantHistoricalMessages(userId, community.id, 500);
+  // Buffer historical messages from Baileys into SQLite now that channels are selected
+  for (const channel of channels) {
+    const historical = registry.getTenantHistoricalMessages(userId, channel.id, 500);
     if (historical && historical.length > 0) {
       const result = processMessages(historical, db, userId, uid, true);
-      console.log(`[CommunityController] Ingested ${result.ingested} historical messages for ${community.name}`);
+      console.log(`[ChannelController] Ingested ${result.ingested} historical messages for ${channel.name}`);
     }
   }
 
-  // Register each community with the knowledge service (non-blocking)
-  for (const community of communities) {
-    linkCommunityToKnowledge(userId, uid, community, db).catch((err) =>
+  // Register each channel with the knowledge service (non-blocking)
+  for (const channel of channels) {
+    linkChannelToKnowledge(userId, uid, channel, db).catch((err) =>
       console.error(
-        `[CommunityController] Knowledge link failed for ${community.name}:`,
+        `[ChannelController] Knowledge link failed for ${channel.name}:`,
         err.message
       )
     );
@@ -139,24 +140,22 @@ const selectCommunities = async (req, res) => {
 
   res.json({
     success: true,
-    selected: communities.length,
+    selected: channels.length,
   });
 };
 
 /**
- * Register a community with the knowledge service.
- * Sends historical messages for LLM distillation and context initialization.
+ * Register a channel with the knowledge service.
  */
-async function linkCommunityToKnowledge(userId, uid, community, db) {
+async function linkChannelToKnowledge(userId, uid, channel, db) {
   if (!uid) {
-    console.warn("[CommunityController] No uid available, skipping knowledge link");
+    console.warn("[ChannelController] No uid available, skipping knowledge link");
     return;
   }
 
   try {
-    // Fetch historical messages from SQLite (up to 500 most recent)
     const historicalMessages = db
-      .getMessagesForCommunity(community.id, 500)
+      .getMessagesForCommunity(channel.id, 500)
       .map((m) => ({
         text: m.text,
         sender: m.sender_name || m.sender || "Unknown",
@@ -168,8 +167,8 @@ async function linkCommunityToKnowledge(userId, uid, community, db) {
       `${KNOWLEDGE_URL}/external/link`,
       {
         uid,
-        entityId: community.id,
-        entityName: community.name,
+        entityId: channel.id,
+        entityName: channel.name,
         platform: "whatsapp",
         userId,
         historicalMessages,
@@ -181,36 +180,34 @@ async function linkCommunityToKnowledge(userId, uid, community, db) {
     );
 
     console.log(
-      `✅ [CommunityController] Linked "${community.name}" to knowledge service (${historicalMessages.length} historical messages)`
+      `✅ [ChannelController] Linked "${channel.name}" to knowledge service (${historicalMessages.length} historical messages)`
     );
   } catch (err) {
     console.error(
-      `[CommunityController] Failed to link "${community.name}" to knowledge:`,
+      `[ChannelController] Failed to link "${channel.name}" to knowledge:`,
       err.message
     );
   }
 }
 
 /**
- * POST /whatsapp/communities/:id/purge
+ * POST /whatsapp/channels/:id/purge
  */
-const purgeCommunity = (req, res) => {
-  const communityId = decodeURIComponent(req.params.id);
+const purgeChannel = (req, res) => {
+  const channelId = decodeURIComponent(req.params.id);
   const userId = req.user.id;
   const db = registry.getTenantDB(userId);
   const contextManager = registry.getTenantContextManager(userId);
 
-  db.purgeCommunity(communityId);
-  db.deselectCommunity(communityId);
-  contextManager.purgeContext(communityId);
+  db.purgeChannel(channelId);
+  contextManager.purgeContext(channelId);
 
-  res.json({ success: true, purged: communityId });
+  res.json({ success: true, purged: channelId });
 };
 
 module.exports = {
-  getCommunities,
-  getSelectedCommunities,
-  selectCommunities,
-  purgeCommunity,
+  getChannels,
+  getSelectedChannels,
+  selectChannels,
+  purgeChannel,
 };
-

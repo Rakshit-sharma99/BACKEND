@@ -9,7 +9,7 @@ const Database = require("better-sqlite3");
 const path = require("path");
 const fs = require("fs");
 
-const BASE_DATA_DIR = path.join(__dirname, "../../../../data");
+const BASE_DATA_DIR = path.join(__dirname, "../../../data");
 
 /**
  * Create (or open) a per-user database instance.
@@ -55,6 +55,17 @@ function createDatabase(userId) {
       id TEXT PRIMARY KEY,
       name TEXT,
       selected_at INTEGER DEFAULT (strftime('%s','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS selected_channels (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      selected_at INTEGER DEFAULT (strftime('%s','now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS tenant_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT
     );
   `);
 
@@ -127,6 +138,36 @@ function createDatabase(userId) {
 
   const isSelected = db.prepare(`
     SELECT 1 FROM selected_communities WHERE id = @id
+  `);
+
+  // ── Tenant Meta ──
+  const upsertMeta = db.prepare(`
+    INSERT OR REPLACE INTO tenant_meta (key, value) VALUES (@key, @value)
+  `);
+
+  const readMeta = db.prepare(`
+    SELECT value FROM tenant_meta WHERE key = @key
+  `);
+
+  // ── Selected Channels ──
+  const insertSelectedChannel = db.prepare(`
+    INSERT OR REPLACE INTO selected_channels (id, name) VALUES (@id, @name)
+  `);
+
+  const removeSelectedChannel = db.prepare(`
+    DELETE FROM selected_channels WHERE id = @id
+  `);
+
+  const getSelectedChannelsStmt = db.prepare(`
+    SELECT * FROM selected_channels
+  `);
+
+  const isChannelSelectedStmt = db.prepare(`
+    SELECT 1 FROM selected_channels WHERE id = @id
+  `);
+
+  const deleteByChannel = db.prepare(`
+    DELETE FROM messages WHERE community_id = @communityId
   `);
 
   // ── Public API ──
@@ -207,6 +248,49 @@ function createDatabase(userId) {
         }
       });
       insertAll(communities);
+    },
+
+    // ── Channel Operations ──
+
+    selectChannel(id, name) {
+      return insertSelectedChannel.run({ id, name });
+    },
+
+    deselectChannel(id) {
+      return removeSelectedChannel.run({ id });
+    },
+
+    getSelectedChannels() {
+      return getSelectedChannelsStmt.all();
+    },
+
+    isChannelSelected(id) {
+      return !!isChannelSelectedStmt.get({ id });
+    },
+
+    setSelectedChannels(channels) {
+      const clearAll = db.prepare("DELETE FROM selected_channels");
+      const insertAll = db.transaction((list) => {
+        clearAll.run();
+        for (const c of list) {
+          insertSelectedChannel.run({ id: c.id, name: c.name });
+        }
+      });
+      insertAll(channels);
+    },
+
+    purgeChannel(channelId) {
+      deleteByChannel.run({ communityId: channelId });
+      removeSelectedChannel.run({ id: channelId });
+    },
+
+    setMeta(key, value) {
+      upsertMeta.run({ key, value: String(value) });
+    },
+
+    getMeta(key) {
+      const row = readMeta.get({ key });
+      return row ? row.value : null;
     },
 
     close() {

@@ -13,6 +13,7 @@ const server = http.createServer(app);
 
 const socialClawRouter = require("./routes/socialClawRouter");
 const authenticate = require("./middlewares/authentication");
+const { restoreAllTenants } = require("./platforms/whatsapp/tenantRegistry");
 const allowedOrigins = [
   "http://localhost:5173",
   "https://app.macbease.com",
@@ -56,8 +57,14 @@ const port = process.env.PORT || 7110;
 
 const start = async () => {
   try {
-    server.listen(port, () => {
+    server.listen(port, async () => {
       console.log(`🦀 Social Claw is listening on port ${port}.`);
+      // Restore previously-connected tenant sessions
+      try {
+        await restoreAllTenants();
+      } catch (err) {
+        console.error("🦀 Failed to restore tenants:", err.message);
+      }
     });
   } catch (error) {
     console.log(error);

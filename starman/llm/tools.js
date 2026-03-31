@@ -376,8 +376,13 @@ const tools = [
               type: "string",
               description: "The question text to post in the community",
             },
+            communityKeyword: {
+              type: "string",
+              description:
+                "A single relevant keyword (e.g., 'gym', 'sports', 'coding') to find the best community for this question.",
+            },
           },
-          required: ["question"],
+          required: ["question", "communityKeyword"],
         },
       },
       {

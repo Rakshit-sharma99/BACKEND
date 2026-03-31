@@ -9,6 +9,7 @@ const server = http.createServer(app);
 
 const starmanRouter = require("./routes/starmanRouter");
 const authenticate = require("./middlewares/authentication");
+const connectDB = require("./config/db");
 const allowedOrigins = [
   "http://localhost:5173",
   "https://app.macbease.com",
@@ -53,6 +54,7 @@ const port = process.env.PORT || 7060;
 
 const start = async () => {
   try {
+    await connectDB();
     server.listen(port, () => {
       console.log(`🚀 The Starman is listening on port ${port}.`);
     });

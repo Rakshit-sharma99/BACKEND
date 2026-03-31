@@ -641,13 +641,15 @@ async function web_search_fallback({ query }) {
  * 1. Searches for a relevant community
  * 2. Creates a text post in that community
  */
-async function post_question_to_community({ question }, user) {
+async function post_question_to_community({ question, communityKeyword }, user) {
   try {
-    // 1. Find relevant community by keyword-ranked search
+    // 1. Find relevant community by keyword-ranked search (fallback to question if keyword missing)
+    const searchQuery = communityKeyword || question;
+    console.log(`[toolHandlers] Finding community for: "${searchQuery}"`);
     const searchRes = await axios.get(
       `${UNIVERSE_URL}/community/searchCommunities`,
       {
-        params: { query: question, uid: user.uid },
+        params: { query: searchQuery, uid: user.uid },
         headers: internalHeaders(),
       },
     );

@@ -8,7 +8,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const BASE_DATA_DIR = path.join(__dirname, "../../../../data");
+const BASE_DATA_DIR = path.join(__dirname, "../../../data");
 
 /**
  * Create a context manager scoped to a specific user.

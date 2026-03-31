@@ -227,6 +227,8 @@ const comment = async (req, res) => {
       universeMetaData: user.universeMetaData,
     };
 
+    console.log("new comment", newComment);
+
     content.comments.unshift(newComment);
     await content.save();
 

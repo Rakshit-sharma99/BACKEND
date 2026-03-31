@@ -48,6 +48,10 @@ async function createSession(userId, messageCallback) {
   const historyCache = new Map();
   let totalCached = 0;
 
+  // ── Channel (newsletter) cache ──
+  // Stores discovered newsletter metadata: Map<jid, { id, name, participants, desc }>
+  const channelCache = new Map();
+
   /**
    * Start or restart the Baileys connection.
    */
@@ -134,6 +138,45 @@ async function createSession(userId, messageCallback) {
     // ── Credential persistence ──
     sock.ev.on("creds.update", saveCreds);
 
+    // ── Chat sync: primary channel discovery mechanism ──
+    // Baileys fires chats.set during initial history sync with ALL chat types,
+    // including @newsletter JIDs. This is the most reliable way to discover channels
+    // since newsletter messages may not arrive (they're one-way broadcasts).
+    sock.ev.on("chats.set", ({ chats }) => {
+      if (!chats || chats.length === 0) return;
+      let discovered = 0;
+      for (const chat of chats) {
+        if (chat.id?.endsWith("@newsletter") && !channelCache.has(chat.id)) {
+          channelCache.set(chat.id, {
+            id: chat.id,
+            name: chat.name || chat.subject || chat.id.split("@")[0],
+            participants: chat.participantCount || 0,
+            desc: chat.description || null,
+          });
+          discovered++;
+        }
+      }
+      if (discovered > 0) {
+        console.log(
+          `📡 [${userId}] Chat sync: discovered ${discovered} newsletter channels (total: ${channelCache.size})`
+        );
+      }
+    });
+
+    // Also listen for incremental chat updates (new subscriptions, metadata changes)
+    sock.ev.on("chats.upsert", (chats) => {
+      for (const chat of chats) {
+        if (chat.id?.endsWith("@newsletter")) {
+          channelCache.set(chat.id, {
+            id: chat.id,
+            name: chat.name || chat.subject || channelCache.get(chat.id)?.name || chat.id.split("@")[0],
+            participants: chat.participantCount || channelCache.get(chat.id)?.participants || 0,
+            desc: chat.description || channelCache.get(chat.id)?.desc || null,
+          });
+        }
+      }
+    });
+
     // ── Historical message sync (delivered by Baileys on connect) ──
     sock.ev.on("messaging-history.set", ({ messages: histMsgs, isLatest }) => {
       if (!histMsgs || histMsgs.length === 0) return;
@@ -146,6 +189,16 @@ async function createSession(userId, messageCallback) {
 
         const jid = msg.key?.remoteJid;
         if (!jid || jid.endsWith("@s.whatsapp.net")) continue;
+
+        // Discover newsletter channels from history sync
+        if (jid.endsWith("@newsletter") && !channelCache.has(jid)) {
+          channelCache.set(jid, {
+            id: jid,
+            name: msg.pushName || jid.split("@")[0],
+            participants: 0,
+            desc: null,
+          });
+        }
 
         const ts = msg.messageTimestamp ? Number(msg.messageTimestamp) : 0;
         if (ts < cutoff) continue;
@@ -160,7 +213,7 @@ async function createSession(userId, messageCallback) {
       }
 
       console.log(
-        `📚 [${userId}] History sync: +${added} msgs (total: ${totalCached}, groups: ${historyCache.size}, isLatest: ${isLatest})`
+        `📚 [${userId}] History sync: +${added} msgs (total: ${totalCached}, groups: ${historyCache.size}, channels: ${channelCache.size}, isLatest: ${isLatest})`
       );
     });
 
@@ -175,13 +228,24 @@ async function createSession(userId, messageCallback) {
           !m.key.remoteJid.endsWith("@s.whatsapp.net"),
       );
 
-      // Cache ALL group messages before the privacy filter
-      // so they're available when a community is selected later
+      // Cache ALL group/channel messages before the privacy filter
+      // so they're available when a community/channel is selected later
       const cutoff = Math.floor(Date.now() / 1000) - HISTORY_MAX_AGE_DAYS * 86400;
       for (const msg of incoming) {
         if (totalCached >= HISTORY_MAX_TOTAL) break;
         const jid = msg.key?.remoteJid;
         if (!jid) continue;
+
+        // Discover newsletter channels from live messages
+        if (jid.endsWith("@newsletter") && !channelCache.has(jid)) {
+          channelCache.set(jid, {
+            id: jid,
+            name: msg.pushName || jid.split("@")[0],
+            participants: 0,
+            desc: null,
+          });
+        }
+
         const ts = msg.messageTimestamp ? Number(msg.messageTimestamp) : Math.floor(Date.now() / 1000);
         if (ts < cutoff) continue;
         if (!historyCache.has(jid)) historyCache.set(jid, []);
@@ -199,24 +263,65 @@ async function createSession(userId, messageCallback) {
     return sock;
   }
 
+  let cachedGroups = null;
+  let lastGroupsFetchTime = 0;
+  let groupsFetchPromise = null;
+  const CACHE_TTL = 10000; // 10 seconds
+
   /**
    * Get all WhatsApp groups the user is in.
    */
   async function getGroups() {
     if (!sock || connectionState !== "open") return [];
-    try {
-      const groups = await sock.groupFetchAllParticipating();
-      return Object.values(groups).map((g) => ({
-        id: g.id,
-        name: g.subject,
-        participants: g.participants?.length || 0,
-        creation: g.creation,
-        desc: g.desc || null,
-      }));
-    } catch (err) {
-      console.error(`[${userId}] Error fetching groups:`, err.message);
-      return [];
+    
+    if (cachedGroups && Date.now() - lastGroupsFetchTime < CACHE_TTL) {
+      return cachedGroups;
     }
+
+    // Dedup: if a fetch is already in flight, wait for it instead of spamming Baileys
+    if (groupsFetchPromise) {
+      return groupsFetchPromise;
+    }
+
+    groupsFetchPromise = (async () => {
+      try {
+        const groups = await sock.groupFetchAllParticipating();
+        cachedGroups = Object.values(groups).map((g) => ({
+          id: g.id,
+          name: g.subject,
+          participants: g.participants?.length || 0,
+          creation: g.creation,
+          desc: g.desc || null,
+        }));
+        lastGroupsFetchTime = Date.now();
+        return cachedGroups;
+      } catch (err) {
+        console.error(`[${userId}] Error fetching groups:`, err.message);
+        return cachedGroups || [];
+      } finally {
+        groupsFetchPromise = null;
+      }
+    })();
+
+    return groupsFetchPromise;
+  }
+
+  let lastChannelsFetchTime = 0;
+
+  /**
+   * Get all WhatsApp channels (newsletters) the user is subscribed to.
+   * Since Baileys 6.7.16 lacks a strict getSubscribedNewsletters() method,
+   * we rely exclusively on the channelCache populated by chats.set/upsert events.
+   */
+  async function getChannels() {
+    if (!sock || connectionState !== "open") return [];
+    
+    // We must rely on our robust event listeners (chats.set, chats.upsert)
+    // as groupFetchAllParticipating only fetches groups, and getSubscribedNewsletters
+    // is not supported in this Baileys version.
+    const cachedChannels = Array.from(channelCache.values());
+    console.log(`📡 [${userId}] getChannels() → ${cachedChannels.length} channels from cache`);
+    return cachedChannels;
   }
 
   /**
@@ -280,6 +385,7 @@ async function createSession(userId, messageCallback) {
     }
     if (reconnectTimer) clearTimeout(reconnectTimer);
     historyCache.clear();
+    channelCache.clear();
     totalCached = 0;
     connectionState = "disconnected";
     currentQR = null;
@@ -289,6 +395,7 @@ async function createSession(userId, messageCallback) {
   return {
     connect,
     getGroups,
+    getChannels,
     getStatus,
     getQR,
     logout,

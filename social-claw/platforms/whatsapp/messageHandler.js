@@ -78,11 +78,19 @@ function processMessages(rawMessages, db, userId, uid, skipKafka = false) {
     }
 
     const communityId = remoteJid;
+    const isChannel = remoteJid.endsWith("@newsletter");
 
-    // ── PRIVACY BOUNDARY: Drop if community not selected ──
-    if (!db.isCommunitySelected(communityId)) {
-      dropped++;
-      continue;
+    // ── PRIVACY BOUNDARY: Drop if community/channel not selected ──
+    if (isChannel) {
+      if (!db.isChannelSelected(communityId)) {
+        dropped++;
+        continue;
+      }
+    } else {
+      if (!db.isCommunitySelected(communityId)) {
+        dropped++;
+        continue;
+      }
     }
 
     const text = extractText(raw.message);
@@ -97,9 +105,17 @@ function processMessages(rawMessages, db, userId, uid, skipKafka = false) {
     const senderName =
       raw.pushName || raw.key.participant?.split("@")[0] || "Unknown";
 
-    const selectedCommunities = db.getSelectedCommunities();
-    const community = selectedCommunities.find((c) => c.id === communityId);
-    const communityName = community?.name || communityId;
+    // Resolve entity name from the appropriate selection list
+    let communityName;
+    if (isChannel) {
+      const selectedChannels = db.getSelectedChannels();
+      const channel = selectedChannels.find((c) => c.id === communityId);
+      communityName = channel?.name || communityId;
+    } else {
+      const selectedCommunities = db.getSelectedCommunities();
+      const community = selectedCommunities.find((c) => c.id === communityId);
+      communityName = community?.name || communityId;
+    }
 
     const normalized = {
       id: raw.key.id + "_" + communityId,
