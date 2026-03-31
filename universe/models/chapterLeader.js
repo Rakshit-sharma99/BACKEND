@@ -106,6 +106,10 @@ const ChapterLeaderSchema = new mongoose.Schema(
             trim: true,
             maxlength: 100,
         },
+        phone: {
+            type: String,
+            required: true,
+        },
         email: {
             type: String,
             required: true,

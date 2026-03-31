@@ -12,7 +12,8 @@ const {
   addAddress,
   updateAddress,
   deleteAddress,
-  getAllAddresses
+  getAllAddresses,
+  sendMailForApply
 } = require("../controllers/chapterLeaderControllers.js");
 const authenticate = require("../middlewares/authentication.js");
 
@@ -35,5 +36,5 @@ router.post("/addAddress", authenticate, addAddress);
 router.get("/getAddresses", authenticate, getAllAddresses);
 router.put("/updateAddress/:addressId", authenticate, updateAddress);
 router.delete("/deleteAddress/:addressId", authenticate, deleteAddress);
-
+router.post("/sendMailForApply", authenticate, sendMailForApply);
 module.exports = router;

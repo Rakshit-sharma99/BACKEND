@@ -130,8 +130,7 @@ async function updateAllLeadersProgress() {
     }
 }
 
-// Run a job every minute (as per user's current setting in the file)
-schedule.scheduleJob('*/10 * * * * *', async () => {
+schedule.scheduleJob('0 0 */6 * * *', async () => {
     const start = Date.now();
     try {
         // await updateAllLeadersProgress();
