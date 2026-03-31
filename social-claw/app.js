@@ -53,7 +53,7 @@ app.get("/socialClaw/api/v1/hello", (req, res) => {
 // Protected routes
 app.use("/socialClaw/api/v1", authenticate, socialClawRouter);
 
-const port = process.env.PORT || 7110;
+const port = process.env.PORT || 7120;
 
 const start = async () => {
   try {
