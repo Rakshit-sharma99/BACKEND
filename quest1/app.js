@@ -31,7 +31,7 @@ app.get("/quest1/api/v1/hello", (req, res) => {
 
 app.use("/quest1/api/v1", questRouter);
 
-const port = process.env.PORT || 7120;
+const port = process.env.PORT || 7110;
 
 const start = async () => {
   try {
