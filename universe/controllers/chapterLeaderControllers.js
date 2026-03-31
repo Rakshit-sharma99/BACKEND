@@ -37,25 +37,25 @@ const generateProfessionalMail = (name, contentHTML, outro) => {
 
 const register = async (req, res) => {
   try {
-    const { name, email, password, college, socialLink } = req.body;
+    const { name, email, phone, password, college, socialLink } = req.body;
 
-    if (!name || !email || !password || !college || !socialLink) {
+    if (!name || !email || !password || !phone || !college || !socialLink) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "All fields required (name, email, password, college, socialLink)",
+        message: "All fields required (name, email, phone, password, college, socialLink)",
       });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
 
     const existing = await ChapterLeader.findOne({
-      $or: [{ email: normalizedEmail }],
+      $or: [{ email: normalizedEmail }, { phone }],
     });
 
     if (existing) {
       return res.status(StatusCodes.CONFLICT).json({
         success: false,
-        message: "A chapter leader with this email or universe already exists",
+        message: "A chapter leader with this email or phone already exists",
       });
     }
 
@@ -65,6 +65,7 @@ const register = async (req, res) => {
       name,
       email: normalizedEmail,
       password: hashedPassword,
+      phone,
       college,
       socialLink,
     });
@@ -275,7 +276,7 @@ const regenerateAccessToken = async (req, res) => {
 const verifyChapterLeader = async (req, res) => {
   try {
     // Admin guard
-    if (req.user.role === "admin") {
+    if (req.user.role !== "admin") {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
         message: "Unauthorized: admin access required",
@@ -961,6 +962,40 @@ const sendMailForApply = async (req, res) => {
   }
 };
 
+const getUnapprovedLeaders = async (req, res) => {
+  try {
+    // Admin guard
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const leaders = await ChapterLeader.find({
+      isVerified: false
+    },
+      {
+        name: 1,
+        email: 1,
+        phone: 1,
+        college: 1,
+        socialLink: 1
+      })
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched Unapproved chapter leaders successfully",
+      leaders
+    })
+  } catch (err) {
+    console.error("getUnapprovedLeaders error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong while fetching unapproved leaders",
+    })
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -975,6 +1010,7 @@ module.exports = {
   updateAddress,
   deleteAddress,
   getAllAddresses,
-  sendMailForApply
+  sendMailForApply,
+  getUnapprovedLeaders
 };
 

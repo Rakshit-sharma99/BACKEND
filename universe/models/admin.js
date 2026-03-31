@@ -90,7 +90,15 @@ const adminSchema = new mongoose.Schema({
   chapterLeaderReview: {
     type: Boolean,
     default: false,
-  }
+  },
+  passwordResetToken: {
+    type: String,
+    default: undefined,
+  },
+  passwordResetTokenExpire: {
+    type: Date,
+    default: undefined,
+  },
 });
 
 adminSchema.methods.createAccessToken = function () {
