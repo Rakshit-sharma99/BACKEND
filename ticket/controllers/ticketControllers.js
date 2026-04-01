@@ -141,6 +141,8 @@ const generateTicket = async (req, res) => {
     type,
     extraFieldsData,
     couponId,
+    uid,
+    universeMetaData,
   } = req.body;
 
   try {
@@ -210,6 +212,8 @@ const generateTicket = async (req, res) => {
           type,
           extraFieldsData,
           couponId,
+          uid,
+          universeMetaData,
         },
       ],
       { session },
@@ -257,6 +261,18 @@ const generateTicket = async (req, res) => {
       amtPaid,
       userField: user.field,
     });
+
+    // Publish user.activity event for SERE onboarding tracking
+    try {
+      await sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId: req.user.id,
+        uid: req.user.uid,
+        activityType: "event_attend",
+        ref: eventId,
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
+    }
 
     await session.commitTransaction();
     session.endSession();
@@ -1322,6 +1338,50 @@ const searchMyTickets = async (req, res) => {
   }
 };
 
+const addMetaDataToTickets = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        error: "Unauthorized."
+      });
+    }
+
+    const { uid, universeMetaData } = req.body;
+
+    if (!uid || !universeMetaData) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Missing uid or universeMetaData."
+      });
+    }
+
+    const tickets = await Ticket.find({
+      uid: null,
+      universeMetaData: null,
+    });
+
+    console.log("Tickets with !uid and !unvierseMetaData", tickets.length)
+
+    tickets.forEach((ticket) => {
+      ticket.uid = uid;
+      ticket.universeMetaData = universeMetaData;
+      ticket.save();
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Tickets updated successfully."
+    });
+  } catch (err) {
+    console.error("❌ Error in addMetaDataToTickets:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Something went wrong"
+    });
+  }
+}
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -1341,4 +1401,5 @@ module.exports = {
   checkIncompleteTickets,
   fetchPaymentDetails,
   searchMyTickets,
+  addMetaDataToTickets
 };

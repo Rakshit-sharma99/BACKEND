@@ -51,12 +51,22 @@ const submitAnswer = async (req, res) => {
     // Spam detection
     const { isSpam, spamScore } = detectSpam(value, responseTimeMs);
 
-    // Check if user already answered this question
+    // Check if user already answered this question — update if so (recycled questions)
     const existing = await Answer.findOne({ questionId, userId });
     if (existing) {
-      return res.status(409).json({
-        error: "You've already answered this question.",
-        existingAnswer: existing.value,
+      existing.value = value.trim();
+      existing.optionIndex = optionIndex;
+      existing.responseTimeMs = responseTimeMs;
+      existing.flagged = isSpam;
+      existing.spamScore = spamScore;
+      await existing.save();
+
+      return res.status(200).json({
+        success: true,
+        answerId: existing._id,
+        flagged: isSpam,
+        updated: true,
+        message: "Answer updated!",
       });
     }
 

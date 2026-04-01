@@ -11,7 +11,8 @@ const {
   isOnline,
   gotOffline,
   acceptMessage,
-  declineMessage
+  declineMessage,
+  sendBulkMessage
 } = require('../controllers/chatControllers');
 
 router.post('/createNewChatRoom', createNewChatRoom);
@@ -25,5 +26,6 @@ router.post("/isOnline",isOnline);
 router.post("/gotOffline",gotOffline);
 router.post("/acceptMessage",acceptMessage);
 router.post("/declineMessage",declineMessage);
+router.post("/sendBulkMessage",sendBulkMessage);
 
 module.exports = router;

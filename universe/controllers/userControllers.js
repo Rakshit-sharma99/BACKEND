@@ -11,7 +11,7 @@ const {
   scheduleNotification,
   scheduleNotification2,
   updateUserIP,
-  lemmatize
+  lemmatize,
 } = require("../controllers/utils");
 const { default: mongoose } = require("mongoose");
 const {
@@ -2884,37 +2884,101 @@ const searchUsersByFacet = async (req, res) => {
   try {
     const { query } = req.query;
     if (!query) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Query string is required" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Query string is required" });
     }
 
     const facetResponse = await fetchSearchedProfileFacets(query);
-    
-    if (!facetResponse || !facetResponse.success || !facetResponse.data || !facetResponse.data.length) {
-       return res.status(StatusCodes.OK).json([]);
+
+    if (
+      !facetResponse ||
+      !facetResponse.success ||
+      !facetResponse.data ||
+      !facetResponse.data.length
+    ) {
+      return res.status(StatusCodes.OK).json([]);
     }
 
-    const parentIds = facetResponse.data.map(item => item._id);
+    const parentIds = facetResponse.data.map((item) => item._id);
 
     const users = await User.find(
       { _id: { $in: parentIds } },
-      { name: 1, image: 1, _id: 1, course: 1, pushToken: 1, interests: 1, deactivated: 1, email: 1, profession: 1, field: 1 }
+      {
+        name: 1,
+        image: 1,
+        _id: 1,
+        course: 1,
+        pushToken: 1,
+        interests: 1,
+        deactivated: 1,
+        email: 1,
+        profession: 1,
+        field: 1,
+      },
     ).lean();
 
-    const userMap = new Map(users.map(u => [String(u._id), u]));
-    const sortedUsers = parentIds.map(id => userMap.get(String(id))).filter(Boolean);
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const sortedUsers = parentIds
+      .map((id) => userMap.get(String(id)))
+      .filter(Boolean);
 
-    const results = sortedUsers.map(user => {
-      const facetData = facetResponse.data.find(f => String(f._id) === String(user._id));
+    const results = sortedUsers.map((user) => {
+      const facetData = facetResponse.data.find(
+        (f) => String(f._id) === String(user._id),
+      );
       return {
         ...user,
-        matchedFacets: facetData ? facetData.facets : []
+        matchedFacets: facetData ? facetData.facets : [],
       };
     });
 
     return res.status(StatusCodes.OK).json(results);
   } catch (error) {
     console.error("searchUsersByFacet error:", error);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
+  }
+};
+
+const getAlumniByCompany = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ message: "Unauthorized" });
+    }
+    const alumniStats = await User.aggregate([
+      {
+        $match: {
+          profession: "Alumni",
+        },
+      },
+      {
+        $group: {
+          _id: "$company",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          company: "$_id",
+          count: 1,
+          _id: 0,
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ]);
+
+    return res.status(StatusCodes.OK).json(alumniStats);
+  } catch (error) {
+    console.error("Error fetching alumni by company:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
   }
 };
 
@@ -2984,4 +3048,5 @@ module.exports = {
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
   searchUsersByFacet,
+  getAlumniByCompany,
 };

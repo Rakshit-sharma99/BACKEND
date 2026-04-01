@@ -8,19 +8,14 @@ function todayStr() {
 }
 
 const DAILY_CREDITS = 10;
-const MAX_ANSWER_REFILLS_PER_DAY = 15;
 
 /**
  * Calculate how many credits a user earns for answering a question.
- * Applies diminishing returns after 5 answers/day.
+ * Every question answered gives at least 3 points.
  */
 function calculateRefillAmount(answersToday, questionDomain) {
-  const BASE_CREDIT = questionDomain === "universe" ? 3 : 2;
-
-  if (answersToday >= MAX_ANSWER_REFILLS_PER_DAY) return 0; // hard cap
-  if (answersToday >= 10) return 1; // minimum
-  if (answersToday >= 5) return Math.ceil(BASE_CREDIT * 0.5); // half credits
-
+  // Give 4 for universe, 3 for user (at least 3 points per question). No diminishing returns below 3.
+  const BASE_CREDIT = questionDomain === "universe" ? 4 : 3;
   return BASE_CREDIT;
 }
 
@@ -152,15 +147,6 @@ const refill = async (req, res) => {
       ledger.answersToday,
       questionDomain || "user"
     );
-
-    if (creditsEarned === 0) {
-      return res.status(200).json({
-        success: false,
-        balance: ledger.balance,
-        creditsEarned: 0,
-        message: "You've reached the daily answer limit. Come back tomorrow!",
-      });
-    }
 
     ledger.balance += creditsEarned;
     ledger.answersToday += 1;

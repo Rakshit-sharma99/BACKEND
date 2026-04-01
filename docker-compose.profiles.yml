@@ -1,69 +1,75 @@
-version: '3.8'
+version: "3.8"
 
-# This compose file adds profile tags to all services. 
+# This compose file adds profile tags to all services.
 # You can selectively start services by specifying COMPOSE_PROFILES or passing --profile <name>
 # e.g., COMPOSE_PROFILES=universe,content docker compose -f ... up -d
 services:
   # Microservices
   ipls:
-    profiles: [ "all", "ipls" ]
+    profiles: ["all", "ipls"]
   universe:
-    profiles: [ "all", "universe" ]
+    profiles: ["all", "universe"]
   multiverse:
-    profiles: [ "all", "multiverse" ]
+    profiles: ["all", "multiverse"]
   content:
-    profiles: [ "all", "content" ]
+    profiles: ["all", "content"]
   card:
-    profiles: [ "all", "card" ]
+    profiles: ["all", "card"]
   event:
-    profiles: [ "all", "event" ]
+    profiles: ["all", "event"]
   bag:
-    profiles: [ "all", "bag" ]
+    profiles: ["all", "bag"]
   badge:
-    profiles: [ "all", "badge" ]
+    profiles: ["all", "badge"]
   offer:
-    profiles: [ "all", "offer" ]
+    profiles: ["all", "offer"]
   quest:
-    profiles: [ "all", "quest" ]
+    profiles: ["all", "quest"]
   invitation:
-    profiles: [ "all", "invitation" ]
+    profiles: ["all", "invitation"]
   itinerary:
-    profiles: [ "all", "itinerary" ]
+    profiles: ["all", "itinerary"]
   joinLink:
-    profiles: [ "all", "joinLink" ]
+    profiles: ["all", "joinLink"]
   tile:
-    profiles: [ "all", "tile" ]
+    profiles: ["all", "tile"]
   org:
-    profiles: [ "all", "org" ]
+    profiles: ["all", "org"]
   unsorted:
-    profiles: [ "all", "unsorted" ]
+    profiles: ["all", "unsorted"]
   ticket:
-    profiles: [ "all", "ticket" ]
+    profiles: ["all", "ticket"]
   refund:
-    profiles: [ "all", "refund" ]
+    profiles: ["all", "refund"]
   blog:
-    profiles: [ "all", "blog" ]
+    profiles: ["all", "blog"]
   coupon:
-    profiles: [ "all", "coupon" ]
+    profiles: ["all", "coupon"]
   memory:
-    profiles: [ "all", "memory" ]
+    profiles: ["all", "memory"]
   overlay:
-    profiles: [ "all", "overlay" ]
+    profiles: ["all", "overlay"]
   map:
-    profiles: [ "all", "map" ]
-  starman:
-    profiles: [ "all", "starman" ]
-  credit:
-    profiles: [ "all", "credit" ]
-  question:
-    profiles: [ "all", "question" ]
+    profiles: ["all", "map"]
+  quest1:
+    profiles: ["all", "quest1"]
+  social-claw:
+    profiles: ["all", "social-claw"]
+  sere:
+    profiles: ["all", "sere"]
   knowledge:
-    profiles: [ "all", "knowledge" ]
+    profiles: ["all", "knowledge"]
+  credit:
+    profiles: ["all", "credit"]
+  question:
+    profiles: ["all", "question"]
+  starman:
+    profiles: ["all", "starman"]
 
   # Core infrastructure services
   kafka:
-    profiles: [ "all", "core" ]
+    profiles: ["all", "core"]
   redis:
-    profiles: [ "all", "core" ]
+    profiles: ["all", "core"]
   nginx:
-    profiles: [ "all", "core" ]
+    profiles: ["all", "core"]

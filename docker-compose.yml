@@ -379,6 +379,37 @@ services:
       - app-network
     restart: unless-stopped
 
+  sere:
+    build:
+      context: ./sere
+      dockerfile: Dockerfile
+    image: spargens/sere
+    env_file:
+      - ./env/sere/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  social-claw:
+    build:
+      context: ./social-claw
+      dockerfile: Dockerfile
+    image: spargens/social-claw
+    env_file:
+      - ./env/social-claw/.env
+    volumes:
+      - social-claw-data:/app/data
+      - social-claw-auth:/app/auth_info
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:latest
     container_name: multiverse-backend-kafka-1
@@ -441,8 +472,24 @@ services:
       - app-network
     restart: unless-stopped
 
+  quest1:
+    build:
+      context: ./quest1
+      dockerfile: Dockerfile
+    image: spargens/quest1
+    env_file:
+      - ./env/quest1/.env
+    depends_on:
+      - kafka
+      - redis
+    networks:
+      - app-network
+    restart: unless-stopped
+
 volumes:
   kafka-data:
+  social-claw-data:
+  social-claw-auth:
 
 
 networks:

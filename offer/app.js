@@ -12,7 +12,7 @@ const offerRouter = require("./routes/offerRouter");
 
 const app = express();
 const server = http.createServer(app);
-
+const cookieParser = require("cookie-parser");
 app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:5173",
@@ -34,6 +34,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   console.log(

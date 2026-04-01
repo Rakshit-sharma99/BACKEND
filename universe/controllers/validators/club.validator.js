@@ -7,6 +7,8 @@ const isStringArray = (arr) =>
 
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
+const isNumber = (v) => typeof v === 'number' && !isNaN(v);
+
 const validateGalleryItem = (item) => {
   if (typeof item !== "object") return false;
 

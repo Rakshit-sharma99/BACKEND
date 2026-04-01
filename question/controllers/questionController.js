@@ -23,7 +23,7 @@ function generateSlug(text) {
  */
 const getNextQuestion = async (req, res) => {
   try {
-    const { userId, uid, answeredIds } = req.query;
+    const { userId, uid, answeredIds, preferredDomain } = req.query;
     if (!userId) return res.status(400).json({ error: "userId is required" });
 
     // Parse answered question IDs (comma-separated string from client)
@@ -34,6 +34,11 @@ const getNextQuestion = async (req, res) => {
       status: "active",
       ...(excludeIds.length > 0 && { _id: { $nin: excludeIds } }),
     };
+
+    // If user requested a specific domain, lock to it
+    if (preferredDomain === "universe" || preferredDomain === "user") {
+      filter.domain = preferredDomain;
+    }
 
     // Only filter by uid if provided; otherwise return all global questions
     if (uid) {
@@ -49,24 +54,75 @@ const getNextQuestion = async (req, res) => {
       .lean();
 
     if (candidates.length === 0) {
+      // All questions answered — recycle older ones (exclude the most recent 10 to avoid immediate repeats)
+      const recycleExclude = excludeIds.slice(-10);
+      const recycleFilter = {
+        status: "active",
+        ...(recycleExclude.length > 0 && { _id: { $nin: recycleExclude } }),
+      };
+      if (preferredDomain === "universe" || preferredDomain === "user") {
+        recycleFilter.domain = preferredDomain;
+      }
+      if (uid) {
+        recycleFilter.$or = [{ uid }, { uid: null }, { uid: { $exists: false } }];
+      } else {
+        recycleFilter.$or = [{ uid: null }, { uid: { $exists: false } }];
+      }
+
+      const recycled = await Question.find(recycleFilter)
+        .sort({ timesAsked: 1, createdAt: -1 })
+        .limit(10)
+        .lean();
+
+      if (recycled.length === 0) {
+        return res.status(200).json({
+          question: null,
+          message: "No more questions available right now!",
+        });
+      }
+
+      // Pick randomly from recycled pool
+      const pick = recycled[Math.floor(Math.random() * Math.min(recycled.length, 5))];
+      let displayText = pick.text;
+      if (pick.variations && pick.variations.length > 0) {
+        const variation = pick.variations[Math.floor(Math.random() * pick.variations.length)];
+        displayText = variation.text;
+      }
+      await Question.updateOne({ _id: pick._id }, { $inc: { timesAsked: 1 }, lastAskedAt: new Date() });
+
       return res.status(200).json({
-        question: null,
-        message: "No more questions available right now!",
+        question: {
+          id: pick._id,
+          text: displayText,
+          originalText: pick.text,
+          domain: pick.domain,
+          category: pick.category,
+          format: pick.format,
+          options: pick.options || [],
+          tags: pick.tags || [],
+        },
       });
     }
 
-    // Weighted selection: favor a mix of universe (60%) and user (40%) domains
-    const universe = candidates.filter((q) => q.domain === "universe");
-    const personal = candidates.filter((q) => q.domain === "user");
+    let selected;
 
-    const pool = [
-      ...universe.slice(0, 3),
-      ...personal.slice(0, 2),
-    ];
+    if (preferredDomain) {
+      // User chose a specific domain — just pick randomly from candidates
+      selected = candidates[Math.floor(Math.random() * Math.min(candidates.length, 5))];
+    } else {
+      // Weighted selection: favor a mix of universe (60%) and user (40%) domains
+      const universe = candidates.filter((q) => q.domain === "universe");
+      const personal = candidates.filter((q) => q.domain === "user");
 
-    // If pool is empty (all from one domain), fall back to any candidate
-    const finalPool = pool.length > 0 ? pool : candidates.slice(0, 5);
-    const selected = finalPool[Math.floor(Math.random() * finalPool.length)];
+      const pool = [
+        ...universe.slice(0, 3),
+        ...personal.slice(0, 2),
+      ];
+
+      // If pool is empty (all from one domain), fall back to any candidate
+      const finalPool = pool.length > 0 ? pool : candidates.slice(0, 5);
+      selected = finalPool[Math.floor(Math.random() * finalPool.length)];
+    }
 
     // Pick a random witty variation if available
     let displayText = selected.text;

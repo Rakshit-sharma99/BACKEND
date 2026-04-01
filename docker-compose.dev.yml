@@ -108,3 +108,15 @@ services:
     volumes:
       - ./credit:/app
       - /app/node_modules
+  sere:
+    volumes:
+      - ./sere:/app
+      - /app/node_modules
+  quest1:
+    volumes:
+      - ./quest1:/app
+      - /app/node_modules
+  social-claw:
+    volumes:
+      - ./social-claw:/app
+      - /app/node_modules

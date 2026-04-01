@@ -193,7 +193,7 @@ const comment = async (req, res) => {
   try {
     const user_query = {
       id: req.user.id,
-      fields: ["name", "image", "pushToken", "_id"],
+      fields: ["name", "image", "pushToken", "_id", "uid", "universeMetaData"],
     };
 
     const [user, content] = await Promise.all([
@@ -223,7 +223,11 @@ const comment = async (req, res) => {
       pushToken: user.pushToken,
       _id: user._id,
       createdAt: new Date(),
+      uid: user.uid,
+      universeMetaData: user.universeMetaData,
     };
+
+    console.log("new comment", newComment);
 
     content.comments.unshift(newComment);
     await content.save();
@@ -979,6 +983,7 @@ const getContentForLanding = async (req, res) => {
             {
               $match: {
                 tags: { $in: interestTags },
+                belongsTo: { $nin: belongsToIds },
                 _id: { $nin: seenIds },
                 timeStamp: { $lt: parsedCursor },
                 contentType: { $in: ["image", "video"] },
@@ -1032,6 +1037,7 @@ const getContentForLanding = async (req, res) => {
       const fallbackContent = await Content.aggregate([
         {
           $match: {
+            belongsTo: { $nin: belongsToIds },
             _id: { $nin: excludeIdsForFallback },
             timeStamp: { $lt: parsedCursor },
             contentType: { $in: ["image", "video"] },

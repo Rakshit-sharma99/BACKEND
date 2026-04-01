@@ -72,7 +72,12 @@ const territorySchema = new mongoose.Schema(
       type: Number,
       required: true,
       index: true,
-      unique: true,
+    },
+
+    parentTerritoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Territory",
+      default: null,
     },
 
     uid: {
@@ -144,7 +149,7 @@ const territorySchema = new mongoose.Schema(
 
     source: {
       type: String,
-      enum: ["semantic", "facet"],
+      enum: ["semantic", "facet", "alumni"],
       default: "semantic",
     },
   },

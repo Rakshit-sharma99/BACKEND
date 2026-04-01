@@ -19,15 +19,80 @@ const {
 const JoinLink = require("../models/joinLink");
 
 const STOP_WORDS = new Set([
-  "did", "does", "do", "is", "are", "was", "were", "will", "would",
-  "can", "could", "should", "has", "have", "had", "been", "being",
-  "the", "a", "an", "and", "or", "but", "in", "on", "at", "to",
-  "for", "of", "with", "by", "from", "it", "its", "this", "that",
-  "what", "when", "where", "who", "how", "why", "which",
-  "i", "me", "my", "we", "our", "you", "your", "he", "she", "they",
-  "about", "any", "tell", "know", "find", "show", "get",
-  "visit", "visited", "come", "came", "going", "go", "went",
-  "next", "last", "new", "like", "also", "just", "very",
+  "did",
+  "does",
+  "do",
+  "is",
+  "are",
+  "was",
+  "were",
+  "will",
+  "would",
+  "can",
+  "could",
+  "should",
+  "has",
+  "have",
+  "had",
+  "been",
+  "being",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "but",
+  "in",
+  "on",
+  "at",
+  "to",
+  "for",
+  "of",
+  "with",
+  "by",
+  "from",
+  "it",
+  "its",
+  "this",
+  "that",
+  "what",
+  "when",
+  "where",
+  "who",
+  "how",
+  "why",
+  "which",
+  "i",
+  "me",
+  "my",
+  "we",
+  "our",
+  "you",
+  "your",
+  "he",
+  "she",
+  "they",
+  "about",
+  "any",
+  "tell",
+  "know",
+  "find",
+  "show",
+  "get",
+  "visit",
+  "visited",
+  "come",
+  "came",
+  "going",
+  "go",
+  "went",
+  "next",
+  "last",
+  "new",
+  "like",
+  "also",
+  "just",
+  "very",
 ]);
 const {
   fetchContent,
@@ -49,6 +114,7 @@ const createCommunity = async (req, res) => {
       tag,
       hiddenTags = [],
       universeMetaData,
+      scope,
     } = req.body;
     const creatorId = req.user.id;
     const createdOn = new Date();
@@ -67,6 +133,7 @@ const createCommunity = async (req, res) => {
       admins: [creatorId],
       uid: req.user.uid,
       universeMetaData,
+      scope,
     });
 
     await sendKafkaMessage("CREATE_COMMUNITY", "multiverse", {
@@ -1034,7 +1101,7 @@ const getCommunitiesPartOf = async (req, res) => {
         communitiesPartOf: 1,
         clubs: 1,
         _id: 0,
-      });
+      }).lean();
 
       const communityIds = user.communitiesPartOf.map((c) => c.communityId);
       const clubIds = user.clubs.map((c) => c.clubId);
@@ -1053,7 +1120,7 @@ const getCommunitiesPartOf = async (req, res) => {
       const finalDataCommunity = user.communitiesPartOf
         .map((c) => {
           const community = communities.find(
-            (comm) => comm._id.toString() === c.communityId,
+            (comm) => comm._id.toString() === c.communityId.toString(),
           );
           return community ? { ...c, ...community } : null;
         })
@@ -1061,7 +1128,9 @@ const getCommunitiesPartOf = async (req, res) => {
 
       const finalDataClub = user.clubs
         .map((c) => {
-          const club = clubs.find((club) => club._id.toString() === c.clubId);
+          const club = clubs.find(
+            (club) => club._id.toString() === c.clubId.toString(),
+          );
           return club ? { ...c, ...club } : null;
         })
         .filter(Boolean); // Filters out null values
@@ -1427,7 +1496,7 @@ const getFastNativeFeed = async (req, res) => {
           ...doc,
           irrelevanceVote: matchedContent.irrelevanceVote,
           flaggedBy: matchedContent.flaggedBy,
-          commentsNum: doc.comments.length,
+          commentsNum: doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length,
           comments: doc.comments.slice(0, 6),
         };
       });
@@ -1502,7 +1571,7 @@ const getBatchedContent = async (req, res) => {
       const id = content[i].contentId;
       let doc = await fetchContent({ contentId: id });
       if (doc) {
-        let commentsNum = doc.comments.length;
+        let commentsNum = doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length;
         doc.comments = doc.comments.slice(0, 6);
         let point = {
           ...doc,
@@ -1738,6 +1807,19 @@ const post = async (req, res) => {
     secondaryActionsForPost(communityId, contentType, contentId, req.user.id);
 
     await community.save();
+
+    // Publish user.activity event for SERE
+    try {
+      sendKafkaMessage("USER_ACTIVITY", "user", {
+        userId: req.user.id,
+        uid: req.user.uid,
+        activityType: "first_post",
+        ref: contentId,
+      });
+    } catch (kafkaErr) {
+      console.error("user.activity publish failed:", kafkaErr.message);
+    }
+
     const contentDoc = await fetchContent({ contentId });
     const finalObj = { ...contentDoc, irrelevanceVote: 0, commentsNum: 0 };
     io.emit(`communityContentUpdated_${communityId}`, {
@@ -2462,7 +2544,7 @@ const searchCommunityContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2501,7 +2583,7 @@ const searchCommunityFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 

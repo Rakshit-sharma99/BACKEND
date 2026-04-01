@@ -287,6 +287,19 @@ const joinAsMember = async (req, res) => {
         club.yAxisData.push(new Date());
         club.save((err, update) => {
           if (err) return console.error(err);
+
+          // Publish user.activity event for SERE
+          try {
+            sendKafkaMessage("USER_ACTIVITY", "user", {
+              userId: req.user.id,
+              uid: req.user.uid,
+              activityType: "club_join",
+              ref: clubId,
+            });
+          } catch (kafkaErr) {
+            console.error("user.activity publish failed:", kafkaErr.message);
+          }
+
           return res
             .status(StatusCodes.OK)
             .send("You have successfully joined as the member of the club.");
@@ -863,7 +876,10 @@ const removeEvent = async (req, res) => {
     club.upcomingEvent = await Promise.all(
       club.upcomingEvent.map(async (eventPoint) => {
         if (eventPoint.id === eventId && eventPoint.eventId) {
-          const concernedEvent = await fetchEventData({ id: eventPoint.eventId, fields: ["status"] })
+          const concernedEvent = await fetchEventData({
+            id: eventPoint.eventId,
+            fields: ["status"],
+          });
           if (
             concernedEvent &&
             (concernedEvent.status === "featured" ||
@@ -1876,7 +1892,7 @@ const getFastNativeFeed = async (req, res) => {
         if (content) {
           return {
             ...content,
-            commentsNum: content.comments.length,
+            commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length,
             comments: content.comments.slice(0, 6),
           };
         }
@@ -1901,7 +1917,7 @@ const getFastNativeFeed = async (req, res) => {
       if (snippets) {
         processedSnippets = snippets.map((snippet) => ({
           ...snippet,
-          commentsNum: snippet.comments.length, // Store total comment count
+          commentsNum: snippet.commentsNum !== undefined ? snippet.commentsNum : snippet.comments.length, // Store total comment count
           comments: snippet.comments.slice(0, 6), // Get only first 6 comments
         }));
       }
@@ -2037,7 +2053,6 @@ const getAllClub = async (req, res) => {
       .send("An error occurred while fetching the club data.");
   }
 };
-
 
 //Controller 44
 const getSimilarGroups = async (req, res) => {
@@ -2546,9 +2561,9 @@ const fetchProposals = async (req, res) => {
       const proposalIds = proposals.map((item) => item.id);
       const proposalsDoc = await fetchInvitationById({
         id: proposalIds,
-        select: ["endoredBy", "expiration"],
+        select: ["endorsedBy", "expiration"],
       });
-      const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+      const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
         return acc;
       }, {});
@@ -2754,7 +2769,7 @@ const searchClubMembers = async (req, res) => {
         _id: { $in: club.members },
         name: regex,
       },
-      { name: 1, image: 1, pushToken: 1 },
+      { name: 1, image: 1, pushToken: 1, uid: 1, universeMetaData: 1 },
     );
 
     const teamIds = club.team.map((e) => e.id);
@@ -2799,7 +2814,7 @@ const searchClubContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2835,7 +2850,7 @@ const searchClubFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.comments.length, // Total comments count
+      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2929,7 +2944,7 @@ const searchClubProposals = async (req, res) => {
       id: proposalIds,
       select: ["endorsedBy", "expiration"],
     });
-    const proposalsDocMap = proposalsDoc.reduce((acc, doc) => {
+    const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
       acc[doc._id.toString()] = doc;
       return acc;
     }, {});
@@ -3069,7 +3084,7 @@ const getProposalsFromIds = async (req, res) => {
 
     // Convert to map for quick lookup
     const dataMap = new Map(
-      invitations.map((doc) => [doc._id.toString(), doc]),
+      (invitations || []).map((doc) => [doc._id.toString(), doc]),
     );
 
     // Merge data while filtering out undefined results
@@ -3123,10 +3138,10 @@ const checkClubExists = async (req, res) => {
 const searchClubs = async (req, res) => {
   try {
     const { query, uid } = req.query;
-    
+
     // Determine the user ID to use for membership checks
     const currentUserId = req.user ? req.user.id : uid;
-    
+
     const clubs = await Club.aggregate([
       {
         $match: {
@@ -3146,9 +3161,15 @@ const searchClubs = async (req, res) => {
           membersCount: { $size: "$members" },
           top5Members: { $slice: ["$members", 5] },
           founderId: { $toObjectId: "$mainAdmin" },
-          isCore: currentUserId ? { $in: [currentUserId, "$team.id"] } : { $literal: false },
-          isAdmin: currentUserId ? { $in: [currentUserId, "$adminId"] } : { $literal: false },
-          isMember: currentUserId ? { $in: [currentUserId, "$members"] } : { $literal: false },
+          isCore: currentUserId
+            ? { $in: [currentUserId, "$team.id"] }
+            : { $literal: false },
+          isAdmin: currentUserId
+            ? { $in: [currentUserId, "$adminId"] }
+            : { $literal: false },
+          isMember: currentUserId
+            ? { $in: [currentUserId, "$members"] }
+            : { $literal: false },
         },
       },
       {

@@ -13,7 +13,7 @@ const semanticNodeSchema = new mongoose.Schema(
 
     entityType: {
       type: String,
-      enum: ["club", "community", "profile", "event", "profile_facet"],
+      enum: ["club", "community", "profile", "event", "profile_facet", "alumni_facet"],
       index: true,
     },
 

@@ -6,6 +6,7 @@ const express = require("express");
 const admin = require("firebase-admin");
 const helmet = require("helmet");
 const http = require("http");
+const cookieParser = require("cookie-parser");
 
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +37,7 @@ app.use(
 );
 app.use(helmet());
 app.use(express.json());
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   console.log(

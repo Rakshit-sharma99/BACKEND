@@ -114,23 +114,85 @@ const tools = [
         },
       },
       {
-        name: "send_message",
+        name: "send_message_get_recipients",
         description:
-          "Send a direct message to one or more users on behalf of the current user. Always confirm with the user before calling this.",
+          "Find potential recipients for sending a message. ALWAYS call this IN PARALLEL with send_message_compose when the user wants to send a message. Returns a list of users that the frontend will display with checkboxes for selection.",
         parameters: {
           type: "object",
           properties: {
-            recipientIds: {
+            interests: {
               type: "array",
               items: { type: "string" },
-              description: "User IDs to send the message to",
+              description:
+                "Interest keywords to find relevant recipients, e.g. ['coding', 'hackathon']",
+            },
+            names: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Optional specific user names to search for, e.g. ['Amartya', 'Ravi']",
+            },
+            lookingFor: {
+              type: "string",
+              description:
+                "Optional context for what kind of recipients to find, e.g. 'hackathon partners', 'study group members'",
+            },
+          },
+        },
+      },
+      {
+        name: "send_message_compose",
+        description:
+          "Generate a draft message based on the user's intent and tone. ALWAYS call this IN PARALLEL with send_message_get_recipients when the user wants to send a message. The draft will be shown for review and refinement.",
+        parameters: {
+          type: "object",
+          properties: {
+            recipientNames: {
+              type: "array",
+              items: { type: "string" },
+              description: "The names of the users to send the message to (e.g. ['Ayush', 'Ravi']). NEVER use ObjectIds or hex strings here. ONLY use conversational names.",
+            },
+            intent: {
+              type: "string",
+              description:
+                "What the user wants to communicate, e.g. 'invite to hackathon this weekend', 'ask about study group'",
+            },
+            tone: {
+              type: "string",
+              description:
+                "Optional tone preference: 'formal', 'casual', or 'friendly'. Defaults to 'friendly'.",
+            },
+          },
+          required: ["recipientIds", "intent"],
+        },
+      },
+      {
+        name: "send_message_execute",
+        description:
+          "Send the final confirmed message to the confirmed recipients. ONLY call this after the user has confirmed the recipient list AND the message content. ALWAYS use the user's name, NEVER use ObjectIds.",
+        parameters: {
+          type: "object",
+          properties: {
+            recipientNames: {
+              type: "array",
+              items: { type: "string" },
+              description: "The names of the users who will receive the message (e.g. ['Ayush']). NEVER use ObjectIds or hex strings here. The backend will automatically find the correct user by their name.",
             },
             message: {
               type: "string",
-              description: "The message text to send",
+              description: "The final confirmed message text to send",
             },
           },
           required: ["recipientIds", "message"],
+        },
+      },
+      {
+        name: "fetch_credit_question",
+        description:
+          "Fetch a question for the user to answer to earn credits. Use this tool ONLY when the user asks how to earn credits, asks for a question to earn credits, or when you want to explicitly offer them a chance to earn more credits.",
+        parameters: {
+          type: "object",
+          properties: {},
         },
       },
       {
@@ -192,6 +254,22 @@ const tools = [
             },
           },
           required: ["nodeId"],
+        },
+      },
+      {
+        name: "navigate_to_territory",
+        description:
+          "Navigate the map to focus on a specific territory by its name. Use this when the user wants to visit, go to, or explore a specific territory (e.g. 'take me to Alumni territory', 'show me the Tech territory'). Searches by territory name and navigates there if found.",
+        parameters: {
+          type: "object",
+          properties: {
+            territoryName: {
+              type: "string",
+              description:
+                "The name of the territory to navigate to, e.g. 'Alumni', 'Tech & Innovation'",
+            },
+          },
+          required: ["territoryName"],
         },
       },
       {
@@ -298,8 +376,13 @@ const tools = [
               type: "string",
               description: "The question text to post in the community",
             },
+            communityKeyword: {
+              type: "string",
+              description:
+                "A single relevant keyword (e.g., 'gym', 'sports', 'coding') to find the best community for this question.",
+            },
           },
-          required: ["question"],
+          required: ["question", "communityKeyword"],
         },
       },
       {
@@ -400,6 +483,32 @@ const tools = [
               type: "string",
               description:
                 "The campus question to look up in the knowledge base, e.g. 'best momos', 'sunset spot', 'bunking places'",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "search_external_context",
+        description:
+          "Search the user's linked external network knowledge base (WhatsApp communities, Discord servers, Telegram channels) for relevant information. Use this when the user asks about announcements, deadlines, assignments, shared resources, class discussions, or any information that might have been shared in their linked external communities. Returns relevant entries from both recent messages and distilled long-term knowledge with source attribution.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "The search query to find relevant information across linked communities, e.g. 'CS301 assignment deadline', 'exam schedule', 'notes shared'",
+            },
+            communityFilter: {
+              type: "string",
+              description:
+                "Optional: specific community/group name to restrict search to, e.g. 'CS301 Class Group'",
+            },
+            userOnly: {
+              type: "boolean",
+              description:
+                "Optional: if true, only returns entries contributed by the current user. Default false (returns all university-level context).",
             },
           },
           required: ["query"],

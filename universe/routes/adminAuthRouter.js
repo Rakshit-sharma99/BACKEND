@@ -7,6 +7,9 @@ const {
   regenerateAccessToken,
   setOtp,
   setNewPassword,
+  chapterLeaderReviewAccess,
+  forgotPassword,
+  resetPassword
 } = require('../controllers/adminAuthControllers');
 
 router.post('/register', registerAdmin);
@@ -17,5 +20,7 @@ router.post(
 );
 router.post('/setOtp', setOtp);
 router.post('/setNewPassword', setNewPassword);
-
+router.post('/chapterLeaderReviewAccess', chapterLeaderReviewAccess)
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 module.exports = router;

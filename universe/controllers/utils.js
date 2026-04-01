@@ -16,7 +16,7 @@ const PDFDocument = require("pdfkit");
 const { v4: uuidv4 } = require("uuid");
 const stream = require("stream");
 const path = require("path");
-const Club = require("../models/club");
+
 const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
 
 function getCurrentISTDate() {
@@ -33,6 +33,15 @@ const sendMail = async (
   action,
   emailHTML,
 ) => {
+  console.log("Mail generating", {
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+    action,
+    emailHTML,
+  });
   const mailGenerator = new Mailgen({
     theme: "cerberus",
     product: {
@@ -48,14 +57,14 @@ const sendMail = async (
       intro: intro,
       action: action
         ? {
-          instructions:
-            action.instructions || "Click the button below to proceed:",
-          button: {
-            color: action.color || "#1ea1ed",
-            text: action.text || "View Details",
-            link: action.url,
-          },
-        }
+            instructions:
+              action.instructions || "Click the button below to proceed:",
+            button: {
+              color: action.color || "#1ea1ed",
+              text: action.text || "View Details",
+              link: action.url,
+            },
+          }
         : undefined,
       outro: outro,
     },
@@ -272,13 +281,13 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
   try {
     const targetAdmins = role
       ? await Admin.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await Admin.aggregate([
-        { $match: { _id: { $in: ids } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: ids } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetAdmins
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -292,10 +301,10 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -349,13 +358,13 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
     }
     const targetUsers = role
       ? await User.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await User.aggregate([
-        { $match: { _id: { $in: processedIds } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: processedIds } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetUsers
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -369,10 +378,10 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -1038,10 +1047,10 @@ const secondaryInvitationActions = async ({
             notificationPayload.url
               ? scheduleNotification2(notificationData)
               : scheduleNotification(
-                [target.pushToken],
-                notificationData.title,
-                notificationData.body,
-              );
+                  [target.pushToken],
+                  notificationData.title,
+                  notificationData.body,
+                );
           } else {
             // Function to dispatch notification to admin
           }
@@ -1236,6 +1245,8 @@ const fetchRightSequence = async (events) => {
     // Get all club IDs from featured events
     const clubIds = featuredEvents.map((e) => e.belongsTo.id);
 
+    const Club = require("../models/club");
+
     // Fetch clubs with ratings
     const clubs = await Club.find(
       { _id: { $in: clubIds } },
@@ -1325,26 +1336,474 @@ const sendOnboardingMail = async (user) => {
   }
 };
 
-function lemmatize(tags) {
-  if (!Array.isArray(tags) || tags.length === 0) {
-    return [];
+async function resolveMetricValue(metric, uid, numOfEntities = 1) {
+  uid = uid?.toString();
+  console.log(
+    `[MetricResolver] Metric: ${metric}, UID: ${uid}, Entities: ${numOfEntities}`,
+  );
+
+  const User = require("../models/user");
+  const Club = require("../models/club");
+  const Community = require("../models/community");
+  const Event = require("../models/event");
+  const Content = require("../models/content");
+  const Ticket = require("../models/ticket");
+
+  let result = [];
+
+  const matchQuery = { uid };
+
+  switch (metric) {
+    // Club Resolvers
+
+    // 1. Total clubs created
+    case "clubs_created": {
+      const count = await Club.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // 2. Top clubs by members
+    case "clubs_with_min_members": {
+      const aggregatedClubs = await Club.aggregate([
+        { $match: matchQuery },
+        { $project: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        { $sort: { membersCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+
+      // Extract just the membersCount values
+      result = aggregatedClubs.map(c => c.membersCount);
+      break;
+    }
+
+    // 3. Total members across all clubs
+    case "total_club_members": {
+      const aggResult = await Club.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // 4. Top clubs by number of events
+    case "clubs_with_min_events": {
+      const aggResult = await Club.aggregate([
+        { $match: matchQuery },
+        {
+          $addFields: {
+            eventsCount: { $size: { $ifNull: ["$upcomingEvent", []] } }
+          }
+        },
+        { $sort: { eventsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.eventsCount);
+      break;
+    }
+
+    // 5. Top clubs by number of posts
+    case "clubs_with_min_posts": {
+      const aggResult = await Club.aggregate([
+        { $match: matchQuery },
+        {
+          $addFields: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        { $sort: { postsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.postsCount);
+      break;
+    }
+
+    // 6. Total posts across all clubs
+    case "total_club_posts": {
+      const aggResult = await Club.aggregate([
+        { $match: matchQuery },
+        {
+          $project: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$postsCount" }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // Community Resolvers
+
+    // 7. Total communities created
+    case "communities_created": {
+      const count = await Community.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // 8. Top communities by members
+    case "communities_with_min_members": {
+      const aggregated = await Community.aggregate([
+        { $match: matchQuery },
+        {
+          $addFields: {
+            membersCount: {
+              $add: [
+                { $size: { $ifNull: ["$members", []] } },
+                { $ifNull: ["$activeMembers", 0] } // combining stored count if needed
+              ]
+            }
+          }
+        },
+        { $sort: { membersCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggregated.map(c => c.membersCount);
+      break;
+    }
+
+    // 9. Total members across all communities
+    case "total_community_members": {
+      const aggResult = await Community.aggregate([
+        { $match: matchQuery },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // 10. Top communities by posts
+    case "communities_with_min_posts": {
+      const aggResult = await Community.aggregate([
+        { $match: matchQuery },
+        {
+          $addFields: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        { $sort: { postsCount: -1 } },
+        { $limit: numOfEntities }
+      ]);
+      result = aggResult.map(c => c.postsCount);
+      break;
+    }
+
+    // 11. Total posts across all communities
+    case "total_community_posts": {
+      const aggResult = await Community.aggregate([
+        { $match: matchQuery },
+        {
+          $project: {
+            postsCount: { $size: { $ifNull: ["$content", []] } }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: "$postsCount" }
+          }
+        }
+      ]);
+      result = [aggResult[0]?.total || 0];
+      break;
+    }
+
+    // Event Resolvers
+
+    // 12. Total events created
+    case "total_event_created": {
+      const count = await Event.aggregate([
+        {
+          $match: {
+            uid: { $eq : uid}
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // 13. Total event registrations
+    case "total_event_registration": {
+      const count = await Event.aggregate([
+        {
+          $match: {
+            uid,
+            bookedBy: { $ne: [] }
+          }
+        },
+        {
+          $project: {
+            bookedBy: 1
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: { $size: { $ifNull: ["$bookedBy", []] } } }
+          }
+        }
+      ])
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // 14. Top events by registration
+    case "top_event_registration": {
+      const aggResult = await Event.aggregate([
+        {
+          $match: {
+            uid,
+            bookedBy: { $ne: [] }
+          }
+        },
+        {
+          $project: {
+            bookedCount: { $size: { $ifNull: ["$bookedBy", []] } }
+          }
+        },
+        {
+          $sort: {
+            bookedCount: -1
+          }
+        },
+        {
+          $limit: numOfEntities
+        }
+      ]);
+
+      result = aggResult.map(e => e.bookedCount);
+      break;
+    }
+
+    // 15. Cross campus events registrations
+    case "cross_campus_events_registrations": {
+      const eventIds = await Event.find({ uid }).distinct("_id");
+
+      const count = await Ticket.countDocuments({
+        eventId: { $in: eventIds },
+        uid: { $ne: uid }
+      });
+
+      result = [count];
+      break;
+    }
+
+    case "category_event_combo": {
+
+      break;
+    }
+
+    // Member Reslover
+
+    // 16. Total members
+    case "total_members": {
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid }
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // // 17. Registered students
+    case "registered_students": {
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Student"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // // 18. Registered professors
+    case "registered_professors": {
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Professor"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // // 19. Registered alumni
+    case "registered_alumni": {
+      const count = await User.aggregate([
+        {
+          $match: {
+            uid: { $eq: uid },
+            profession: "Alumni"
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 }
+          }
+        }
+      ]);
+      result = [count[0]?.total || 0];
+      break;
+    }
+
+    // // 20. Active member posts
+    case "active_member_posts": {
+      const topUsers = await User.aggregate([
+        {
+          $match: { uid }
+        },
+        {
+          $project: {
+            totalContribution: {
+              $add: [
+               {$size: { $ifNull: ["$clubContributions", []] }},
+               {$size : { $ifNull: ["$communityContribution", []] }}
+              ]
+            }
+          }
+        },
+        {
+          $sort: { totalContribution: -1 }
+        },
+        {
+          $limit: numOfEntities
+        }
+      ]);
+      result = topUsers.map(u => u.totalContribution);
+      break;
+    }
+
+    // 21. Member event attendance
+    case "member_event_attendance": {
+      const members = await User.aggregate([
+        {
+          $match: { uid }, // fetch users of this universe
+        },
+        {
+          $lookup: {
+            from: "tickets",
+            localField: "_id",
+            foreignField: "boughtBy",
+            as: "tickets",
+          },
+        },
+        {
+          $unwind: {
+            path: "$tickets",
+            preserveNullAndEmptyArrays: false,
+          },
+        },
+        {
+          $group: {
+            _id: {
+              userId: "$_id",
+              eventId: "$tickets.eventId",
+            },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id.userId",
+            totalAttendance: { $sum: 1 }, // unique events per user
+          },
+        },
+        {
+          $sort: { totalAttendance: -1 },
+        },
+        {
+          $limit: numOfEntities,
+        },
+      ]);
+
+      result = members.map((m) => m.totalAttendance);
+      break;
+    }
+
+    default:
+      result = [0];
   }
-  return tags.map((tag) => {
-    let words = tag.split(" ");
 
-    let lemmatizedWords = words.map((word) => {
-      const doc = nlp(word);
-      let lemma = doc.verbs().toInfinitive().out(); // Get base form if verb
+  if (result.length > numOfEntities) {
+    result = result.slice(0, numOfEntities);
+  }
 
-      // If lemma is empty, keep original word
-      if (!lemma) return word;
-
-      // Maintain proper capitalization
-      return lemma.charAt(0).toUpperCase() + lemma.slice(1);
-    });
-
-    return lemmatizedWords.join(" "); // Reconstruct phrase
-  });
+  return result;
 }
 
 module.exports = {
@@ -1373,4 +1832,5 @@ module.exports = {
   fetchBags,
   fetchRightSequence,
   sendOnboardingMail,
+  resolveMetricValue,
 };

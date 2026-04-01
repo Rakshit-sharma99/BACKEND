@@ -31,6 +31,7 @@ const KNOWLEDGE_URL =
 const getCreditsAndQuestion = async (req, res) => {
   try {
     const user = req.user;
+    const preferredDomain = req.query.preferredDomain || null;
 
     // Fetch credit balance
     const creditRes = await axios.get(`${CREDIT_URL}/balance`, {
@@ -54,12 +55,15 @@ const getCreditsAndQuestion = async (req, res) => {
     // Fetch next question
     let question = null;
     try {
+      const questionParams = {
+        userId: user.id,
+        uid: user.uid,
+        answeredIds: answeredIds.join(","),
+      };
+      if (preferredDomain) questionParams.preferredDomain = preferredDomain;
+
       const questionRes = await axios.get(`${QUESTION_URL}/next`, {
-        params: {
-          userId: user.id,
-          uid: user.uid,
-          answeredIds: answeredIds.join(","),
-        },
+        params: questionParams,
         headers: internalHeaders(),
       });
       question = questionRes.data?.question;
@@ -96,6 +100,7 @@ const submitAnswer = async (req, res) => {
       responseTimeMs,
       questionDomain,
       questionCategory,
+      preferredDomain,
     } = req.body;
 
     if (!questionId || !value) {
@@ -151,12 +156,15 @@ const submitAnswer = async (req, res) => {
       );
       const answeredIds = answeredRes.data?.answeredIds || [];
 
+      const questionParams = {
+        userId: user.id,
+        uid: user.uid,
+        answeredIds: answeredIds.join(","),
+      };
+      if (preferredDomain) questionParams.preferredDomain = preferredDomain;
+
       const questionRes = await axios.get(`${QUESTION_URL}/next`, {
-        params: {
-          userId: user.id,
-          uid: user.uid,
-          answeredIds: answeredIds.join(","),
-        },
+        params: questionParams,
         headers: internalHeaders(),
       });
       nextQuestion = questionRes.data?.question;

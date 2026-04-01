@@ -1,0 +1,23 @@
+{
+  "name": "sere",
+  "version": "1.0.0",
+  "description": "Starman Engagement & Reminder Engine",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "dev": "nodemon app.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "http-status-codes": "^2.3.0",
+    "jsonwebtoken": "^9.0.2",
+    "kafkajs": "^2.2.4",
+    "mongoose": "^8.0.0",
+    "node-cron": "^3.0.3",
+    "axios": "^1.6.2"
+  }
+}

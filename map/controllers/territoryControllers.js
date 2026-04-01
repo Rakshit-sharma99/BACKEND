@@ -780,19 +780,84 @@ const searchTerritories = async (req, res) => {
       queryArgs.push({ aliases: regex });
     }
 
-    let filter = {};
+    let matchStage = {};
     if (queryArgs.length > 0) {
-      filter = { $or: queryArgs };
+      matchStage = { $or: queryArgs };
     }
 
-    const territories = await Territory.find(filter, {
-      centroidEmbedding: 0,
-      memberNodeIds: 0,
-      representativeTexts: 0,
-    })
-      .sort({ importanceScore: -1 })
-      .limit(Number(limit))
-      .lean();
+    // Build aggregation pipeline that prioritises:
+    //  1. Parent territories (parentTerritoryId is null) over children
+    //  2. Exact / close name matches when searching by `q`
+    //  3. Higher importanceScore
+    const pipeline = [
+      { $match: matchStage },
+      {
+        $project: {
+          centroidEmbedding: 0,
+          memberNodeIds: 0,
+          representativeTexts: 0,
+        },
+      },
+      {
+        $addFields: {
+          // Parent territories get priority 1, children get 0
+          _isParent: {
+            $cond: [
+              {
+                $or: [
+                  { $eq: ["$parentTerritoryId", null] },
+                  { $not: ["$parentTerritoryId"] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+          // Boost exact name matches when searching by `q`
+          _nameMatch: q
+            ? {
+                $cond: [
+                  {
+                    $regexMatch: {
+                      input: "$name",
+                      regex: new RegExp(`^${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+                    },
+                  },
+                  2, // exact match
+                  {
+                    $cond: [
+                      {
+                        $regexMatch: {
+                          input: "$name",
+                          regex: new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+                        },
+                      },
+                      1, // partial name match
+                      0, // matched on description/tags/aliases only
+                    ],
+                  },
+                ],
+              }
+            : { $literal: 0 },
+        },
+      },
+      {
+        $sort: {
+          _nameMatch: -1,      // exact name matches first
+          _isParent: -1,       // parent territories before children
+          importanceScore: -1,  // then by importance
+        },
+      },
+      { $limit: Number(limit) },
+      {
+        $project: {
+          _isParent: 0,
+          _nameMatch: 0,
+        },
+      },
+    ];
+
+    const territories = await Territory.aggregate(pipeline);
 
     return res.status(200).json(territories);
   } catch (error) {
