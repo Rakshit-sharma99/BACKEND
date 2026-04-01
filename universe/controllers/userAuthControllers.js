@@ -21,7 +21,22 @@ const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { shortcuts } = require("./validators/user.validator");
 const { registerCustomUniverse } = require("./interServiceCalls");
-
+const { S3Client, PutObjectCommand, CopyObjectCommand } = require("@aws-sdk/client-s3")
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner")
+const s3v3 = new S3Client({
+  region: process.env.S3_AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.S3_AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY,
+  },
+});
+const s3v3Videos = new S3Client({
+  region: process.env.S3_AWS_VIDEO_REGION,
+  credentials: {
+    accessKeyId: process.env.S3_AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY,
+  },
+});
 const securePassword = async (password) => {
   try {
     const hash = await bcrypt.hash(password, 10);
@@ -1005,6 +1020,121 @@ const suggestUsername = async (req, res) => {
   }
 };
 
+const getUploadUrl = async (req, res) => {
+  try {
+    let { fileType, key } = req.body;
+    const allowedTypes = [
+      // Images
+      "image/jpeg",
+      "image/png",
+      "image/jpg",
+      "image/webp",
+
+      // Videos
+      "video/mp4",
+      "video/webm",
+      "video/quicktime",
+
+      // Documents
+      "application/pdf",
+      "application/msword", // .doc
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/vnd.ms-excel", // .xls
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+      "application/vnd.ms-powerpoint", // .ppt
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation", // .pptx
+      "text/plain", // .txt
+    ];
+
+    if (!allowedTypes.includes(fileType)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Invalid file type",
+      });
+    }
+
+    const uniqueName = `${Date.now()}`;
+
+    if (!key) {
+      key = `public/content/${uniqueName}`;
+    }
+
+    const bucket = fileType.startsWith("video/")
+      ? process.env.S3_VIDEO_BUCKET
+      : process.env.S3_BUCKET;
+
+    const command = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      ContentType: fileType
+    });
+
+    let signedUrl;
+    if (fileType.startsWith("video/")) {
+      signedUrl = await getSignedUrl(s3v3Videos, command, {
+        expiresIn: 60,
+      });
+    }
+    else {
+      signedUrl = await getSignedUrl(s3v3, command, {
+        expiresIn: 60,
+      });
+    }
+    return res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Generated URL successfully",
+      url: signedUrl,
+      key,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const copyObject = async (req, res) => {
+  try {
+    const { fileType, sourceKey, destinationKey } = req.body;
+
+    if (!sourceKey || !destinationKey) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Source and destination required",
+      });
+    }
+
+    const bucket =
+      fileType?.startsWith("video/")
+        ? process.env.S3_VIDEO_BUCKET
+        : process.env.S3_BUCKET;
+
+    await s3v3.send(
+      new CopyObjectCommand({
+        Bucket: bucket,
+        Key: destinationKey,
+        CopySource: `${bucket}/${sourceKey}`,
+        MetadataDirective: "COPY",
+      })
+    );
+
+    return res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Copied successfully",
+      key: destinationKey,
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -1024,4 +1154,6 @@ module.exports = {
   emailVerification2,
   getAppConfig,
   suggestUsername,
+  getUploadUrl,
+  copyObject
 };

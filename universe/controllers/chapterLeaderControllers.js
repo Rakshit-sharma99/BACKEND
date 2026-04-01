@@ -963,6 +963,7 @@ const sendMailForApply = async (req, res) => {
 };
 
 const getUnapprovedLeaders = async (req, res) => {
+  console.log("getUnapprovedLeaders", req.user)
   try {
     // Admin guard
     if (req.user.role !== "admin") {
