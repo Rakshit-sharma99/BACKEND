@@ -10,6 +10,7 @@ const {
   getPopularUniverses,
   getAllowedDomains,
   getEnrichedUniverseData,
+  getUniverseByCallSign
 } = require("../controllers/universeControllers");
 
 const { createCustomUniverse, getAllCustomUniverses } = require("../controllers/customUniverseControllers");
@@ -23,5 +24,5 @@ router.get("/searchUniverse", searchUniverse);
 router.get("/getPopularUniverses", getPopularUniverses);
 router.get("/getAllowedDomains", authenticate, getAllowedDomains);
 router.get("/getEnrichedUniverseData", getEnrichedUniverseData);
-
+router.get("/getUniverseByCallSign", getUniverseByCallSign);
 module.exports = router;

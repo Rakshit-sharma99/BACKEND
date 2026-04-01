@@ -56,6 +56,7 @@ const { update_user_pinned_memory } = require('./memory_event_handlers/update_us
 const { user_overlay_operation } = require('./overlay_event_handlers/user_overlay_operation');
 const { add_ticket_to_user } = require('./ticket_event_handlers/add_ticket_to_user');
 const { credit_ticket_sale } = require("./wallet_event_handlers/credit_ticket_sale");
+const { universe_created } = require("./multiverse_event_handlers/universe_created");
 
 const prefix = process.env.KAFKA_CLIENT_ID;
 
@@ -98,6 +99,7 @@ const handlers = {
   [`${prefix}_user_overlay_operation`]: user_overlay_operation,
   [`${prefix}_add_ticket_to_user`]: add_ticket_to_user,
   [`${prefix}_credit_ticket_sale`]: credit_ticket_sale,
+  [`${prefix}_universe_created`]: universe_created,
 };
 
 module.exports = { handlers };

@@ -366,6 +366,7 @@ const verifyChapterLeader = async (req, res) => {
       "CREATE_UNIVERSE",
       "universe",
       {
+        chapterLeaderId : chapterLeader._id,
         name,
         location,
         callSign,
@@ -376,7 +377,7 @@ const verifyChapterLeader = async (req, res) => {
       }
     );
 
-    // secondary Actions send mail to chapter leader
+    // secondary Actions
     try {
       const emailContent = `
         <p>Congratulations! Your chapter leader account has been verified.</p>
@@ -963,7 +964,6 @@ const sendMailForApply = async (req, res) => {
 };
 
 const getUnapprovedLeaders = async (req, res) => {
-  console.log("getUnapprovedLeaders", req.user)
   try {
     // Admin guard
     if (req.user.role !== "admin") {
