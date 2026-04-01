@@ -896,14 +896,20 @@ const searchContentByText = async (req, res) => {
 //Controller 20
 const getContentForLanding = async (req, res) => {
   try {
-    const { cursor, limit } = req.query;
+    const { cursor, limit, uid, universeId } = req.query;
     const userId = req.user.id;
     const parsedLimit = parseInt(limit) || 5;
     const parsedCursor = cursor ? new Date(cursor) : new Date();
+    const resolvedUniverseId = universeId || uid || "multiverse";
+    const universeFilter =
+      resolvedUniverseId !== "multiverse" ? { uid: resolvedUniverseId } : {};
+    const feedScopeKey = resolvedUniverseId || "multiverse";
 
     if (!cursor) {
       try {
-        const cachedFeed = await redis.get(`landing_feed:${userId}`);
+        const cachedFeed = await redis.get(
+          `landing_feed:${userId}:${feedScopeKey}`,
+        );
         if (cachedFeed) {
           return res.status(StatusCodes.OK).json(JSON.parse(cachedFeed));
         }
@@ -918,7 +924,7 @@ const getContentForLanding = async (req, res) => {
         fields: ["communitiesPartOf", "clubs", "interests"],
         callSign: "universe",
       }),
-      redis.smembers(`seen_content:${userId}`),
+      redis.smembers(`seen_content:${userId}:${feedScopeKey}`),
     ]);
 
     if (!user) {
@@ -952,6 +958,7 @@ const getContentForLanding = async (req, res) => {
           _id: { $nin: seenIds },
           timeStamp: { $lt: parsedCursor },
           contentType: { $in: ["image", "video"] },
+          ...universeFilter,
         },
       },
       { $sort: { timeStamp: -1 } },
@@ -980,6 +987,7 @@ const getContentForLanding = async (req, res) => {
                 _id: { $nin: seenIds },
                 timeStamp: { $lt: parsedCursor },
                 contentType: { $in: ["image", "video"] },
+                ...universeFilter,
               },
             },
             { $sort: { timeStamp: -1 } },
@@ -1033,6 +1041,7 @@ const getContentForLanding = async (req, res) => {
             _id: { $nin: excludeIdsForFallback },
             timeStamp: { $lt: parsedCursor },
             contentType: { $in: ["image", "video"] },
+            ...universeFilter,
           },
         },
         { $sample: { size: needed * 2 } }, // Fetch more to ensure quality/shuffle
@@ -1078,8 +1087,11 @@ const getContentForLanding = async (req, res) => {
     if (finalFeed.length > 0) {
       const newIds = finalFeed.map((c) => c._id.toString());
       const pipeline = redis.pipeline();
-      pipeline.sadd(`seen_content:${userId}`, ...newIds);
-      pipeline.expire(`seen_content:${userId}`, 60 * 60 * 24);
+      pipeline.sadd(`seen_content:${userId}:${feedScopeKey}`, ...newIds);
+      pipeline.expire(
+        `seen_content:${userId}:${feedScopeKey}`,
+        60 * 60 * 24,
+      );
       await pipeline.exec();
     }
 
@@ -1096,7 +1108,7 @@ const getContentForLanding = async (req, res) => {
     // Update Short-term Cache
     if (!cursor) {
       await redis.setex(
-        `landing_feed:${userId}`,
+        `landing_feed:${userId}:${feedScopeKey}`,
         60,
         JSON.stringify(responsePayload),
       );

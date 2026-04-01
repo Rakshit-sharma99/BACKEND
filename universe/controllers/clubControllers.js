@@ -4062,7 +4062,11 @@ const searchClubsWithRegex = async (req, res) => {
 const getClubsForFeed = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { uid, universeId } = req.query;
     const limit = 4;
+    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const universeFilter =
+      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
 
     const user = await User.findById(userId, {
       interests: 1,
@@ -4086,6 +4090,7 @@ const getClubsForFeed = async (req, res) => {
               $match: {
                 tags: { $in: interestTags },
                 _id: { $nin: joinedClubIds },
+                ...universeFilter,
               },
             },
             { $sample: { size: limit } },
@@ -4112,6 +4117,7 @@ const getClubsForFeed = async (req, res) => {
         {
           $match: {
             _id: { $nin: excludeIds },
+            ...universeFilter,
           },
         },
         { $sample: { size: needed } },
