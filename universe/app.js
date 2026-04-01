@@ -67,7 +67,7 @@ const orderRouter = require("./routes/orderRouter");
 app.set("trust proxy", 1);
 app.use(cors(
   {
-    origin: ["http://localhost:5173", "https://macbease.com", "https://www.macbease.com"],
+    origin: ["http://localhost:5173", "https://macbease.com", "https://www.macbease.com", "https://admin.macbease.com", "https://www.admin.macbease.com"],
     credentials: true,
   }
 ));
