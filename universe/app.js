@@ -65,7 +65,7 @@ const productRouter = require("./routes/productRouter");
 const orderRouter = require("./routes/orderRouter");
 
 const sessionRouter = require("./routes/sessionRouter");
-
+const communityMetaRouter = require("./routes/communityMetaRouter");
 app.set("trust proxy", 1);
 app.use(cors(
   {
@@ -138,6 +138,7 @@ app.use("/universe/api/v1/push", authenticate, pushRouter);
 
 // admin routes
 app.use("/universe/api/v1/session", authenticate, sessionRouter);
+app.use("/universe/api/v1/community-metadata", authenticate, communityMetaRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
