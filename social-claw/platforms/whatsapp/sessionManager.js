@@ -42,11 +42,21 @@ async function createSession(userId, messageCallback) {
   let destroyed = false;
 
   // ── History cache with constraints ──
-  const HISTORY_MAX_PER_GROUP = 500;   // Max messages cached per JID
-  const HISTORY_MAX_TOTAL = 5000;      // Max messages across all groups
+  const HISTORY_MAX_PER_GROUP = 3000;  // Max messages cached per JID (supports deep sync)
+  const HISTORY_MAX_TOTAL = 15000;     // Max messages across all groups
   const HISTORY_MAX_AGE_DAYS = 30;     // Only cache messages from last 30 days
   const historyCache = new Map();
   let totalCached = 0;
+
+  // ── Pending deep-sync resolvers: jid → [resolve, ...] ──
+  const pendingHistoryResolves = new Map();
+
+  // ── History sync completion tracking ──
+  let historySyncComplete = false;
+  let historySyncResolve = null;
+  let historySyncIdleTimer = null;
+  const HISTORY_SYNC_IDLE_MS = 5000; // mark complete after 5s of no new events
+  const historySyncPromise = new Promise((resolve) => { historySyncResolve = resolve; });
 
   // ── Channel (newsletter) cache ──
   // Stores discovered newsletter metadata: Map<jid, { id, name, participants, desc }>
@@ -215,6 +225,25 @@ async function createSession(userId, messageCallback) {
       console.log(
         `📚 [${userId}] History sync: +${added} msgs (total: ${totalCached}, groups: ${historyCache.size}, channels: ${channelCache.size}, isLatest: ${isLatest})`
       );
+
+      // Wake up any pending deep-sync waiters for JIDs that received messages
+      for (const jid of historyCache.keys()) {
+        if (pendingHistoryResolves.has(jid)) {
+          const resolvers = pendingHistoryResolves.get(jid);
+          pendingHistoryResolves.delete(jid);
+          for (const resolve of resolvers) resolve();
+        }
+      }
+
+      // Reset the idle timer — mark sync complete after 5s of no new events
+      if (historySyncIdleTimer) clearTimeout(historySyncIdleTimer);
+      historySyncIdleTimer = setTimeout(() => {
+        if (!historySyncComplete) {
+          historySyncComplete = true;
+          console.log(`⏳ [${userId}] History sync idle — marking complete (total: ${totalCached} msgs, ${historyCache.size} groups)`);
+          if (historySyncResolve) historySyncResolve();
+        }
+      }, HISTORY_SYNC_IDLE_MS);
     });
 
     // ── Incoming messages ──
@@ -392,6 +421,123 @@ async function createSession(userId, messageCallback) {
     linkedPhoneInfo = null;
   }
 
+  /**
+   * Actively fetch historical messages for a specific group from the phone.
+   * Uses Baileys' HISTORY_SYNC_ON_DEMAND protocol to request messages,
+   * then waits for them to arrive via messaging-history.set.
+   *
+   * @param {string} jid          Community/group JID
+   * @param {number} count        Number of messages to request
+   * @param {string} anchorMsgId  Real Baileys message key ID of the oldest known message
+   * @param {number} anchorTs     Timestamp (ms) of the oldest known message
+   * @returns {Array} Cached messages for this JID after fetch
+   */
+  async function fetchGroupMessages(jid, count = 500, anchorMsgId = null, anchorTs = null) {
+    if (!sock || connectionState !== "open") {
+      console.warn(`[${userId}] fetchGroupMessages: not connected`);
+      return historyCache.get(jid) || [];
+    }
+
+    if (!anchorMsgId) {
+      console.warn(`[${userId}] fetchGroupMessages: no anchor message — cannot request on-demand history`);
+      return historyCache.get(jid) || [];
+    }
+
+    const oldestMsgKey = {
+      remoteJid: jid,
+      fromMe: false,
+      id: anchorMsgId,
+    };
+
+    const oldestTimestamp = anchorTs || (Date.now() - 30 * 86400 * 1000);
+
+    try {
+      console.log(`🔎 [${userId}] Requesting ${count} messages from phone for ${jid} (anchor: ${anchorMsgId})...`);
+      await sock.fetchMessageHistory(count, oldestMsgKey, oldestTimestamp);
+    } catch (err) {
+      console.error(`[${userId}] fetchMessageHistory failed for ${jid}:`, err.message);
+      return historyCache.get(jid) || [];
+    }
+
+    // Wait for messages to arrive via messaging-history.set (up to 15 seconds)
+    const beforeCount = (historyCache.get(jid) || []).length;
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 15000); // max wait
+
+      // Register a resolver so the history handler can wake us early
+      if (!pendingHistoryResolves.has(jid)) {
+        pendingHistoryResolves.set(jid, []);
+      }
+      pendingHistoryResolves.get(jid).push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    const afterCount = (historyCache.get(jid) || []).length;
+    console.log(
+      `📚 [${userId}] fetchGroupMessages(${jid}): before=${beforeCount}, after=${afterCount}, delta=+${afterCount - beforeCount}`
+    );
+
+    return historyCache.get(jid) || [];
+  }
+
+  /**
+   * Force a fresh history sync by clearing Baileys' "already synced" markers
+   * and reconnecting. This preserves auth (no QR re-scan needed) but forces
+   * the phone to re-deliver all historical messages.
+   *
+   * @param {string} targetJid  Optional JID to watch for in the history cache
+   * @returns {number} Number of messages received for targetJid (or total new messages)
+   */
+  async function requestHistoryResync(targetJid = null) {
+    if (!sock || connectionState !== "open") {
+      console.warn(`[${userId}] requestHistoryResync: not connected`);
+      return 0;
+    }
+
+    const beforeCount = targetJid ? (historyCache.get(targetJid) || []).length : totalCached;
+
+    // Clear processed history markers so Baileys re-requests full history
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+    if (state.creds.processedHistoryMessages) {
+      console.log(`🔄 [${userId}] Clearing ${state.creds.processedHistoryMessages.length} processed history markers...`);
+      state.creds.processedHistoryMessages = [];
+      await saveCreds();
+    }
+
+    // Tear down and reconnect (keeps auth, forces fresh history sync)
+    console.log(`🔄 [${userId}] Reconnecting for fresh history sync...`);
+    try { sock.end(); } catch (_) {}
+    sock = null;
+    connectionState = "disconnected";
+
+    await connect();
+
+    // Wait for history to arrive (up to 25 seconds)
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 25000);
+
+      if (targetJid) {
+        if (!pendingHistoryResolves.has(targetJid)) {
+          pendingHistoryResolves.set(targetJid, []);
+        }
+        pendingHistoryResolves.get(targetJid).push(() => {
+          clearTimeout(timer);
+          // Give a small extra window for additional batches
+          setTimeout(resolve, 3000);
+        });
+      }
+    });
+
+    const afterCount = targetJid ? (historyCache.get(targetJid) || []).length : totalCached;
+    console.log(
+      `📚 [${userId}] requestHistoryResync: before=${beforeCount}, after=${afterCount}, delta=+${afterCount - beforeCount}`
+    );
+
+    return afterCount - beforeCount;
+  }
+
   return {
     connect,
     getGroups,
@@ -401,6 +547,20 @@ async function createSession(userId, messageCallback) {
     logout,
     destroy,
     getHistoricalMessages,
+    fetchGroupMessages,
+    requestHistoryResync,
+    /**
+     * Wait for Baileys history sync to complete.
+     * Resolves immediately if already done, otherwise waits up to 60s.
+     */
+    async waitForHistorySync() {
+      if (historySyncComplete) return;
+      // Race between the sync promise and a 60s safety timeout
+      await Promise.race([
+        historySyncPromise,
+        new Promise((r) => setTimeout(r, 60000)),
+      ]);
+    },
     get userId() {
       return userId;
     },

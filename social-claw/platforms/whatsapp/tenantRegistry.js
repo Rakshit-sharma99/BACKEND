@@ -269,6 +269,43 @@ function getTenantHistoricalMessages(userId, communityId, limit = 500) {
 }
 
 /**
+ * Actively fetch historical messages for a community from the user's WhatsApp phone.
+ * This triggers a HISTORY_SYNC_ON_DEMAND request and waits for messages to arrive.
+ *
+ * @param {string} anchorMsgId - Real Baileys message key ID of the oldest known message
+ * @param {number} anchorTs    - Timestamp (ms) of that message
+ */
+async function fetchTenantGroupMessages(userId, communityId, count = 500, anchorMsgId = null, anchorTs = null) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return [];
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.fetchGroupMessages(communityId, count, anchorMsgId, anchorTs);
+}
+
+/**
+ * Force a fresh history sync for a user by reconnecting Baileys.
+ * Clears "already synced" markers so the phone re-delivers all history.
+ */
+async function requestTenantHistoryResync(userId, targetJid = null) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return 0;
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.requestHistoryResync(targetJid);
+}
+
+/**
+ * Wait for a user's Baileys history sync to complete.
+ * Resolves immediately if already done, otherwise waits up to 60s.
+ */
+async function waitForTenantHistorySync(userId) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return;
+  return tenant.session.waitForHistorySync();
+}
+
+/**
  * Restore all previously-connected tenants on service startup.
  * Scans auth_info/ for user directories that also have a SQLite DB
  * with selected communities, and re-establishes their Baileys sessions.
@@ -350,5 +387,8 @@ module.exports = {
   getTenantContextManager,
   getActiveTenantCount,
   getTenantHistoricalMessages,
+  fetchTenantGroupMessages,
+  requestTenantHistoryResync,
+  waitForTenantHistorySync,
   restoreAllTenants,
 };

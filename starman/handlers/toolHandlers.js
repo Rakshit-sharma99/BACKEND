@@ -637,113 +637,146 @@ async function web_search_fallback({ query }) {
 }
 
 /**
- * Post a question in the most relevant community on the user's behalf.
- * 1. Searches for a relevant community
- * 2. Creates a text post in that community
+ * STEP 1 of Community Posting: Search for relevant communities.
+ * Returns a list of communities the user can choose from.
  */
-async function post_question_to_community({ question, communityKeyword }, user) {
+async function community_post_search({ query }, user) {
   try {
-    // 1. Find relevant community by keyword-ranked search (fallback to question if keyword missing)
-    const searchQuery = communityKeyword || question;
-    console.log(`[toolHandlers] Finding community for: "${searchQuery}"`);
-    const searchRes = await axios.get(
-      `${UNIVERSE_URL}/community/searchCommunities`,
-      {
-        params: { query: searchQuery, uid: user.uid },
-        headers: internalHeaders(),
-      },
-    );
+    console.log(`📋 [Starman] Community post: searching communities for "${query}"`);
+    const res = await axios.get(`${UNIVERSE_URL}/community/searchCommunities`, {
+      params: { query, uid: user.uid },
+      headers: internalHeaders(),
+    });
 
-    const communities = searchRes.data;
-    let community =
-      Array.isArray(communities) && communities.length > 0
-        ? communities[0]
-        : null;
+    const communities = (Array.isArray(res.data) ? res.data : []).slice(0, 5);
+    console.log(`📋 [Starman] Community post: found ${communities.length} communities`);
 
-    // 2. If no relevant community found, fall back to MacbeaseNEWS
-    if (!community) {
-      console.log(
-        "🔍 No relevant community found — falling back to MacbeaseNEWS",
-      );
-      const fallbackRes = await axios.get(
-        `${UNIVERSE_URL}/community/searchCommunities`,
+    return {
+      communities: communities.map((c) => ({
+        _id: c._id || c.id,
+        title: c.title || c.name,
+        tag: c.tag || [],
+        label: c.label || "",
+        secondaryCover: c.secondaryCover || c.secondaryImg || null,
+        membersCount: c.membersCount || 0,
+      })),
+      found: communities.length > 0,
+      step: "community_selection",
+    };
+  } catch (err) {
+    console.error("community_post_search error:", err.message);
+    return { error: true, message: "Could not search communities right now." };
+  }
+}
+
+/**
+ * STEP 1b of Community Posting: Draft the post text using LLM.
+ * Called IN PARALLEL with community_post_search.
+ */
+async function community_post_compose({ question, tone = "friendly" }, user) {
+  try {
+    console.log(`📋 [Starman] Community post: composing draft for "${question}"`);
+    const { OpenAI } = require("openai");
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const toneGuide = {
+      formal: "Write in a professional and polite tone.",
+      casual: "Write in a relaxed, casual tone with slang where appropriate.",
+      friendly: "Write in a warm, friendly and approachable tone.",
+    };
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
         {
-          params: { query: "MacbeaseNEWS" },
-          headers: internalHeaders(),
+          role: "system",
+          content: `You are a post composer for a campus social platform. ${toneGuide[tone] || toneGuide.friendly} Write a concise community post (2-4 sentences) that asks the question clearly. Use 1-2 emojis max. Do not include titles, greetings, or hashtags. Just the post body.`,
         },
-      );
-      const fallbackList = fallbackRes.data;
-      community =
-        Array.isArray(fallbackList) && fallbackList.length > 0
-          ? fallbackList[0]
-          : null;
-    }
+        {
+          role: "user",
+          content: `Turn this question into a well-written community post: "${question}"`,
+        },
+      ],
+      max_tokens: 200,
+    });
 
-    if (!community) {
-      return {
-        error: true,
-        message: "Could not find a community to post your question in.",
-      };
-    }
+    const draft = completion?.choices?.[0]?.message?.content || question;
+    console.log(`📋 [Starman] Community post: draft composed (${draft.length} chars)`);
 
-    // 3. Auto-join the user to the community so the post call succeeds
+    return {
+      draft,
+      originalQuestion: question,
+      tone,
+      step: "post_preview",
+    };
+  } catch (err) {
+    console.error("community_post_compose error:", err.message);
+    return { error: true, message: "Could not compose post draft right now." };
+  }
+}
+
+/**
+ * STEP 2 of Community Posting: Execute — post to the selected community.
+ * Only called AFTER the user confirms community + draft.
+ */
+async function community_post_execute({ communityId, communityName, message }, user) {
+  try {
+    console.log(`📋 [Starman] Community post: executing post to "${communityName}" (${communityId})`);
+
+    // 1. Auto-join user to the community so the post call succeeds
     try {
       await axios.post(
         `${UNIVERSE_URL}/community/joinAsMember`,
-        { communityId: community._id || community.id },
+        { communityId },
         { headers: userHeaders(user) },
       );
-      console.log(`✅ User joined community ${community.title}`);
+      console.log(`📋 [Starman] User joined community ${communityName}`);
     } catch (joinErr) {
-      // Ignore — user may already be a member
-      console.log(
-        `ℹ️ Join community skipped: ${joinErr?.response?.data || joinErr.message}`,
-      );
+      console.log(`📋 [Starman] Join community skipped: ${joinErr?.response?.data || joinErr.message}`);
     }
 
-    // 4. Create the content document
+    // 2. Create the content document
     const postRes = await axios.post(
       `${CONTENT_URL}/createContent`,
       {
         contentType: "text",
         sendBy: "userCommunity",
-        url: "", // must exist — frontend's getUrls() crashes on null url
-        text: question,
-        title: question,
-        belongsTo: community._id || community.id,
+        url: "",
+        text: message,
+        title: message,
+        belongsTo: communityId,
         peopleTagged: [],
-        universeMetaData: community.universeMetaData || {},
+        universeMetaData: {},
         tags: [],
       },
       { headers: userHeaders(user) },
     );
 
     const contentId = postRes.data?.contentId || null;
-    console.log(
-      `📝 Content created: ${contentId}, registering in community feed...`,
-    );
+    console.log(`📋 [Starman] Content created: ${contentId}`);
 
-    // 5. Register the content in the community's feed array (makes it visible)
+    // 3. Register the content in the community's feed
     if (contentId) {
       await axios.post(
         `${UNIVERSE_URL}/community/post`,
         {
           contentId,
-          communityId: community._id || community.id,
+          communityId,
           contentType: "text",
         },
         { headers: userHeaders(user) },
       );
+      console.log(`📋 [Starman] Post registered in community feed`);
     }
 
     return {
       success: true,
-      communityName: community.title || community.name || "MacbeaseNEWS",
-      communityId: community._id || community.id,
+      communityName,
+      communityId,
       postId: contentId,
     };
   } catch (err) {
-    console.error("post_question_to_community error:", err.message);
+    console.error("community_post_execute error:", err.message);
     return {
       error: true,
       message: "Could not post the question right now.",
@@ -1012,7 +1045,9 @@ const TOOL_HANDLERS = {
   search_my_tickets,
   search_content_qa,
   web_search_fallback,
-  post_question_to_community,
+  community_post_search,
+  community_post_compose,
+  community_post_execute,
   search_communities,
   navigate_to_user_territory,
   navigate_to_territory,

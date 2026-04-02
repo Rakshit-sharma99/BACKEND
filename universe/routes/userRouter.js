@@ -62,6 +62,7 @@ const {
   saveUserAsset,
   editUserAsset,
   deleteUserAsset,
+  getAssetSuggestions,
   getUserAssets,
   getUserAssetById,
   searchUsersByFacet,
@@ -130,6 +131,7 @@ router.post("/saveUserAsset", saveUserAsset);
 router.post("/editUserAsset", editUserAsset);
 router.post("/deleteUserAsset", deleteUserAsset);
 router.get("/getUserAssets", getUserAssets);
+router.get("/getAssetSuggestions", getAssetSuggestions);
 router.get("/getUserAssetById", getUserAssetById);
 router.get("/searchUsersByFacet", searchUsersByFacet);
 router.get("/getAlumniByCompany", getAlumniByCompany);

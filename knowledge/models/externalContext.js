@@ -73,6 +73,11 @@ const ExternalContextSchema = new mongoose.Schema(
     lastSyncedAt: { type: Date },
     messagesCursor: { type: Number, default: 0 },
 
+    // Sync range tracking
+    oldestMessageAt: { type: Number, default: 0 },   // Unix ts of oldest ingested message
+    newestMessageAt: { type: Number, default: 0 },    // Unix ts of newest ingested message
+    syncDepthDays: { type: Number, default: 7 },      // How many days of history were requested
+
     // Hot tier — recent raw-ish entries (rolling window)
     hotContext: {
       entries: [hotEntrySchema],

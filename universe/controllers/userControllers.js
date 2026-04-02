@@ -21,6 +21,7 @@ const {
   fetchAllowedDomains,
   fetchMultipleAssets,
   fetchSearchedProfileFacets,
+  fetchAssetCategories,
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
@@ -2982,7 +2983,125 @@ const getAlumniByCompany = async (req, res) => {
   }
 };
 
+
+/**
+ * Suggests 2–3 asset categories the user hasn't uploaded yet.
+ * Prioritises categories whose assets have payloadConfig (audio/book/movie),
+ * then fills up with non-payload categories.
+ * Returns { tag, subTag, lottieUrl } for each suggestion.
+ */
+const getAssetSuggestions = async (req, res) => {
+  try {
+    const userId = req.query.userId || req.user._id;
+
+    if (!userId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Missing userId." });
+    }
+
+    // 1. Get what the user already has
+    const user = await User.findById(userId, { vicinityAsset: 1 }).lean();
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "User not found." });
+    }
+
+    const userAssets = user.vicinityAsset || [];
+    const userAssetIds = userAssets.map((a) => a.assetId);
+
+    // Fetch full asset data to know their tags + payload types
+    let existingPayloadTypes = new Set();
+    let existingTags = new Set();
+
+    if (userAssetIds.length > 0) {
+      const fullAssets = await fetchMultipleAssets({ ids: userAssetIds });
+      fullAssets.forEach((a) => {
+        if (a.tag) existingTags.add(a.tag);
+        if (
+          a.payloadConfig?.requiresPayload &&
+          a.payloadConfig?.allowedPayloadTypes
+        ) {
+          a.payloadConfig.allowedPayloadTypes.forEach((pt) => {
+            if (pt && pt !== "none") existingPayloadTypes.add(pt);
+          });
+        }
+      });
+
+      // Also check user-level payloads (vicinityAsset.payload.type)
+      userAssets.forEach((a) => {
+        if (a.payload?.type) existingPayloadTypes.add(a.payload.type);
+      });
+    }
+
+    // 2. Fetch all available categories from the map service
+    const allCategories = await fetchAssetCategories();
+
+    if (!allCategories || allCategories.length === 0) {
+      return res.status(StatusCodes.OK).json({ success: true, suggestions: [] });
+    }
+
+    // 3. Split into payload vs non-payload categories the user hasn't used
+    const payloadCandidates = [];
+    const plainCandidates = [];
+
+    allCategories.forEach((cat) => {
+      if (cat.hasPayload && cat.payloadTypes.length > 0) {
+        // Check if user already has ALL payload types in this category
+        const userHasAll = cat.payloadTypes.every((pt) =>
+          existingPayloadTypes.has(pt),
+        );
+        if (!userHasAll) {
+          payloadCandidates.push(cat);
+        }
+      } else {
+        // Non-payload category – check if user already has an asset with this tag
+        if (!existingTags.has(cat.tag)) {
+          plainCandidates.push(cat);
+        }
+      }
+    });
+
+    // 4. Pick up to 3 suggestions: payload categories first, then plain
+    const suggestions = [];
+    for (const cat of payloadCandidates) {
+      if (suggestions.length >= 3) break;
+      suggestions.push({
+        tag: cat.tag,
+        subTag: cat.subTag,
+        lottieUrl: cat.lottieUrl,
+        lottieType: cat.lottieType,
+        payloadTypes: cat.payloadTypes,
+      });
+    }
+    for (const cat of plainCandidates) {
+      if (suggestions.length >= 3) break;
+      suggestions.push({
+        tag: cat.tag,
+        subTag: cat.subTag,
+        lottieUrl: cat.lottieUrl,
+        lottieType: cat.lottieType,
+        payloadTypes: [],
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      suggestions,
+    });
+  } catch (error) {
+    console.error("Error fetching asset suggestions:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching asset suggestions.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
+  getAssetSuggestions,
   getUserAssets,
   getUserAssetById,
   saveUserAsset,

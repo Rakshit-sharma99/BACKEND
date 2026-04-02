@@ -16,6 +16,8 @@ const {
   getUserContexts,
   getContextEntries,
   deleteContext,
+  batchDeleteContexts,
+  deepSync,
 } = require("../controllers/externalContextController");
 
 // Answers
@@ -38,5 +40,7 @@ router.get("/external/user-stats", getUserStats);
 router.get("/external/user-contexts", getUserContexts);
 router.get("/external/user-contexts/:id/entries", getContextEntries);
 router.delete("/external/user-contexts/:id", deleteContext);
+router.post("/external/user-contexts/batch-delete", batchDeleteContexts);
+router.post("/external/deep-sync", deepSync);
 
 module.exports = router;

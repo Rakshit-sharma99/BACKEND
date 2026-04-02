@@ -16,6 +16,7 @@ const {
   getMovieDetails,
   bulkUpdateTags,
   getMultipleAssets,
+  getAssetCategories,
 } = require("../controllers/assetControllers");
 
 router.post("/createAsset", createAsset);
@@ -36,5 +37,6 @@ router.get("/getMovieRecommendations", getMovieRecommendations);
 router.get("/getMovieDetails", getMovieDetails);
 
 router.post("/getMultipleAssets", getMultipleAssets);
+router.get("/getAssetCategories", getAssetCategories);
 
 module.exports = router;

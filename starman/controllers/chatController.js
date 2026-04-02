@@ -127,7 +127,17 @@ const TOOL_STATUS_MESSAGES = {
     done: "the internet has blessed us with knowledge 🙏",
     error: "even the internet doesn't know… we're cooked 🍳",
   },
-  post_question_to_community: {
+  community_post_search: {
+    searching: "finding communities where your question fits best 🔍",
+    done: "communities found, pick your arena! 🏟️",
+    error: "couldn't find communities right now 😤",
+  },
+  community_post_compose: {
+    searching: "drafting a post for you, Shakespeare mode activated ✍️",
+    done: "draft ready for your review 📝",
+    error: "writer's block hit hard 😵",
+  },
+  community_post_execute: {
     searching: "posting your question to the community, manifesting answers 🙌",
     done: "posted! now we wait for the community brain trust 🧠",
     error: "couldn't post… the community is giving silent treatment 🤐",
@@ -589,9 +599,11 @@ function extractButtons(toolName, rawResult) {
             ? rawResult.territories
             : rawResult.tickets
               ? rawResult.tickets
-              : rawResult.success || rawResult.step
-                ? [rawResult]
-                : [];
+              : rawResult.communities
+                ? rawResult.communities
+                : rawResult.success || rawResult.step
+                  ? [rawResult]
+                  : [];
 
   if (items.length === 0) return [];
 
@@ -851,11 +863,49 @@ function extractButtons(toolName, rawResult) {
       },
     }),
 
-    post_question_to_community: (item) => ({
+    community_post_search: (item) => ({
+      id: item._id || item.id || null,
+      type: "community_selection",
+      label: item.title || "Community",
+      subtitle: [
+        item.label || "",
+        item.membersCount ? `${item.membersCount} members` : "",
+        ...(item.tag || []).slice(0, 3),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      image: item.secondaryCover || null,
+      meta: {
+        communityId: item._id || item.id,
+        communityName: item.title,
+        tags: item.tag,
+        membersCount: item.membersCount,
+      },
+      action: {
+        mode: "select",
+        communityId: item._id || item.id,
+        communityName: item.title,
+      },
+    }),
+
+    community_post_compose: (item) => ({
+      id: null,
+      type: "post_preview",
+      label: "Draft Post",
+      subtitle: `${item.tone || "friendly"} tone`,
+      image: null,
+      meta: {
+        draft: item.draft,
+        originalQuestion: item.originalQuestion,
+        tone: item.tone,
+      },
+    }),
+
+    community_post_execute: (item) => ({
       id: item.communityId || null,
       type: "click-navigation",
       label: item.communityName || "Community",
-      subtitle: "Your question was posted here",
+      subtitle: "Your question was posted here ✅",
       image: null,
       meta: { postId: item.postId },
       action: {
@@ -976,29 +1026,31 @@ function extractButtons(toolName, rawResult) {
       },
     }),
 
-    search_whatsapp_context: (item) => ({
-      id: item.id || null,
-      type: "wa-source",
-      label: item.communityName || "WhatsApp",
-      subtitle: [
-        item.senderName,
-        item.timestamp
-          ? new Date(item.timestamp * 1000).toLocaleDateString()
-          : item.tier === "warm"
-            ? "Distilled"
-            : "",
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      image: null,
-      meta: {
-        text: item.text,
-        community: item.communityName,
-        sender: item.senderName,
-        tier: item.tier,
-        category: item.category || null,
-      },
-    }),
+    search_external_context: (item) => {
+      const messageSnippet = item.text
+        ? item.text.length > 100
+          ? item.text.substring(0, 100) + "…"
+          : item.text
+        : "View message";
+        
+      const senderPrefix = item.sender ? `${item.sender}: ` : "";
+      
+      return {
+        id: item.id || null,
+        type: "wa-source",
+        label: `💬 WhatsApp · ${item.entityName || "Community"}`,
+        subtitle: `${senderPrefix}${messageSnippet}`,
+        image: null,
+        meta: {
+          text: item.text,
+          community: item.entityName,
+          sender: item.sender,
+          tier: item.tier,
+          category: item.category || null,
+          timestamp: item.timestamp || item.addedAt,
+        },
+      };
+    },
   };
 
   const extractor = extractors[toolName];

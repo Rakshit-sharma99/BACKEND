@@ -366,23 +366,63 @@ const tools = [
         },
       },
       {
-        name: "post_question_to_community",
+        name: "community_post_search",
         description:
-          "Post a question on behalf of the user in the most relevant community. Use this only when the user explicitly confirms they want their question posted after no answer was found.",
+          "STEP 1 of Community Posting: Search for relevant communities where the user's question can be posted. Returns a list of communities for the user to choose from. ALWAYS call this IN PARALLEL with community_post_compose.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: {
+              type: "string",
+              description:
+                "Keywords to find relevant communities, e.g. 'placements', 'coding', 'sports'",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "community_post_compose",
+        description:
+          "STEP 1b of Community Posting: Draft a well-written post from the user's question. ALWAYS call this IN PARALLEL with community_post_search. The draft will be shown for the user to review and edit before posting.",
         parameters: {
           type: "object",
           properties: {
             question: {
               type: "string",
-              description: "The question text to post in the community",
+              description: "The user's original question to compose a post from",
             },
-            communityKeyword: {
+            tone: {
               type: "string",
               description:
-                "A single relevant keyword (e.g., 'gym', 'sports', 'coding') to find the best community for this question.",
+                "Optional tone: 'formal', 'casual', or 'friendly'. Default 'friendly'.",
             },
           },
-          required: ["question", "communityKeyword"],
+          required: ["question"],
+        },
+      },
+      {
+        name: "community_post_execute",
+        description:
+          "STEP 2 of Community Posting: Post the confirmed message in the selected community. ONLY call this AFTER the user has selected a community AND confirmed the post text.",
+        parameters: {
+          type: "object",
+          properties: {
+            communityId: {
+              type: "string",
+              description:
+                "The MongoDB ObjectId of the selected community (from community_post_search results)",
+            },
+            communityName: {
+              type: "string",
+              description: "The display name of the selected community",
+            },
+            message: {
+              type: "string",
+              description: "The final confirmed post text to publish",
+            },
+          },
+          required: ["communityId", "communityName", "message"],
         },
       },
       {

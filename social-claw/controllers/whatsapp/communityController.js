@@ -103,6 +103,9 @@ const getSelectedCommunities = (req, res) => {
 /**
  * POST /whatsapp/communities/select
  * Links selected communities to the knowledge service with historical data.
+ *
+ * Responds immediately to the user, then waits for Baileys history sync
+ * to complete in the background before creating context files.
  */
 const selectCommunities = async (req, res) => {
   const { communities } = req.body;
@@ -118,29 +121,46 @@ const selectCommunities = async (req, res) => {
 
   db.setSelectedCommunities(communities);
 
-  // Buffer historical messages from Baileys into SQLite now that communities are selected
-  for (const community of communities) {
-    const historical = registry.getTenantHistoricalMessages(userId, community.id, 500);
-    if (historical && historical.length > 0) {
-      const result = processMessages(historical, db, userId, uid, true);
-      console.log(`[CommunityController] Ingested ${result.ingested} historical messages for ${community.name}`);
-    }
-  }
-
-  // Register each community with the knowledge service (non-blocking)
-  for (const community of communities) {
-    linkCommunityToKnowledge(userId, uid, community, db).catch((err) =>
-      console.error(
-        `[CommunityController] Knowledge link failed for ${community.name}:`,
-        err.message
-      )
-    );
-  }
-
+  // Respond immediately — don't make the user wait for history sync
   res.json({
     success: true,
     selected: communities.length,
+    message: "Communities saved. Context files will be created once history sync completes.",
   });
+
+  // ── Background: wait for history sync, then create context ──
+  (async () => {
+    try {
+      console.log(`⏳ [CommunityController] Waiting for history sync to complete before linking ${communities.length} communities...`);
+      await registry.waitForTenantHistorySync(userId);
+      console.log(`✅ [CommunityController] History sync complete. Draining cache and linking communities...`);
+
+      // Drain full history cache into SQLite for each selected community
+      for (const community of communities) {
+        const historical = registry.getTenantHistoricalMessages(userId, community.id, 3000);
+        if (historical && historical.length > 0) {
+          const result = processMessages(historical, db, userId, uid, true);
+          console.log(`📥 [CommunityController] Ingested ${result.ingested} historical messages for ${community.name}`);
+        }
+      }
+
+      // Register each community with the knowledge service
+      for (const community of communities) {
+        try {
+          await linkCommunityToKnowledge(userId, uid, community, db);
+        } catch (err) {
+          console.error(
+            `[CommunityController] Knowledge link failed for ${community.name}:`,
+            err.message
+          );
+        }
+      }
+
+      console.log(`✅ [CommunityController] All ${communities.length} communities linked after full history sync.`);
+    } catch (err) {
+      console.error(`[CommunityController] Background link failed:`, err.message);
+    }
+  })();
 };
 
 /**
@@ -154,9 +174,9 @@ async function linkCommunityToKnowledge(userId, uid, community, db) {
   }
 
   try {
-    // Fetch historical messages from SQLite (up to 500 most recent)
+    // Fetch historical messages from SQLite (up to 2000 most recent for 7-day coverage)
     const historicalMessages = db
-      .getMessagesForCommunity(community.id, 500)
+      .getMessagesForCommunity(community.id, 2000)
       .map((m) => ({
         text: m.text,
         sender: m.sender_name || m.sender || "Unknown",
@@ -207,10 +227,112 @@ const purgeCommunity = (req, res) => {
   res.json({ success: true, purged: communityId });
 };
 
+/**
+ * POST /whatsapp/communities/:id/deep-sync
+ * Triggers a deep historical sync for a community (15 or 30 days).
+ * 
+ * Pipeline:
+ *   1. Drain Baileys in-memory history cache → SQLite (picks up messages missed in initial 500 batch)
+ *   2. Fetch all messages from SQLite for the requested timestamp range
+ *   3. Forward them to the knowledge service for hot-tier merge + re-distillation
+ */
+const deepSyncCommunity = async (req, res) => {
+  const communityId = decodeURIComponent(req.params.id);
+  const { syncDepthDays } = req.body;
+  const userId = req.user.id;
+  const uid = req.user.uid;
+
+  if (!syncDepthDays || ![15, 30].includes(syncDepthDays)) {
+    return res.status(400).json({ error: "syncDepthDays must be 15 or 30" });
+  }
+
+  if (!uid) {
+    return res.status(400).json({ error: "uid is required for knowledge sync" });
+  }
+
+  const db = registry.getTenantDB(userId);
+
+  // ── Step 1: Force fresh history sync via reconnect ──
+  // Clears Baileys' "already synced" markers, reconnects to re-trigger
+  // full history delivery from the phone (no QR re-scan needed)
+  console.log(`🔄 [CommunityController] Deep sync: requesting history resync for ${communityId}...`);
+  const newMsgsFromResync = await registry.requestTenantHistoryResync(userId, communityId);
+  console.log(`📊 [CommunityController] History resync delivered ${newMsgsFromResync} new messages for ${communityId}`);
+
+  // Drain all cached messages into SQLite
+  const cachedMessages = registry.getTenantHistoricalMessages(userId, communityId, 5000);
+  if (cachedMessages && cachedMessages.length > 0) {
+    const result = processMessages(cachedMessages, db, userId, uid, true);
+    console.log(
+      `📥 [CommunityController] Deep sync: ingested ${result.ingested} new messages for ${communityId} (${result.dropped} dropped/dupes)`,
+    );
+  }
+
+  // ── Step 2: Fetch from SQLite for the requested range ──
+  const cutoffTimestamp = Math.floor(Date.now() / 1000) - syncDepthDays * 86400;
+
+  const rawMessages = db.getMessagesForCommunityInRange(
+    communityId,
+    cutoffTimestamp,
+    5000,
+  );
+
+  const historicalMessages = rawMessages
+    .map((m) => ({
+      text: m.text,
+      sender: m.sender_name || m.sender || "Unknown",
+      timestamp: m.timestamp,
+    }))
+    .filter((m) => m.text && m.text.trim().length > 0);
+
+  console.log(
+    `🔄 [CommunityController] Deep sync for "${communityId}": ${historicalMessages.length} messages (${syncDepthDays} days)`,
+  );
+
+  if (historicalMessages.length === 0) {
+    return res.json({
+      success: true,
+      syncDepthDays,
+      messagesSent: 0,
+      message: "No historical messages available for the requested range.",
+    });
+  }
+
+  // ── Step 3: Forward to knowledge service ──
+  try {
+    await axios.post(
+      `${KNOWLEDGE_URL}/external/deep-sync`,
+      {
+        uid,
+        entityId: communityId,
+        userId,
+        syncDepthDays,
+        historicalMessages,
+      },
+      {
+        headers: { Authorization: `Bearer ${getInternalToken()}` },
+        timeout: 30000,
+      },
+    );
+
+    res.json({
+      success: true,
+      syncDepthDays,
+      messagesSent: historicalMessages.length,
+    });
+  } catch (err) {
+    console.error(
+      `[CommunityController] Deep sync failed for "${communityId}":`,
+      err.message,
+    );
+    res.status(500).json({ error: "Deep sync failed: " + err.message });
+  }
+};
+
 module.exports = {
   getCommunities,
   getSelectedCommunities,
   selectCommunities,
   purgeCommunity,
+  deepSyncCommunity,
 };
-

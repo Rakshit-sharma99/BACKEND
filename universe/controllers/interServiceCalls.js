@@ -441,6 +441,19 @@ const registerCustomUniverse = async (customUniverse, userId) => {
   }
 };
 
+
+const fetchAssetCategories = async () => {
+  try {
+    const config = generateServiceToken();
+    const url = `http://map:7050/map/api/v1/asset/getAssetCategories`;
+    const response = await axios.get(url, config);
+    return response.data.data || [];
+  } catch (error) {
+    console.error("Error in fetchAssetCategories:", error.message);
+    return [];
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -459,4 +472,5 @@ module.exports = {
   fetchAllowedDomains,
   fetchSearchedProfileFacets,
   registerCustomUniverse,
+  fetchAssetCategories,
 };
