@@ -7,7 +7,6 @@ const {
     averageSessionTime,
     getTodayUser,
     getTotalUsers,
-    getLiveEvents,
     getTodaySessions,
     getWeekSessions,
     getMonthSessions,
@@ -28,7 +27,6 @@ router.get("/getTodaySessionCount", getTodaySessionCount);
 router.get("/averageSessionTime", averageSessionTime);
 router.get("/getTodayUser", getTodayUser);
 router.get("/getTotalUsers", getTotalUsers);
-router.get("/getLiveEvents", getLiveEvents);
 router.get("/getTodaySessions", getTodaySessions);
 router.get("/getWeekSessions", getWeekSessions);
 router.get("/getMonthSessions", getMonthSessions);

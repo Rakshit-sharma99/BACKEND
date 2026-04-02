@@ -1041,7 +1041,6 @@ module.exports = {
   averageSessionTime,
   getTodayUser,
   getTotalUsers,
-  getLiveEvents,
   getTodaySessions,
   getWeekSessions,
   getMonthSessions,
