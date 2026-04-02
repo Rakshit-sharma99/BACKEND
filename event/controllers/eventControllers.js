@@ -3377,6 +3377,26 @@ const getFeaturedEventsForFeed = async (req, res) => {
   }
 };
 
+const getLiveEvents = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const count = await Event.countDocuments({
+      eventDate: { $lte: now },
+      eventEndDate: { $exists: true, $ne: null, $gte: now },
+    });
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      count
+    });
+  } catch (error) {
+    console.error("Error in getLiveEvents:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+}
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -3430,4 +3450,5 @@ module.exports = {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
+  getLiveEvents
 };
