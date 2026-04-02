@@ -28,6 +28,8 @@ const {
   emailVerification2,
   getAppConfig,
   suggestUsername,
+  getUploadUrl,
+  copyObject
 } = require("../controllers/userAuthControllers");
 const {
   registerUserValidator,
@@ -53,5 +55,6 @@ router.post("/generateInterest", generateInterest);
 router.post("/reactivateAccount", reactivateAccount);
 router.get("/getAppConfig", getAppConfig);
 router.get("/suggestUsername", suggestUsername);
-
+router.post("/getUploadUrl", getUploadUrl);
+router.post("/copyObject", copyObject);
 module.exports = router;

@@ -453,6 +453,42 @@ const getEnrichedUniverseData = async (req, res) => {
   }
 };
 
+const getUniverseByCallSign = async (req, res) => {
+  try {
+    const { callSign } = req.query;
+
+    if (!callSign) {
+      return res.status(400).json({
+        success: false,
+        message: "Call sign is required",
+      });
+    }
+
+    const universe = await Universe.findOne({ callSign });
+
+    if (!universe) {
+      return res.status(404).json({
+        success: false,
+        message: "Universe not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Universe fetched successfully",
+      universe,
+    });
+  } catch (err) {
+    console.error("Get Universe By Call Sign Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch universe",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   createUniverse,
   editUniverse,
@@ -461,4 +497,5 @@ module.exports = {
   getPopularUniverses,
   getAllowedDomains,
   getEnrichedUniverseData,
+  getUniverseByCallSign
 };

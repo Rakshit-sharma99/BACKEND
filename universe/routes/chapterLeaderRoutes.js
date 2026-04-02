@@ -13,7 +13,8 @@ const {
   updateAddress,
   deleteAddress,
   getAllAddresses,
-  sendMailForApply
+  sendMailForApply,
+  getUnapprovedLeaders
 } = require("../controllers/chapterLeaderControllers.js");
 const authenticate = require("../middlewares/authentication.js");
 
@@ -26,7 +27,7 @@ router.get("/health", (req, res) => {
 router.post("/register", register);
 router.post("/login", login);
 router.post("/regenerateAccessToken", regenerateAccessToken);
-router.post("/verify", verifyChapterLeader);
+router.post("/verify",authenticate, verifyChapterLeader);
 router.post("/forgotPassword", forgotPassword);
 router.post("/resetPassword", resetPassword);
 router.get("/getChapterLeaderProgresses", authenticate, getChapterLeaderProgresses);
@@ -37,4 +38,5 @@ router.get("/getAddresses", authenticate, getAllAddresses);
 router.put("/updateAddress/:addressId", authenticate, updateAddress);
 router.delete("/deleteAddress/:addressId", authenticate, deleteAddress);
 router.post("/sendMailForApply", authenticate, sendMailForApply);
+router.get("/getUnapprovedLeaders", authenticate, getUnapprovedLeaders);
 module.exports = router;
