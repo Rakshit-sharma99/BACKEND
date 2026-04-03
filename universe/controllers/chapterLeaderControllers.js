@@ -360,11 +360,10 @@ const verifyChapterLeader = async (req, res) => {
     chapterLeader.approvedBy = req.user.id;
 
     await chapterLeader.save();
-
     // emit event to create universe
     await sendKafkaMessage(
       "CREATE_UNIVERSE",
-      "universe",
+      "multiverse",
       {
         chapterLeaderId : chapterLeader._id,
         name,
@@ -376,7 +375,6 @@ const verifyChapterLeader = async (req, res) => {
         logoKey
       }
     );
-
     // secondary Actions
     try {
       const emailContent = `
