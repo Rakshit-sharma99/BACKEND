@@ -1,6 +1,6 @@
 require("dotenv").config();
-// require("./config/kafka_producer");
-// require("./config/kafka_listener");
+require("./config/kafka_producer");
+require("./config/kafka_listener");
 require("./config/snapshotCron");
 
 
