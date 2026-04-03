@@ -42,6 +42,7 @@ module.exports = { io, redis };
 
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");
+const checkAdmin = require("./middlewares/checkadmin");
 const userAuthRouter = require("./routes/userAuthRouter");
 const userRouter = require("./routes/userRouter");
 const frontendRouter = require("./routes/frontendRouter");
@@ -137,8 +138,8 @@ app.use("/universe/api/v1/order", authenticate, orderRouter)
 app.use("/universe/api/v1/push", authenticate, pushRouter);
 
 // admin routes
-app.use("/universe/api/v1/session", authenticate, sessionRouter);
-app.use("/universe/api/v1/community-metadata", authenticate, communityMetaRouter);
+app.use("/universe/api/v1/session", authenticate, checkAdmin, sessionRouter);
+app.use("/universe/api/v1/community-metadata", authenticate,checkAdmin, communityMetaRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
