@@ -184,4 +184,57 @@ const editBlock = async (req, res) => {
   }
 };
 
-module.exports = { getBlocksForPage, createBlock, editBlock };
+const getBlockWithSignature = async (req, res) => {
+  try {
+    const { pageName, uiSignature } = req.query;
+
+    if (!pageName || !uiSignature) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "pageName and uiSignature are required",
+      });
+    }
+
+    const block = await Block.findOne({
+      pageName,
+      uiSignature,
+      isActive: true,
+    }).lean();
+
+    if (!block) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Block not found",
+      });
+    }
+
+    const resolver = resolvers[block.uiSignature];
+    let data = null;
+
+    if (resolver) {
+      try {
+        data = await resolver(block, req.user?.id);
+      } catch (err) {
+        console.error("Resolver error:", err);
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched block successfully",
+      block: {
+        uiSignature: block.uiSignature,
+        order: block.order,
+        data
+      },
+    });
+  } catch (error) {
+    console.error("getBlockWithSignature error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+module.exports = { getBlocksForPage, createBlock, editBlock, getBlockWithSignature };
