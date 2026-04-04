@@ -3100,6 +3100,256 @@ const getAssetSuggestions = async (req, res) => {
   }
 };
 
+
+// ─── Channel Internal Endpoints (called by event service) ──────────────
+
+/**
+ * Guard: ensures only internal service-to-service calls can access these endpoints.
+ * The generateServiceToken() used by event/ticket services sets role = "internal".
+ */
+const requireServiceRole = (req, res) => {
+  if (req.user?.role !== "internal") {
+    res.status(403).json({ error: "Service-only endpoint" });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Add a channel entry to a single user
+ * POST /user/addChannelToUser
+ * Body: { userId, channelId, role, rooms }
+ */
+const addChannelToUser = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userId, channelId, role, rooms } = req.body;
+
+    if (!userId || !channelId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and channelId are required" });
+    }
+
+    // Check if channel already exists for user
+    const existingUser = await User.findOne(
+      { _id: userId, "channels.channelId": channelId },
+      { _id: 1 }
+    );
+
+    if (existingUser) {
+      // Channel already exists, add missing rooms
+      if (rooms && rooms.length > 0) {
+        await User.updateOne(
+          { _id: userId, "channels.channelId": channelId },
+          { $addToSet: { "channels.$.rooms": { $each: rooms } } }
+        );
+      }
+      return res.status(StatusCodes.OK).json({ success: true, message: "Channel updated" });
+    }
+
+    await User.updateOne(
+      { _id: userId },
+      {
+        $push: {
+          channels: {
+            channelId,
+            role: role || "member",
+            rooms: rooms || [],
+          },
+        },
+      }
+    );
+
+    return res.status(StatusCodes.OK).json({ success: true });
+  } catch (error) {
+    console.error("addChannelToUser error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Bulk update channels for multiple users
+ * POST /user/bulkUpdateUserChannels
+ * Body: { userIds, channelId, role, rooms } (simple mode)
+ *   OR  { operations: [{ userId, action, channelId, role, rooms }] } (operations mode)
+ */
+const bulkUpdateUserChannels = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userIds, channelId, role, rooms, operations } = req.body;
+
+    if (operations && Array.isArray(operations)) {
+      const bulkOps = operations.map((op) => {
+        if (op.action === "addRooms") {
+          return {
+            updateOne: {
+              filter: {
+                _id: op.userId,
+                "channels.channelId": op.channelId,
+              },
+              update: {
+                $addToSet: {
+                  "channels.$.rooms": { $each: op.rooms },
+                },
+              },
+            },
+          };
+        } else {
+          return {
+            updateOne: {
+              filter: {
+                _id: op.userId,
+                "channels.channelId": { $ne: op.channelId },
+              },
+              update: {
+                $push: {
+                  channels: {
+                    channelId: op.channelId,
+                    role: op.role || "member",
+                    rooms: op.rooms || [],
+                  },
+                },
+              },
+            },
+          };
+        }
+      });
+
+      if (bulkOps.length) {
+        await User.bulkWrite(bulkOps);
+      }
+    } else if (userIds && channelId) {
+      const bulkOps = userIds.map((uid) => ({
+        updateOne: {
+          filter: {
+            _id: uid,
+            "channels.channelId": { $ne: channelId },
+          },
+          update: {
+            $push: {
+              channels: {
+                channelId,
+                role: role || "member",
+                rooms: rooms || [],
+              },
+            },
+          },
+        },
+      }));
+
+      if (bulkOps.length) {
+        await User.bulkWrite(bulkOps);
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({ success: true });
+  } catch (error) {
+    console.error("bulkUpdateUserChannels error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Get channel data for users
+ * POST /user/getUserChannels
+ * Body: { userIds, channelId? }
+ */
+const getUserChannels = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userIds, channelId } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userIds must be a non-empty array" });
+    }
+
+    let users;
+    if (channelId) {
+      // Optimized: use $elemMatch projection to fetch only the relevant channel entry
+      users = await User.find(
+        { _id: { $in: userIds } },
+        { channels: { $elemMatch: { channelId } } }
+      ).lean();
+    } else {
+      users = await User.find(
+        { _id: { $in: userIds } },
+        { channels: 1 }
+      ).lean();
+    }
+
+    const result = {};
+    for (const user of users) {
+      const uid = user._id.toString();
+      if (channelId) {
+        const channelData = (user.channels || [])[0] || null;
+        result[uid] = channelData;
+      } else {
+        result[uid] = user.channels || [];
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({ data: result });
+  } catch (error) {
+    console.error("getUserChannels error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Check if a user is part of a channel and return their role
+ * POST /user/checkUserChannelRole
+ * Body: { userId, channelId }
+ */
+const checkUserChannelRole = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userId, channelId } = req.body;
+
+    if (!userId || !channelId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and channelId are required" });
+    }
+
+    const user = await User.findOne(
+      {
+        _id: userId,
+        "channels.channelId": channelId,
+      },
+      { "channels.$": 1 }
+    ).lean();
+
+    if (!user || !user.channels || user.channels.length === 0) {
+      return res.status(StatusCodes.OK).json({ data: null });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      data: {
+        role: user.channels[0].role,
+        rooms: user.channels[0].rooms,
+      },
+    });
+  } catch (error) {
+    console.error("checkUserChannelRole error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -3168,4 +3418,8 @@ module.exports = {
   verifyProfessionalEmailOTP,
   searchUsersByFacet,
   getAlumniByCompany,
+  addChannelToUser,
+  bulkUpdateUserChannels,
+  getUserChannels,
+  checkUserChannelRole,
 };

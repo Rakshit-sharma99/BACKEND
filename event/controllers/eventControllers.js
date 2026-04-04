@@ -26,6 +26,7 @@ const {
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
 const { default: mongoose } = require("mongoose");
+const { createChannelForEvent } = require("./channelControllers");
 
 //MiddleWare
 const isAuthorized = async (id, role, belongsTo, callSign) => {
@@ -74,6 +75,11 @@ const createEvent = async (req, res) => {
     }
 
     const event = await Event.create({ ...req.body, uid: req.user.uid });
+
+    // Auto-trigger channel creation (fire-and-forget — don't block the response)
+    createChannelForEvent(event._id).catch((channelErr) =>
+      console.error("Auto channel creation failed (non-blocking):", channelErr.message)
+    );
 
     return res.status(StatusCodes.CREATED).json({ event });
   } catch (error) {
@@ -1838,9 +1844,8 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${
-            field.type
-          }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3304,27 +3309,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-            {
-              $match: {
-                status: "featured",
-                eventDate: { $gte: now },
-                tags: { $in: interestTags },
-                ...universeFilter,
-              },
+          {
+            $match: {
+              status: "featured",
+              eventDate: { $gte: now },
+              tags: { $in: interestTags },
+              ...universeFilter,
             },
-            { $limit: limit },
-            {
-              $project: {
-                bookedBy: 0,
-                amtPaid: 0,
-                amtPaidTo: 0,
-                ticketSellingDays: 0,
-                cumulativeRevenue: 0,
-                courseAnalytics: 0,
-                faq: 0,
-              },
+          },
+          { $limit: limit },
+          {
+            $project: {
+              bookedBy: 0,
+              amtPaid: 0,
+              amtPaidTo: 0,
+              ticketSellingDays: 0,
+              cumulativeRevenue: 0,
+              courseAnalytics: 0,
+              faq: 0,
             },
-          ])
+          },
+        ])
         : [];
 
     let finalEvents = [...suggestedEvents];
