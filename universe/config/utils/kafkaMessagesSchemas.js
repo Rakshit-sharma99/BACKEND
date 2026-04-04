@@ -407,6 +407,30 @@ const CREATE_UNIVERSE = {
   }
 }
 
+/**
+ * @typedef {Object} DELETE_EVENT_PAYLOAD
+ * @property {string} eventId
+ */
+
+const DELETE_EVENT = {
+  DELETE_EVENT: {
+    topicSuffix: "_delete_event",
+
+    validate: (data) => {
+      if (!data || typeof data !== "object") {
+        throw new Error("Payload must be an object");
+      }
+      if (typeof data.eventId !== "string" || !data.eventId.trim()) {
+        throw new Error("'eventId' must be a non-empty string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -417,5 +441,6 @@ module.exports = {
   ...CREATE_MEMORY,
   ...USER_ACTIVITY,
   ...USER_SIGNUP,
-  ...CREATE_UNIVERSE
+  ...CREATE_UNIVERSE,
+  ...DELETE_EVENT
 }
