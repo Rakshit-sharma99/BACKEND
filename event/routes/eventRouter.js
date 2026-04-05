@@ -54,7 +54,13 @@ const {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
+  slugifyAllEvents,
+  canBuyTicket,
 } = require("../controllers/eventControllers");
+
+const eventFunnelRoutes = require("./eventfunnelRoutes");
+
+router.use("/funnel", eventFunnelRoutes);
 
 router.post("/createEvent", createEvent);
 router.get("/getAllEvents", getAllEvents);
@@ -108,5 +114,7 @@ router.get("/getSearchedEvents", getSearchedEvents);
 router.post("/insertNewFields", insertNewFields);
 router.post("/getFeaturedEvents", getFeaturedEvents);
 router.get("/getLandingEvent", getFeaturedEventsForFeed);
+router.get("/slugifyAllEvents", slugifyAllEvents);
+router.post("/canBuyTicket", canBuyTicket);
 
 module.exports = router;
