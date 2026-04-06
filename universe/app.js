@@ -64,6 +64,8 @@ const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
 const productRouter = require("./routes/productRouter");
 const orderRouter = require("./routes/orderRouter");
 
+const sessionRouter = require("./routes/sessionRouter");
+
 app.set("trust proxy", 1);
 app.use(cors(
   {
@@ -133,6 +135,9 @@ app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
 app.use("/universe/api/v1/product", authenticate, productRouter)
 app.use("/universe/api/v1/order", authenticate, orderRouter)
 app.use("/universe/api/v1/push", authenticate, pushRouter);
+
+// admin routes
+app.use("/universe/api/v1/session", authenticate, sessionRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
