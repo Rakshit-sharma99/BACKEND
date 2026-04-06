@@ -1,4 +1,41 @@
 const mongoose = require("mongoose");
+
+const RewardSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["cash", "certificate", "custom"],
+      default: "custom",
+      required: true
+    },
+
+    amount: {
+      value: {
+        type: Number,
+        min: 0
+      },
+      currency: {
+        type: String,
+        uppercase: true,
+        default: "INR",
+        minlength: 3,
+        maxlength: 3
+      }
+    },
+
+    // optional but useful
+    title: {
+      type: String, // e.g. "1st Prize", "Winner"
+    },
+
+    description: {
+      type: String,
+    }
+  },
+  {
+    timestamps: true
+  }
+);
 const itinerarySchema = new mongoose.Schema(
   {
     eventId: {
@@ -70,6 +107,26 @@ const itinerarySchema = new mongoose.Schema(
         ref: "User",
       },
     ],
+    grandRewards: [
+      RewardSchema
+    ],
+    sub_Itinerary: [{
+      title: String,
+      desc: String,
+      rewards: [
+        RewardSchema
+      ],
+      startTime: {
+        type: Date,
+      },
+      endTime: {
+        type: Date
+      }
+    }],
+    // documents of rules or instructions for participants
+    attachment: {
+      type: String
+    },
   },
   { timestamps: true }
 );
