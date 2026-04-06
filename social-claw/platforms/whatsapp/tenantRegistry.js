@@ -210,8 +210,14 @@ function getTenantContextManager(userId) {
 
 /**
  * Cleanup idle tenant sessions to conserve memory.
+ * Set IDLE_TIMEOUT_MS=0 to disable (sessions persist until explicit logout).
  */
 function cleanupIdleTenants() {
+  // If idle timeout is 0 or not set, sessions persist forever
+  if (!IDLE_TIMEOUT_MS || IDLE_TIMEOUT_MS <= 0) {
+    return;
+  }
+
   const now = Date.now();
 
   for (const [userId, tenant] of tenants.entries()) {

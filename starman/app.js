@@ -10,6 +10,7 @@ const server = http.createServer(app);
 const starmanRouter = require("./routes/starmanRouter");
 const authenticate = require("./middlewares/authentication");
 const connectDB = require("./config/db");
+const { startRelayConsumer } = require("./handlers/relayConsumer");
 const allowedOrigins = [
   "http://localhost:5173",
   "https://app.macbease.com",
@@ -58,9 +59,15 @@ const start = async () => {
     server.listen(port, () => {
       console.log(`🚀 The Starman is listening on port ${port}.`);
     });
+
+    // Start the Signal Relay consumer (autonomous WhatsApp → Community posting)
+    startRelayConsumer().catch((err) => {
+      console.error(`❌ [SignalRelay] Failed to start relay consumer:`, err.message);
+    });
   } catch (error) {
     console.log(error);
   }
 };
 
 start();
+

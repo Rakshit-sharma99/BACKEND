@@ -3070,11 +3070,14 @@ const updateVote = async (req, res) => {
 
 const searchCommunities = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, uid } = req.query;
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return res.status(StatusCodes.OK).json([]);
     }
+
+    // Universe scope filter — when uid is provided, restrict to that universe only
+    const uidFilter = uid ? { uid: uid.toString() } : {};
 
     // 1. Extract meaningful keywords
     const keywords = query
@@ -3086,6 +3089,7 @@ const searchCommunities = async (req, res) => {
     if (keywords.length === 0) {
       // Fallback to simple title/tag match if no keywords (e.g. searching only for stop words)
       const results = await Community.find({
+        ...uidFilter,
         $or: [
           { title: { $regex: query.trim(), $options: "i" } },
           { tag: { $regex: query.trim(), $options: "i" } },
@@ -3130,6 +3134,7 @@ const searchCommunities = async (req, res) => {
     const community = await Community.aggregate([
       {
         $match: {
+          ...uidFilter,
           $or: keywords.map((kw) => ({
             $or: [
               { title: { $regex: kw, $options: "i" } },
