@@ -18,6 +18,8 @@ const {
   deleteContext,
   batchDeleteContexts,
   deepSync,
+  saveRelayedContentId,
+  getRelayedContents,
 } = require("../controllers/externalContextController");
 
 // Answers
@@ -42,5 +44,7 @@ router.get("/external/user-contexts/:id/entries", getContextEntries);
 router.delete("/external/user-contexts/:id", deleteContext);
 router.post("/external/user-contexts/batch-delete", batchDeleteContexts);
 router.post("/external/deep-sync", deepSync);
+router.post("/external/save-relayed-content", saveRelayedContentId);
+router.get("/external/user-contexts/:id/relayed-contents", getRelayedContents);
 
 module.exports = router;

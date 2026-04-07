@@ -18,6 +18,8 @@ const UNIVERSE_URL =
   process.env.UNIVERSE_URL || "http://universe:5050/universe/api/v1";
 const CONTENT_URL =
   process.env.CONTENT_URL || "http://content:5000/content/api/v1";
+const KNOWLEDGE_URL =
+  process.env.KNOWLEDGE_URL || "http://knowledge:7080/knowledge/api/v1";
 
 // ── Bot identity ──
 const BOT_USER_ID = process.env.STARMAN_BOT_USER_ID || null;
@@ -324,65 +326,88 @@ const CATEGORY_EMOJI = {
 };
 
 /**
- * Format a relay post directly — no LLM rewrite.
- * Uses the entry text as-is with emoji + attribution.
+ * Rewrite a relay post with personality — humour, satire, irony, metaphor.
+ * Uses the LLM to transform the dry distilled text into something that
+ * grabs attention on a campus feed, and generates a quirky title.
  *
- * Title: a short, distinct summary (~5 words) extracted from the entry text.
- * Text:  the complete body — never truncated.
+ * Falls back to the original text if the LLM call fails.
  */
-function composeRelayPost(entry, entityName) {
+async function composeRelayPost(entry, entityName) {
   const emoji = CATEGORY_EMOJI[entry.category] || "📡";
   const dateStr = entry.date ? `\n📅 ${entry.date}` : "";
   const urlStr = entry.url ? `\n🔗 ${entry.url}` : "";
 
-  // ── Build the full body text (always complete, never trimmed) ──
-  const text = `${emoji} ${entry.text}${dateStr}${urlStr}\n\n— Relayed from "${entityName}"`;
+  // ── Fallback (used if LLM fails) ──
+  const fallbackText = `${emoji} ${entry.text}${dateStr}${urlStr}\n\n— Relayed from "${entityName}"`;
 
-  // ── Build a concise title that's distinct from the body ──
-  // Extract the first sentence / meaningful clause, then truncate to ~60 chars
-  // at a word boundary so the title is always a few summary words.
-  const title = generateShortTitle(entry.text, entry.category, emoji);
+  try {
+    const { OpenAI } = require("openai");
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  console.log(
-    `✍️ [SignalRelay] Composed post — title: "${title}" | text (${text.length} chars): "${text.slice(0, 120)}..."`,
-  );
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are a witty campus social media writer. Your job is to take a dry, factual piece of information from a WhatsApp group and rewrite it as an attention-grabbing post for a college community feed.
 
-  return { title, text };
-}
+Rules:
+- Generate a SHORT, QUIRKY title (max 10 words). It should use wordplay, satire, pop-culture references, Gen-Z humour, irony, or metaphor. Think tweet-worthy headlines.
+- Rewrite the body text to be engaging and funny while preserving ALL factual details (dates, names, links, deadlines). Never omit or change facts.
+- Use wit, sarcasm, relatable college humour, or dramatic exaggeration — but keep it respectful and campus-appropriate.
+- Keep the rewritten text concise — 2-5 sentences max.
+- Add 1-2 relevant emojis naturally (not at the start like a template).
+- End with a small attribution line: "— via ${entityName}"
+- Do NOT use hashtags, greetings, or "Dear students" style openings.
 
-/**
- * Generate a short, meaningful title from the entry text.
- * Returns a concise summary (max ~60 chars) that's always different
- * from the full text body, or a category-based fallback.
- */
-function generateShortTitle(entryText, category, emoji) {
-  if (!entryText || entryText.trim().length === 0) {
-    return `${emoji} ${category.charAt(0).toUpperCase() + category.slice(1)}`;
+Respond in EXACTLY this JSON format (no markdown, no code fences):
+{"title": "your quirky title here", "text": "your rewritten engaging body text here"}`,
+        },
+        {
+          role: "user",
+          content: `Category: ${entry.category || "general"}
+Original text: ${entry.text}${entry.date ? `\nDate/Deadline: ${entry.date}` : ""}${entry.url ? `\nLink: ${entry.url}` : ""}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      max_tokens: 300,
+      temperature: 0.9,
+    });
+
+    const raw = completion?.choices?.[0]?.message?.content || "";
+
+    // Parse the JSON response
+    let parsed;
+    try {
+      // Strip any accidental markdown fences
+      const cleaned = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.warn(
+        `⚠️ [SignalRelay] LLM returned non-JSON, falling back. Raw: "${raw.slice(0, 200)}"`,
+      );
+      return { title: "", text: fallbackText };
+    }
+
+    const title = (parsed.title || "").trim();
+    const text = (parsed.text || "").trim();
+
+    if (!text) {
+      console.warn(`⚠️ [SignalRelay] LLM returned empty text, falling back.`);
+      return { title: "", text: fallbackText };
+    }
+
+    console.log(
+      `✍️ [SignalRelay] Composed quirky post — title: "${title}" | text (${text.length} chars): "${text.slice(0, 120)}..."`,
+    );
+
+    return { title, text };
+  } catch (llmErr) {
+    console.warn(
+      `⚠️ [SignalRelay] LLM rewrite failed, using original text: ${llmErr.message}`,
+    );
+    return { title: "", text: fallbackText };
   }
-
-  // Grab the first sentence (split on . ! ? or newline)
-  const firstSentence = entryText.split(/[.!?\n]/)[0].trim();
-
-  // If the first sentence IS the entire text (no real summary value),
-  // take the first few words instead
-  const MAX_TITLE_LENGTH = 60;
-  let title = firstSentence;
-
-  if (title.length > MAX_TITLE_LENGTH) {
-    // Truncate at the last full word within the limit
-    const truncated = title.slice(0, MAX_TITLE_LENGTH);
-    const lastSpace = truncated.lastIndexOf(" ");
-    title = lastSpace > 10 ? truncated.slice(0, lastSpace) : truncated;
-  }
-
-  // If the title ended up being basically the same as the full text, shorten further
-  if (title.length > 0 && title === entryText.trim()) {
-    // Take just the first 5-6 words
-    const words = title.split(/\s+/).slice(0, 6).join(" ");
-    title = words;
-  }
-
-  return `${emoji} ${title}`;
 }
 
 // ── Post Executor ──
@@ -421,7 +446,7 @@ async function executePost(communityId, communityName, composed, relayMeta) {
         sendBy: "userCommunity",
         url: "",
         text: composed.text,
-        title: composed.title,
+        title: composed.title || "",
         belongsTo: communityId,
         peopleTagged: [],
         universeMetaData: {},
@@ -456,6 +481,27 @@ async function executePost(communityId, communityName, composed, relayMeta) {
       console.log(
         `✅ [SignalRelay] Post registered in community "${communityName}" feed`,
       );
+
+      // 4. Save contentId to the entity's context file in the Knowledge Service
+      try {
+        await axios.post(
+          `${KNOWLEDGE_URL}/external/save-relayed-content`,
+          {
+            uid: relayMeta.uid,
+            entityId: relayMeta.entityId,
+            contentId,
+          },
+          { headers: internalHeaders() },
+        );
+        console.log(
+          `📌 [SignalRelay] Saved contentId ${contentId} to entity context for "${relayMeta.entityName}"`,
+        );
+      } catch (saveErr) {
+        console.error(
+          `⚠️ [SignalRelay] Failed to save contentId to entity context:`,
+          saveErr?.response?.data || saveErr.message,
+        );
+      }
     }
 
     return contentId;
@@ -505,7 +551,7 @@ async function handleRelayCandidate(eventData) {
   console.log(
     `✍️ [SignalRelay] Step 3: Composing post for "${match.communityName}"...`,
   );
-  const composedPost = composeRelayPost(entry, entityName);
+  const composedPost = await composeRelayPost(entry, entityName);
 
   // ── Step 4: Execute post with externalSourceMetaData ──
   console.log(
@@ -516,6 +562,7 @@ async function handleRelayCandidate(eventData) {
     match.communityName,
     composedPost,
     {
+      uid,
       entityId,
       entityName,
       platform,
