@@ -16,6 +16,11 @@ const {
   getUserConversations,
   getConversation,
 } = require("../session/sessionStore");
+const {
+  getMyIdentity,
+  updateMyStarmanPersona,
+  getSoul,
+} = require("../controllers/identityController");
 
 // POST /starman/api/v1/chat – SSE streaming chat
 router.post("/chat", chat);
@@ -69,5 +74,10 @@ router.get("/conversations/:sessionId", async (req, res) => {
     res.status(500).json({ success: false, message: "Failed to fetch conversation" });
   }
 });
+
+// Identity endpoints
+router.get("/identity/me", getMyIdentity);
+router.patch("/identity/starman", updateMyStarmanPersona);
+router.get("/identity/soul", getSoul);
 
 module.exports = router;

@@ -6,6 +6,8 @@ const { queryInsight, getInsight } = require("../controllers/insightController")
 const {
   getUserProfile,
   getAnsweredIds,
+  getIdentityContext,
+  updateStarmanPersona,
 } = require("../controllers/userKnowledgeController");
 const {
   linkEntity,
@@ -32,6 +34,8 @@ router.get("/insight/:questionId", getInsight);
 // User knowledge profiles
 router.get("/user/:userId/profile", getUserProfile);
 router.get("/user/:userId/answered-ids", getAnsweredIds);
+router.get("/user/:userId/identity-context", getIdentityContext);
+router.patch("/user/:userId/starman-persona", updateStarmanPersona);
 
 // External network context
 router.post("/external/link", linkEntity);

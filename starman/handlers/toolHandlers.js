@@ -1021,6 +1021,53 @@ async function search_external_context({ query, communityFilter, userOnly }, use
   }
 }
 
+/**
+ * Search club and/or community leaderboards by rating.
+ * Calls the existing fetchClubLeaderBoard / fetchCommunityLeaderBoard endpoints.
+ */
+async function search_leaderboard({ type = "both", limit = 10 }, user) {
+  try {
+    const results = {};
+
+    if (type === "club" || type === "both") {
+      try {
+        const res = await axios.get(
+          `${UNIVERSE_URL}/club/fetchClubLeaderBoard`,
+          {
+            params: { limit },
+            headers: userHeaders(user),
+          },
+        );
+        results.clubs = Array.isArray(res.data) ? res.data : [];
+      } catch (err) {
+        console.error("search_leaderboard (clubs) error:", err.message);
+        results.clubs = [];
+      }
+    }
+
+    if (type === "community" || type === "both") {
+      try {
+        const res = await axios.get(
+          `${UNIVERSE_URL}/community/fetchCommunityLeaderBoard`,
+          {
+            params: { limit },
+            headers: userHeaders(user),
+          },
+        );
+        results.communities = Array.isArray(res.data) ? res.data : [];
+      } catch (err) {
+        console.error("search_leaderboard (communities) error:", err.message);
+        results.communities = [];
+      }
+    }
+
+    return results;
+  } catch (err) {
+    console.error("search_leaderboard error:", err.message);
+    return { error: true, message: "Could not fetch leaderboard right now." };
+  }
+}
+
 // ────────────────────────────────────────────────
 // Registry – maps function name → handler
 // ────────────────────────────────────────────────
@@ -1055,6 +1102,7 @@ const TOOL_HANDLERS = {
   search_events,
   query_universe_knowledge,
   search_external_context,
+  search_leaderboard,
 };
 
 /**

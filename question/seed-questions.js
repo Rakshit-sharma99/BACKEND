@@ -14,6 +14,145 @@
 
 const seedQuestions = [
   // ══════════════════════════════════════════
+  // 🪪 IDENTITY QUESTIONS (User + Starman Persona)
+  // Asked first when user has no identity set
+  // ══════════════════════════════════════════
+  {
+    text: "What should I call you?",
+    domain: "user",
+    category: "preferred_name",
+    format: "short",
+    options: [],
+    tags: ["identity", "name", "persona"],
+    priority: 100,
+    variations: [
+      { text: "First things first — what should I call you? 🫡", tone: "chill" },
+      { text: "I need a name for you. What do you go by? 🎤", tone: "witty" },
+    ],
+  },
+  {
+    text: "What are your pronouns?",
+    domain: "user",
+    category: "pronouns",
+    format: "mcq",
+    options: ["he/him", "she/her", "they/them", "prefer not to say"],
+    tags: ["identity", "pronouns", "persona"],
+    priority: 99,
+    variations: [
+      { text: "Pronouns? (totally optional, skip if you want) 🌈", tone: "chill" },
+    ],
+  },
+  {
+    text: "What's your timezone?",
+    domain: "user",
+    category: "timezone",
+    format: "mcq",
+    options: ["IST (India)", "EST (US East)", "PST (US West)", "GMT (UK)", "Other"],
+    tags: ["identity", "timezone", "persona"],
+    priority: 98,
+    variations: [
+      { text: "What timezone are you living in? Helps me not text you at 3 AM 🕐", tone: "witty" },
+    ],
+  },
+  {
+    text: "How would you describe your campus role?",
+    domain: "user",
+    category: "role",
+    format: "mcq",
+    options: ["Fresher 🌱", "Club Founder 🏗️", "Event Organizer 🎪", "Community Manager 📋", "Alumni 🎓", "Just vibing 😎"],
+    tags: ["identity", "role", "persona"],
+    priority: 97,
+    variations: [
+      { text: "What's your campus identity? Founder, fresher, or just surviving? 🏕️", tone: "witty" },
+    ],
+  },
+  {
+    text: "Pick a name for your Starman",
+    domain: "user",
+    category: "starman_name",
+    format: "short",
+    options: [],
+    tags: ["identity", "starman", "persona"],
+    priority: 96,
+    variations: [
+      { text: "I go by Starman by default, but you can rename me. What do you want to call me? ✨", tone: "chill" },
+      { text: "Starman is cool and all, but I'm open to a rebrand. What's my name now? 🏷️", tone: "witty" },
+    ],
+  },
+  {
+    text: "What kind of creature am I?",
+    domain: "user",
+    category: "starman_creature",
+    format: "mcq",
+    options: ["AI astronaut 🚀", "Ghost in the machine 👻", "Pocket-sized robot 🤖", "Cosmic familiar 🌌", "Chaos gremlin 😈"],
+    tags: ["identity", "starman", "persona"],
+    priority: 95,
+    variations: [
+      { text: "What kind of creature do you imagine me as? Choose wisely 🎭", tone: "witty" },
+    ],
+  },
+  {
+    text: "What vibe should I have when talking to you?",
+    domain: "user",
+    category: "starman_vibe",
+    format: "mcq",
+    options: ["Warm & supportive 🤗", "Sharp & witty 🔥", "Calm & steady 🧘", "Chaotic & fun 🎪", "Playful & chill 😎"],
+    tags: ["identity", "starman", "persona", "tone"],
+    priority: 94,
+    variations: [
+      { text: "What energy should I bring to our chats? Pick my vibe 🎵", tone: "chill" },
+    ],
+  },
+  {
+    text: "Pick my signature emoji",
+    domain: "user",
+    category: "starman_emoji",
+    format: "mcq",
+    options: ["🚀", "⚡", "🌙", "🔮", "✨", "🦊"],
+    tags: ["identity", "starman", "persona", "emoji"],
+    priority: 93,
+    variations: [
+      { text: "Every good assistant needs a signature emoji. What's mine? 🎯", tone: "witty" },
+    ],
+  },
+  {
+    text: "How formal should I be?",
+    domain: "user",
+    category: "starman_formality",
+    format: "mcq",
+    options: ["1 — full chaos, no filter", "2 — pretty casual", "3 — balanced", "4 — mostly professional", "5 — corporate email energy"],
+    tags: ["identity", "starman", "persona", "tone"],
+    priority: 92,
+    variations: [
+      { text: "Scale of 1-5: 1 is 'bruh' energy, 5 is 'Dear Sir/Madam'. Where do I land? 📝", tone: "witty" },
+    ],
+  },
+  {
+    text: "How funny should I try to be?",
+    domain: "user",
+    category: "starman_humor",
+    format: "mcq",
+    options: ["1 — dead serious, no jokes", "2 — occasional smirk", "3 — normal funny", "4 — pretty witty", "5 — maximum comedy chaos"],
+    tags: ["identity", "starman", "persona", "tone"],
+    priority: 91,
+    variations: [
+      { text: "Humor dial: 1 is Wikipedia, 5 is stand-up comedian having a breakdown. Set it 🎚️", tone: "witty" },
+    ],
+  },
+  {
+    text: "How wordy should I be?",
+    domain: "user",
+    category: "starman_verbosity",
+    format: "mcq",
+    options: ["1 — three words max", "2 — short and sweet", "3 — balanced", "4 — detailed when needed", "5 — walls of text, I read everything"],
+    tags: ["identity", "starman", "persona", "tone"],
+    priority: 90,
+    variations: [
+      { text: "Do you want me to be concise 🏃 or thorough 📖? Pick your fighter", tone: "chill" },
+    ],
+  },
+
+  // ══════════════════════════════════════════
   // 🌍 UNIVERSE QUESTIONS (Campus Knowledge)
   // ══════════════════════════════════════════
   {

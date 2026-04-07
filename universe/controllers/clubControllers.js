@@ -1892,7 +1892,10 @@ const getFastNativeFeed = async (req, res) => {
         if (content) {
           return {
             ...content,
-            commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length,
+            commentsNum:
+              content.commentsNum !== undefined
+                ? content.commentsNum
+                : content.comments.length,
             comments: content.comments.slice(0, 6),
           };
         }
@@ -1917,7 +1920,10 @@ const getFastNativeFeed = async (req, res) => {
       if (snippets) {
         processedSnippets = snippets.map((snippet) => ({
           ...snippet,
-          commentsNum: snippet.commentsNum !== undefined ? snippet.commentsNum : snippet.comments.length, // Store total comment count
+          commentsNum:
+            snippet.commentsNum !== undefined
+              ? snippet.commentsNum
+              : snippet.comments.length, // Store total comment count
           comments: snippet.comments.slice(0, 6), // Get only first 6 comments
         }));
       }
@@ -2814,7 +2820,10 @@ const searchClubContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
+      commentsNum:
+        content.commentsNum !== undefined
+          ? content.commentsNum
+          : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2850,7 +2859,10 @@ const searchClubFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
+      commentsNum:
+        content.commentsNum !== undefined
+          ? content.commentsNum
+          : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -4064,9 +4076,9 @@ const getClubsForFeed = async (req, res) => {
     const userId = req.user.id;
     const { uid, universeId } = req.query;
     const limit = 4;
-    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const resolvedUniverseId = universeId || uid || "multiverse";
     const universeFilter =
-      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
+      resolvedUniverseId !== "multiverse" ? { uid: resolvedUniverseId } : {};
 
     const user = await User.findById(userId, {
       interests: 1,
@@ -4100,6 +4112,8 @@ const getClubsForFeed = async (req, res) => {
                 secondaryImg: 1,
                 tags: 1,
                 motto: 1,
+                uid: 1,
+                universeMetaData: 1,
               },
             },
           ])
