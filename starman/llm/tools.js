@@ -554,6 +554,27 @@ const tools = [
           required: ["query"],
         },
       },
+      {
+        name: "search_leaderboard",
+        description:
+          "Search the club and/or community leaderboard, sorted by rating. Use this when the user asks for the best, top-rated, most popular, or highest-rated clubs or communities. Returns results ranked by their rating score.",
+        parameters: {
+          type: "object",
+          properties: {
+            type: {
+              type: "string",
+              enum: ["club", "community", "both"],
+              description:
+                "Which leaderboard to search: 'club' for clubs only, 'community' for communities only, 'both' for both. Default 'both'.",
+            },
+            limit: {
+              type: "number",
+              description:
+                "Maximum number of results to return per type. Default 10.",
+            },
+          },
+        },
+      },
     ],
   },
 ];

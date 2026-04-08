@@ -92,6 +92,9 @@ const ExternalContextSchema = new mongoose.Schema(
       decisions: [longTermEntrySchema],
       summaries: [longTermEntrySchema],
     },
+
+    // Content IDs of posts relayed by Starman from this entity
+    relayedContentIds: [{ type: String }],
   },
   { timestamps: true }
 );

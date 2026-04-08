@@ -1,6 +1,9 @@
 const { body } = require("express-validator");
 const mongoose = require("mongoose");
 
+const hasField = (req, field) =>
+  Object.prototype.hasOwnProperty.call(req.body || {}, field);
+
 const registerUserValidator = [
   body("name")
     .trim()
@@ -30,37 +33,37 @@ const registerUserValidator = [
 
   /* ---------- Universe validation ---------- */
   body("universe")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .notEmpty()
     .withMessage("Universe required")
     .isObject()
     .withMessage("Universe must be an object"),
 
   body("universe._id")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .isMongoId()
     .withMessage("Invalid universe id"),
 
   body("universe.name")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .trim()
     .notEmpty()
     .withMessage("Universe name required"),
 
   body("universe.location")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .trim()
     .notEmpty()
     .withMessage("Universe location required"),
 
   body("universe.logo")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .trim()
     .notEmpty()
     .withMessage("Universe logo required"),
 
   body("universe.callSign")
-    .if(body("customUniverse").not().exists())
+    .if((value, { req }) => !hasField(req, "customUniverse") || hasField(req, "universe"))
     .trim()
     .notEmpty()
     .withMessage("Universe callSign required"),
@@ -69,25 +72,25 @@ const registerUserValidator = [
 
   /* ---------- Custom Universe validation ---------- */
   body("customUniverse")
-    .optional()
+    .if((value, { req }) => !hasField(req, "universe") && hasField(req, "customUniverse"))
     .isObject()
     .withMessage("Custom Universe must be an object"),
 
   body("customUniverse.name")
-    .if(body("customUniverse").exists())
+    .if((value, { req }) => !hasField(req, "universe") && hasField(req, "customUniverse"))
     .trim()
     .notEmpty()
     .withMessage("Custom Universe name required")
     .isLength({ min: 2, max: 100 }),
 
   body("customUniverse.country")
-    .if(body("customUniverse").exists())
+    .if((value, { req }) => !hasField(req, "universe") && hasField(req, "customUniverse"))
     .trim()
     .notEmpty()
     .withMessage("Custom Universe country required"),
 
   body("customUniverse.province")
-    .if(body("customUniverse").exists())
+    .if((value, { req }) => !hasField(req, "universe") && hasField(req, "customUniverse"))
     .trim()
     .notEmpty()
     .withMessage("Custom Universe province required"),

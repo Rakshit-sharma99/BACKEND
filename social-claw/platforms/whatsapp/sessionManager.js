@@ -5,12 +5,15 @@
  * that creates an isolated Baileys session for a specific user.
  */
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require("@whiskeysockets/baileys");
+// @whiskeysockets/baileys is ESM-only — use dynamic import() with a cache.
+let _baileys = null;
+async function getBaileys() {
+  if (!_baileys) {
+    _baileys = await import("@whiskeysockets/baileys");
+  }
+  return _baileys;
+}
+
 const pino = require("pino");
 const path = require("path");
 const fs = require("fs");
@@ -77,6 +80,10 @@ async function createSession(userId, messageCallback) {
     connectionState = "connecting";
     currentQR = null;
 
+    const baileys = await getBaileys();
+    const makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket || baileys.default;
+    const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+
     const { version } = await fetchLatestBaileysVersion();
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
@@ -136,10 +143,16 @@ async function createSession(userId, messageCallback) {
           if (reconnectTimer) clearTimeout(reconnectTimer);
           reconnectTimer = setTimeout(() => connect(), 3000);
         } else {
-          // Logged out — clear credentials
+          // Logged out — clear stale credentials and restart for fresh QR
+          console.log(`🔑 [${userId}] Clearing stale credentials and restarting for fresh QR...`);
           if (fs.existsSync(authDir)) {
             fs.rmSync(authDir, { recursive: true, force: true });
             fs.mkdirSync(authDir, { recursive: true });
+          }
+          // Restart connection so a new QR code is generated
+          if (!destroyed) {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => connect(), 2000);
           }
         }
       }
@@ -499,6 +512,7 @@ async function createSession(userId, messageCallback) {
     const beforeCount = targetJid ? (historyCache.get(targetJid) || []).length : totalCached;
 
     // Clear processed history markers so Baileys re-requests full history
+    const { useMultiFileAuthState } = await getBaileys();
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
     if (state.creds.processedHistoryMessages) {
       console.log(`🔄 [${userId}] Clearing ${state.creds.processedHistoryMessages.length} processed history markers...`);

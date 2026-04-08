@@ -1806,6 +1806,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   return result;
 }
 
+
 module.exports = {
   sendMail,
   getCurrentISTDate,
@@ -1832,5 +1833,5 @@ module.exports = {
   fetchBags,
   fetchRightSequence,
   sendOnboardingMail,
-  resolveMetricValue,
+  resolveMetricValue
 };

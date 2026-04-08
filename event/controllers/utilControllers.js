@@ -1330,6 +1330,29 @@ const fetchTicketFieldsByQuery = async (query) => {
   }
 };
 
+const fetchClubFieldsById = async (query) => {
+  try {
+    if (
+      !query.id ||
+      !Array.isArray(query.fields) ||
+      query.fields.length === 0
+    ) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://universe:5050/universe/api/v1/club/getClubFieldsById",
+      query,
+      config
+    );
+
+    return response.data.data || null;
+  } catch (error) {
+    console.error(
+      "fetchClubFieldsById error:",
+      error.response?.data || error.message,
+    );
 // ─── Channel Inter-Service Helpers ─────────────────────────────────────
 
 /**
@@ -1445,6 +1468,7 @@ module.exports = {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
+  fetchClubFieldsById,
   updateUserChannels,
   bulkUpdateUserChannels,
   getUserChannels,

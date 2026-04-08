@@ -10,6 +10,10 @@
 
 const ExternalContext = require("../models/externalContext");
 const { distillMessages, batchDistill } = require("./distillationHelper");
+const axios = require("axios");
+
+const CONTENT_URL =
+  process.env.CONTENT_URL || "http://content:5000/content/api/v1";
 
 // ── POST /external/link ──
 
@@ -521,7 +525,7 @@ const getUserContexts = async (req, res) => {
 
     const entities = await ExternalContext.find({ linkedBy: targetUser })
       .select(
-        "entityId entityName platform status lastSyncedAt oldestMessageAt newestMessageAt syncDepthDays hotContext.entries longTermContext",
+        "entityId entityName platform status lastSyncedAt oldestMessageAt newestMessageAt syncDepthDays hotContext.entries longTermContext relayedContentIds",
       )
       .lean();
 
@@ -546,6 +550,7 @@ const getUserContexts = async (req, res) => {
         hotEntryCount: e.hotContext?.entries?.length || 0,
         longTermEntryCount,
         totalEntries: (e.hotContext?.entries?.length || 0) + longTermEntryCount,
+        relayedPostCount: e.relayedContentIds?.length || 0,
       };
     });
 
@@ -903,6 +908,148 @@ async function deepSyncEntity(entity, historicalMessages, userId, syncDepthDays)
   }
 }
 
+// ── POST /external/save-relayed-content ──
+
+/**
+ * Save a relayed content ID to an entity's context file.
+ * Called by Starman after successfully posting relay content.
+ *
+ * Body: { uid, entityId, contentId }
+ */
+const saveRelayedContentId = async (req, res) => {
+  try {
+    const { uid, entityId, contentId } = req.body;
+
+    if (!uid || !entityId || !contentId) {
+      return res
+        .status(400)
+        .json({ error: "uid, entityId, and contentId are required" });
+    }
+
+    const result = await ExternalContext.findOneAndUpdate(
+      { uid, entityId },
+      { $addToSet: { relayedContentIds: contentId } },
+      { new: true },
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "Entity not found." });
+    }
+
+    console.log(
+      `📌 [ExternalContext] Saved relayed contentId ${contentId} for entity "${result.entityName}"`,
+    );
+
+    return res.status(200).json({
+      success: true,
+      contentId,
+      relayedContentIds: result.relayedContentIds,
+    });
+  } catch (err) {
+    console.error("[ExternalContext] saveRelayedContentId error:", err);
+    return res
+      .status(500)
+      .json({ error: "Could not save relayed content ID." });
+  }
+};
+
+// ── GET /external/user-contexts/:id/relayed-contents ──
+
+/**
+ * Get paginated content posts that were relayed from this entity.
+ * Looks up the entity's relayedContentIds, slices a page, then fetches
+ * full post documents from the Content Service.
+ *
+ * Params: { id }
+ * Query:  { page? (default 1), limit? (default 10) }
+ */
+const getRelayedContents = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+
+    if (!id) {
+      return res.status(400).json({ error: "Context id is required" });
+    }
+
+    const entity = await ExternalContext.findById(id)
+      .select("relayedContentIds entityName")
+      .lean();
+
+    if (!entity) {
+      return res.status(404).json({ error: "Context not found." });
+    }
+
+    const allIds = entity.relayedContentIds || [];
+    const total = allIds.length;
+
+    if (total === 0) {
+      return res.status(200).json({
+        data: [],
+        total: 0,
+        page,
+        hasMore: false,
+        entityName: entity.entityName,
+      });
+    }
+
+    // Paginate — most recent first (reverse order since IDs are appended chronologically)
+    const reversed = [...allIds].reverse();
+    const start = (page - 1) * limit;
+    const pageIds = reversed.slice(start, start + limit);
+
+    if (pageIds.length === 0) {
+      return res.status(200).json({
+        data: [],
+        total,
+        page,
+        hasMore: false,
+        entityName: entity.entityName,
+      });
+    }
+
+    // Fetch full post documents from Content Service
+    let contents = [];
+    try {
+      const userId = req.user?.id || null;
+      const contentRes = await axios.post(
+        `${CONTENT_URL}/getMultipleContents`,
+        {
+          ids: pageIds,
+          userId,
+        },
+        {
+          headers: req.headers.authorization
+            ? { Authorization: req.headers.authorization }
+            : {},
+          timeout: 10000,
+        },
+      );
+      contents = Array.isArray(contentRes.data) ? contentRes.data : [];
+    } catch (contentErr) {
+      console.error(
+        `[ExternalContext] Failed to fetch content from Content Service:`,
+        contentErr.message,
+      );
+      // Return empty rather than failing — the IDs exist but content may have been deleted
+    }
+
+    return res.status(200).json({
+      data: contents,
+      total,
+      page,
+      hasMore: start + limit < total,
+      entityName: entity.entityName,
+    });
+  } catch (err) {
+    console.error("[ExternalContext] getRelayedContents error:", err);
+    return res
+      .status(500)
+      .json({ error: "Could not get relayed contents." });
+  }
+};
+
 module.exports = {
   linkEntity,
   ingestMessages,
@@ -914,4 +1061,6 @@ module.exports = {
   deleteContext,
   batchDeleteContexts,
   deepSync,
+  saveRelayedContentId,
+  getRelayedContents,
 };

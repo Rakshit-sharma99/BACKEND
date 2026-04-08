@@ -1561,6 +1561,8 @@ const getFastNativeFeed = async (req, res) => {
         postPermission: 1,
         shareLinkPermission: 1,
         entryRules: 1,
+        universeMetaData: 1,
+        uid: 1,
       });
       if (!community) {
         return res.status(StatusCodes.NOT_FOUND).send("Community not found");
@@ -1618,7 +1620,10 @@ const getFastNativeFeed = async (req, res) => {
           ...doc,
           irrelevanceVote: matchedContent.irrelevanceVote,
           flaggedBy: matchedContent.flaggedBy,
-          commentsNum: doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length,
+          commentsNum:
+            doc.commentsNum !== undefined
+              ? doc.commentsNum
+              : doc.comments.length,
           comments: doc.comments.slice(0, 6),
         };
       });
@@ -1649,6 +1654,10 @@ const getFastNativeFeed = async (req, res) => {
         name: community.title,
         logo: community.secondaryCover,
       };
+      console.log({
+        universeMetaData: community.universeMetaData,
+        uid: community.uid,
+      });
       return res.status(StatusCodes.OK).json({
         finishedContent: actualContent.reverse(),
         creatorDetail,
@@ -1661,6 +1670,8 @@ const getFastNativeFeed = async (req, res) => {
         postPermission: community.postPermission,
         shareLinkPermission: community.shareLinkPermission,
         entryRules: community.entryRules,
+        universeMetaData: community.universeMetaData,
+        uid: community.uid,
       });
     } catch (error) {
       console.error(error);
@@ -1693,7 +1704,8 @@ const getBatchedContent = async (req, res) => {
       const id = content[i].contentId;
       let doc = await fetchContent({ contentId: id });
       if (doc) {
-        let commentsNum = doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length;
+        let commentsNum =
+          doc.commentsNum !== undefined ? doc.commentsNum : doc.comments.length;
         doc.comments = doc.comments.slice(0, 6);
         let point = {
           ...doc,
@@ -2711,7 +2723,10 @@ const searchCommunityContent = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
+      commentsNum:
+        content.commentsNum !== undefined
+          ? content.commentsNum
+          : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -2750,7 +2765,10 @@ const searchCommunityFiles = async (req, res) => {
 
     const processedResults = contentResults.map((content) => ({
       ...content,
-      commentsNum: content.commentsNum !== undefined ? content.commentsNum : content.comments.length, // Total comments count
+      commentsNum:
+        content.commentsNum !== undefined
+          ? content.commentsNum
+          : content.comments.length, // Total comments count
       comments: content.comments.slice(0, 6), // Slice top 6 comments
     }));
 
@@ -3218,11 +3236,14 @@ const updateVote = async (req, res) => {
 
 const searchCommunities = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, uid } = req.query;
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return res.status(StatusCodes.OK).json([]);
     }
+
+    // Universe scope filter — when uid is provided, restrict to that universe only
+    const uidFilter = uid ? { uid: uid.toString() } : {};
 
     // 1. Extract meaningful keywords
     const keywords = query
@@ -3234,6 +3255,7 @@ const searchCommunities = async (req, res) => {
     if (keywords.length === 0) {
       // Fallback to simple title/tag match if no keywords (e.g. searching only for stop words)
       const results = await Community.find({
+        ...uidFilter,
         $or: [
           { title: { $regex: query.trim(), $options: "i" } },
           { tag: { $regex: query.trim(), $options: "i" } },
@@ -3278,6 +3300,7 @@ const searchCommunities = async (req, res) => {
     const community = await Community.aggregate([
       {
         $match: {
+          ...uidFilter,
           $or: keywords.map((kw) => ({
             $or: [
               { title: { $regex: kw, $options: "i" } },
@@ -3767,9 +3790,9 @@ const getCommunitiesForFeed = async (req, res) => {
     const userId = req.user.id;
     const { uid, universeId } = req.query;
     const limit = 4;
-    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const resolvedUniverseId = universeId || uid || "multiverse";
     const universeFilter =
-      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
+      resolvedUniverseId !== "multiverse" ? { uid: resolvedUniverseId } : {};
 
     const user = await User.findById(userId, {
       interests: 1,

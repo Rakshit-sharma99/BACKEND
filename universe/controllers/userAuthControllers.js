@@ -21,8 +21,12 @@ const nodemailer = require("nodemailer");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const { shortcuts } = require("./validators/user.validator");
 const { registerCustomUniverse } = require("./interServiceCalls");
-const { S3Client, PutObjectCommand, CopyObjectCommand } = require("@aws-sdk/client-s3")
-const { getSignedUrl } = require("@aws-sdk/s3-request-presigner")
+const {
+  S3Client,
+  PutObjectCommand,
+  CopyObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 const s3v3 = new S3Client({
   region: process.env.S3_AWS_REGION,
   credentials: {
@@ -120,6 +124,7 @@ const generateGibberishPassword = () => {
 const registerUser = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    console.log(errors.array());
     return res.status(StatusCodes.BAD_REQUEST).json({
       success: false,
       errors: errors.array(),
@@ -147,6 +152,8 @@ const registerUser = async (req, res) => {
       universe,
       customUniverse,
     } = req.body;
+    const hasUniverse = Object.prototype.hasOwnProperty.call(req.body, "universe");
+    const effectiveCustomUniverse = hasUniverse ? null : customUniverse;
     /* ---------- Platform ---------- */
     const platform = req.body.platform || "app";
 
@@ -161,7 +168,7 @@ const registerUser = async (req, res) => {
       name: "Wild Card",
     };
 
-    const finalUniverse = customUniverse ? fallBackUniverse : universe;
+    const finalUniverse = effectiveCustomUniverse ? fallBackUniverse : universe;
 
     /* ---------- Build universeMetaData safely ---------- */
     const universeMetaData = {
@@ -251,8 +258,8 @@ const registerUser = async (req, res) => {
     }
 
     /* ---------- Background: Custom Universe Registration ---------- */
-    if (customUniverse) {
-      registerCustomUniverse(customUniverse, user._id);
+    if (effectiveCustomUniverse) {
+      registerCustomUniverse(effectiveCustomUniverse, user._id);
     }
 
     /* ---------- Send onboarding mail ---------- */
@@ -1066,7 +1073,7 @@ const getUploadUrl = async (req, res) => {
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      ContentType: fileType
+      ContentType: fileType,
     });
 
     let signedUrl;
@@ -1074,8 +1081,7 @@ const getUploadUrl = async (req, res) => {
       signedUrl = await getSignedUrl(s3v3Videos, command, {
         expiresIn: 60,
       });
-    }
-    else {
+    } else {
       signedUrl = await getSignedUrl(s3v3, command, {
         expiresIn: 60,
       });
@@ -1106,10 +1112,9 @@ const copyObject = async (req, res) => {
       });
     }
 
-    const bucket =
-      fileType?.startsWith("video/")
-        ? process.env.S3_VIDEO_BUCKET
-        : process.env.S3_BUCKET;
+    const bucket = fileType?.startsWith("video/")
+      ? process.env.S3_VIDEO_BUCKET
+      : process.env.S3_BUCKET;
 
     await s3v3.send(
       new CopyObjectCommand({
@@ -1117,7 +1122,7 @@ const copyObject = async (req, res) => {
         Key: destinationKey,
         CopySource: `${bucket}/${sourceKey}`,
         MetadataDirective: "COPY",
-      })
+      }),
     );
 
     return res.status(StatusCodes.CREATED).json({
@@ -1125,7 +1130,6 @@ const copyObject = async (req, res) => {
       message: "Copied successfully",
       key: destinationKey,
     });
-
   } catch (err) {
     console.error(err);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -1155,5 +1159,5 @@ module.exports = {
   getAppConfig,
   suggestUsername,
   getUploadUrl,
-  copyObject
+  copyObject,
 };

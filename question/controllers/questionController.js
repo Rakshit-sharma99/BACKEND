@@ -47,9 +47,10 @@ const getNextQuestion = async (req, res) => {
       filter.$or = [{ uid: null }, { uid: { $exists: false } }];
     }
 
-    // Get a pool of candidates sorted by engagement & freshness
+    // Get a pool of candidates sorted by priority first, then engagement & freshness
+    // Identity questions (priority 90-100) get served first to new users
     const candidates = await Question.find(filter)
-      .sort({ avgEngagement: -1, timesAsked: 1, createdAt: -1 })
+      .sort({ priority: -1, avgEngagement: -1, timesAsked: 1, createdAt: -1 })
       .limit(20)
       .lean();
 
@@ -106,7 +107,11 @@ const getNextQuestion = async (req, res) => {
 
     let selected;
 
-    if (preferredDomain) {
+    // If the top candidate has high priority (identity question), serve it deterministically
+    const topCandidate = candidates[0];
+    if (topCandidate && topCandidate.priority && topCandidate.priority >= 90) {
+      selected = topCandidate;
+    } else if (preferredDomain) {
       // User chose a specific domain — just pick randomly from candidates
       selected = candidates[Math.floor(Math.random() * Math.min(candidates.length, 5))];
     } else {
@@ -196,6 +201,7 @@ const seedQuestions = async (req, res) => {
         sourceRef: "seed_batch_v1",
         status: "active",
         uid: uid || null,
+        priority: q.priority || 0,
         variations: q.variations || [],
         targetSegment: q.targetSegment || {},
         universeMetaData: universeMetaData || {},

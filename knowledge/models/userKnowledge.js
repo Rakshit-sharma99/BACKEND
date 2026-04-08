@@ -11,6 +11,19 @@ const traitSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const starmanPersonaSchema = new mongoose.Schema(
+  {
+    name: { type: String, default: "Starman" },
+    creature: { type: String, default: "AI astronaut" },
+    vibe: { type: String, default: "playful" }, // warm, sharp, chaotic, calm, playful
+    emoji: { type: String, default: "🚀" },
+    formalityLevel: { type: Number, default: 2, min: 1, max: 5 },
+    humorLevel: { type: Number, default: 4, min: 1, max: 5 },
+    verbosityLevel: { type: Number, default: 2, min: 1, max: 5 },
+  },
+  { _id: false }
+);
+
 const UserKnowledgeSchema = new mongoose.Schema(
   {
     userId: {
@@ -24,6 +37,15 @@ const UserKnowledgeSchema = new mongoose.Schema(
       ref: "Universe",
       required: true,
     },
+
+    // ── User Identity (populated from explicit question answers) ──
+    preferredName: { type: String },    // "what to call them"
+    pronouns: { type: String },         // optional
+    timezone: { type: String },         // e.g. "Asia/Kolkata"
+    role: { type: String },             // "founder", "member", "explorer", "alumni", "fresher"
+
+    // ── Starman Persona (per-user Starman tuning) ──
+    starmanPersona: { type: starmanPersonaSchema, default: () => ({}) },
 
     // Structured personal intel (from "user" domain questions)
     traits: [traitSchema],

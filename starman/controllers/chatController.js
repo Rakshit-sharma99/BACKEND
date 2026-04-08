@@ -25,6 +25,7 @@ const {
   updateHistory,
   setLastResults,
 } = require("../session/sessionStore");
+const { loadIdentityContext } = require("../identity/identityManager");
 const axios = require("axios");
 const { publishEvent } = require("../config/kafka");
 
@@ -81,6 +82,11 @@ const TOOL_STATUS_MESSAGES = {
     searching: "brb asking the WhatsApp groups so you don't have to 💬",
     done: "WhatsApp intelligence gathered 🕵️‍♂️",
     error: "WhatsApp data said 'seen' but didn't reply 😒",
+  },
+  search_leaderboard: {
+    searching: "pulling up the rankings, this is gonna be spicy 🏆",
+    done: "leaderboard is in — bow before the top-rated 👑",
+    error: "leaderboard is on vacation rn 🏖️",
   },
   query_universe_knowledge: {
     searching: "tapping into the campus hive mind 🧠",
@@ -271,7 +277,19 @@ const chat = async (req, res) => {
 
     // ── Session ──
     const session = await getOrCreateSession(sessionId, user.id);
-    const systemPrompt = buildSystemPrompt(navContext || {}, creditBalance);
+
+    // ── Load Identity Context ──
+    let identityContext = null;
+    try {
+      identityContext = await loadIdentityContext(user.id, user.uid);
+    } catch (identityErr) {
+      console.error(
+        "Identity context load failed, proceeding with defaults:",
+        identityErr.message,
+      );
+    }
+
+    const systemPrompt = buildSystemPrompt(navContext || {}, creditBalance, identityContext);
     const chat = createChat(session.history, systemPrompt);
 
     // ── Send message to Gemini (streaming) ──
@@ -378,12 +396,12 @@ const chat = async (req, res) => {
               fullText += doneText;
               sendSSE("chunk", { text: doneText });
 
-              // Format results into buttons using the same formatResults() the sync path uses
+              // Format results into buttons using the same extractButtons() the sync path uses
               const allButtons = [];
               for (const step of completedTask.steps) {
                 if (step.status !== "done" || !step.result) continue;
                 try {
-                  const formatted = formatResults(step.toolName, step.result);
+                  const formatted = extractButtons(step.toolName, step.result);
                   if (formatted && formatted.length > 0) {
                     allButtons.push(...formatted);
                   }
@@ -582,6 +600,51 @@ const chat = async (req, res) => {
  * Returns a flat array of { id, type, label, subtitle, image, meta }.
  */
 function extractButtons(toolName, rawResult) {
+  // ── Special case: search_leaderboard returns { clubs: [], communities: [] }
+  if (toolName === "search_leaderboard") {
+    const cards = [];
+    if (rawResult.clubs && Array.isArray(rawResult.clubs)) {
+      rawResult.clubs.forEach((item, index) => {
+        cards.push({
+          id: item._id || item.id,
+          type: "club",
+          label: item.name,
+          subtitle:
+            item.motto || (item.tags && item.tags.slice(0, 3).join(", ")) || "",
+          image: item.secondaryImg || null,
+          meta: {
+            rank: index + 1,
+            rating: item.rating || 0,
+            membersCount: item.membersCount,
+            isMember: item.isMember,
+            isAdmin: item.isAdmin,
+            isCore: item.isCore,
+          },
+        });
+      });
+    }
+    if (rawResult.communities && Array.isArray(rawResult.communities)) {
+      rawResult.communities.forEach((item, index) => {
+        cards.push({
+          id: item._id || item.id,
+          type: "community",
+          label: item.title || item.name,
+          subtitle:
+            item.label || (item.tag && item.tag.slice(0, 3).join(", ")) || "",
+          image: item.secondaryCover || null,
+          meta: {
+            rank: index + 1,
+            rating: item.rating || 0,
+            membersCount: item.membersCount,
+            activeMembers: item.activeMembers,
+            isMember: item.isMember,
+          },
+        });
+      });
+    }
+    return cards;
+  }
+
   // Normalise input – some endpoints return an array directly,
   // others wrap it inside { data: [] } or { results: [] } or { territories: [] }.
   // Single-object responses (e.g. navigate_to_node) get wrapped as [rawResult].

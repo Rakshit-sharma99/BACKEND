@@ -22,6 +22,7 @@ const {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
+  fetchClubFieldsById,
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
@@ -46,6 +47,228 @@ const isAuthorized = async (id, role, belongsTo, callSign) => {
       }
     }
     return false;
+  }
+};
+
+function normalizeTicketVisibility(visibility = {}) {
+  return {
+    scope: visibility?.scope || "public",
+    uids: Array.isArray(visibility?.uids) ? visibility.uids : [],
+    n_uids: Array.isArray(visibility?.n_uids) ? visibility.n_uids : [],
+    privateCodes: Array.isArray(visibility?.privateCodes)
+      ? visibility.privateCodes
+      : [],
+    usersList: Array.isArray(visibility?.usersList) ? visibility.usersList : [],
+  };
+}
+
+async function ticketBuyResolver({
+  accessLevel,
+  clubId,
+  userId,
+  uids = [],
+  n_uids = [],
+  privateCodes = [],
+  usersList = [],
+  userUid,
+  userPrivateCode,
+}) {
+  if (!accessLevel || accessLevel === "public") {
+    if (n_uids.length > 0 && userUid && n_uids.includes(userUid)) {
+      return {
+        canBuy: false,
+        message: "This ticket is not available for your universe.",
+      };
+    }
+
+    return { canBuy: true, message: "You can buy ticket" };
+  }
+
+  if (accessLevel === "native") {
+    if (!userUid || !uids.includes(userUid)) {
+      return {
+        canBuy: false,
+        message: "This ticket is only available for selected universes.",
+      };
+    }
+
+    return { canBuy: true, message: "You can buy ticket" };
+  }
+
+  if (accessLevel === "private_code") {
+    const allowedCodes = privateCodes
+      .map((code) => String(code || "").trim().toUpperCase())
+      .filter(Boolean);
+    const submittedCode = String(userPrivateCode || "").trim().toUpperCase();
+
+    if (!submittedCode || !allowedCodes.includes(submittedCode)) {
+      return {
+        canBuy: false,
+        message: "A valid private code is required for this ticket.",
+      };
+    }
+
+    return { canBuy: true, message: "You can buy ticket" };
+  }
+
+  if (accessLevel === "users_list") {
+    const allowedUsers = new Set(usersList.map((value) => value?.toString()));
+    const safeUserId = userId?.toString();
+
+    if (!safeUserId || !allowedUsers.has(safeUserId)) {
+      return {
+        canBuy: false,
+        message: "This ticket is restricted to selected users.",
+      };
+    }
+
+    return { canBuy: true, message: "You can buy ticket" };
+  }
+
+  if (!clubId) {
+    return {
+      canBuy: false,
+      message: "Club context is missing for this ticket.",
+    };
+  }
+
+  const club = await fetchClubFieldsById({
+    id: clubId,
+    fields: ["mainAdmin", "adminId", "members", "team"],
+  });
+
+  if (!club) {
+    return {
+      canBuy: false,
+      message: "Unable to verify club access for this ticket.",
+    };
+  }
+
+  const safeUserId = userId?.toString();
+  const mainAdmin = club.mainAdmin?.toString();
+  const adminIds = new Set((club.adminId || []).map((id) => id?.toString()));
+  const memberIds = new Set((club.members || []).map((id) => id?.toString()));
+  const teamIds = new Set((club.team || []).map((entry) => entry?.id?.toString()));
+
+  if (accessLevel === "club_full") {
+    return mainAdmin === safeUserId
+      ? { canBuy: true, message: "You can buy ticket" }
+      : {
+        canBuy: false,
+        message: "This ticket is only available to the club owner.",
+      };
+  }
+
+  if (accessLevel === "club_admin" || accessLevel === "club_admins") {
+    return adminIds.has(safeUserId)
+      ? { canBuy: true, message: "You can buy ticket" }
+      : {
+        canBuy: false,
+        message: "This ticket is only available to club admins.",
+      };
+  }
+
+  if (accessLevel === "club_core") {
+    return teamIds.has(safeUserId)
+      ? { canBuy: true, message: "You can buy ticket" }
+      : {
+        canBuy: false,
+        message: "This ticket is only available to the club core team.",
+      };
+  }
+
+  if (accessLevel === "club_members") {
+    return memberIds.has(safeUserId)
+      ? { canBuy: true, message: "You can buy ticket" }
+      : {
+        canBuy: false,
+        message: "This ticket is only available to club members.",
+      };
+  }
+
+  return {
+    canBuy: false,
+    message: "You are not authorized to buy this ticket.",
+  };
+}
+
+const canBuyTicket = async (req, res) => {
+  try {
+    const { eventId, ticketType, privateCode, uid, userId: internalUserId } =
+      req.body;
+
+    if (!eventId || !ticketType) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        canBuy: false,
+        message: "Event ID and ticket type are required.",
+      });
+    }
+
+    const event = await Event.findById(eventId, {
+      ticketTypes: 1,
+      belongsTo: 1,
+    }).lean();
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        canBuy: false,
+        message: "Event not found.",
+      });
+    }
+
+    const type = (event.ticketTypes || []).find(
+      (ticket) =>
+        ticket.type === ticketType ||
+        ticket._id?.toString() === ticketType?.toString(),
+    );
+
+    if (!type) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        canBuy: false,
+        message: "Ticket type not found.",
+      });
+    }
+
+    const resolvedUserId =
+      req.user?.id || (req.internalService ? internalUserId : null);
+    const resolvedUid = uid || req.user?.uid || null;
+
+    if (!resolvedUserId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        canBuy: false,
+        message: "User context is required to verify ticket access.",
+      });
+    }
+
+    const visibility = normalizeTicketVisibility(type.visibility);
+    const { canBuy, message } = await ticketBuyResolver({
+      accessLevel: visibility.scope,
+      clubId: event?.belongsTo?.id,
+      userId: resolvedUserId,
+      uids: visibility.uids,
+      n_uids: visibility.n_uids,
+      privateCodes: visibility.privateCodes,
+      usersList: visibility.usersList,
+      userUid: resolvedUid,
+      userPrivateCode: privateCode,
+    });
+
+    return res.status(canBuy ? StatusCodes.OK : StatusCodes.FORBIDDEN).json({
+      success: canBuy,
+      canBuy,
+      message,
+    });
+  } catch (error) {
+    console.error("canBuyTicket error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      canBuy: false,
+      message: "Something went wrong.",
+    });
   }
 };
 
@@ -1228,6 +1451,8 @@ const checkTicketAvailability = async (req, res) => {
       ticketIds: event.bookedBy || [],
     });
 
+    console.log("ticket counts", ticketCounts)
+
     ticketCounts.forEach(({ _id, count }) => {
       const type = _id.trim();
       if (ticketTypesSales.hasOwnProperty(type)) {
@@ -1661,6 +1886,43 @@ const getEventById = async (req, res) => {
     return res
       .status(500)
       .json({ error: "An error occurred while fetching the event." });
+  }
+};
+
+const setEventLayout = async (req, res) => {
+  try {
+    const { eventId, layoutId } = req.body;
+
+    if (
+      !mongoose.Types.ObjectId.isValid(eventId) ||
+      !mongoose.Types.ObjectId.isValid(layoutId)
+    ) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "Valid eventId and layoutId are required.",
+      });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      eventId,
+      { layoutId },
+      { new: true },
+    );
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        error: "Event not found.",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      event,
+    });
+  } catch (error) {
+    console.error("setEventLayout error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      error: "Something went wrong while linking the layout.",
+    });
   }
 };
 
@@ -3596,6 +3858,7 @@ module.exports = {
   getFaq,
   changeStatusJob,
   getTickets,
+  canBuyTicket,
   generateTicketListPdf,
   getReviews,
   checkTicketAvailability,
@@ -3605,6 +3868,7 @@ module.exports = {
   getEvents,
   checkEventStatus,
   getEventById,
+  setEventLayout,
   editEventDetails,
   searchEvents,
   mailEventStats,

@@ -39,6 +39,7 @@ const TOOL_PROFILES = {
   navigate_to_territory: { latency: "fast", sideEffects: false },
   navigate_to_user_territory: { latency: "fast", sideEffects: false },
   query_universe_knowledge: { latency: "fast", sideEffects: false },
+  search_leaderboard: { latency: "fast", sideEffects: false },
 
   // Slow (5–30s, external LLM call or multi-step)
   web_search_fallback: { latency: "slow", sideEffects: false },
