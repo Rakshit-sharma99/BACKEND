@@ -99,6 +99,11 @@ const adminSchema = new mongoose.Schema({
     type: Date,
     default: undefined,
   },
+
+  eventAdministrator: {
+    type: Boolean,
+    default: false,
+  }
 });
 
 adminSchema.methods.createAccessToken = function () {

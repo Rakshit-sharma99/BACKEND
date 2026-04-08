@@ -898,7 +898,7 @@ const getTicketTypesCount = async (req, res) => {
 //Controller 9
 const getTicketFieldsById = async (req, res) => {
   try {
-    const { ticketId, fields } = req.body;
+    const { ticketId, fields, populateFields } = req.body;
 
     if (!ticketId) {
       return res.status(400).json({ error: "Ticket ID is required." });
@@ -911,7 +911,15 @@ const getTicketFieldsById = async (req, res) => {
     // Convert array of fields to space-separated string for Mongoose projection
     const projection = fields.join(" ");
 
-    const ticket = await Ticket.findById(ticketId).select(projection);
+    let query = Ticket.findById(ticketId);
+
+    if (populateFields && Array.isArray(populateFields)) {
+      populateFields.forEach((field) => {
+        query = query.populate(field);
+      });
+    }
+    
+    const ticket = await query.select(projection);
 
     if (!ticket) {
       return res.status(404).json({ error: "Ticket not found." });

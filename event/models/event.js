@@ -164,6 +164,8 @@ const eventSchema = new mongoose.Schema(
         "featured",
         "past and unclear",
         "past and clear",
+        "postponed",
+        "cancelled",
       ],
       default: "pending",
     },
@@ -334,6 +336,60 @@ const eventSchema = new mongoose.Schema(
       default: 2.5,
     },
 
+    cancellation : {
+      requested: {
+        type: Boolean,
+        default: false,
+      },
+      requestedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      reason: {
+        type: String,
+      },
+      approved: {
+        type: Boolean,
+        default: false,
+      },
+      approvedAt: {
+        type: Date,
+      },
+    },
+
+    postponement : {
+      requested: {
+        type: Boolean,
+        default: false,
+      },
+      requestedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+      reason: {
+        type: String,
+      },
+      eventData: {
+        type: Object,
+      },
+      eventEndDate: {
+        type: Date,
+      },
+      startTime: {
+        type: Date,
+      },
+      endTime: {
+        type: Date,
+      },
+      approved: {
+        type: Boolean,
+        default: false,
+      },
+      approvedAt: {
+        type: Date,
+      },
+    },
+   
     uid: {
       type: String,
       trim: true,

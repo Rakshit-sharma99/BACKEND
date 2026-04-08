@@ -321,6 +321,37 @@ const resetPassword = async (req, res) => {
   }
 };
 
+const  fetchEventAdminsByFields = async (req, res) => {
+  try {
+    const { fields } = req.body;
+
+    if(!fields){
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Fields are required",
+      });
+    }
+
+    const admins = await Admin.find({
+      eventAdministrator: true
+    }, fields);
+
+    if (!admins) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event admins not found",
+      });
+    }
+    return res.status(StatusCodes.OK).json(admins);
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+}
+
 module.exports = {
   registerAdmin,
   loginAdmin,
@@ -329,5 +360,6 @@ module.exports = {
   setNewPassword,
   chapterLeaderReviewAccess,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  fetchEventAdminsByFields
 };

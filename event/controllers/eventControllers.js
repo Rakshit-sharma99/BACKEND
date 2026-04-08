@@ -22,6 +22,7 @@ const {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
+  fetchEventAdminsByFields
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
@@ -257,6 +258,7 @@ const allowedStatuses = [
   "featured",
   "past and unclear",
   "past and clear",
+  "postponed",
 ];
 
 //Controller 4
@@ -1838,9 +1840,8 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${
-            field.type
-          }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3304,27 +3305,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-            {
-              $match: {
-                status: "featured",
-                eventDate: { $gte: now },
-                tags: { $in: interestTags },
-                ...universeFilter,
-              },
+          {
+            $match: {
+              status: "featured",
+              eventDate: { $gte: now },
+              tags: { $in: interestTags },
+              ...universeFilter,
             },
-            { $limit: limit },
-            {
-              $project: {
-                bookedBy: 0,
-                amtPaid: 0,
-                amtPaidTo: 0,
-                ticketSellingDays: 0,
-                cumulativeRevenue: 0,
-                courseAnalytics: 0,
-                faq: 0,
-              },
+          },
+          { $limit: limit },
+          {
+            $project: {
+              bookedBy: 0,
+              amtPaid: 0,
+              amtPaidTo: 0,
+              ticketSellingDays: 0,
+              cumulativeRevenue: 0,
+              courseAnalytics: 0,
+              faq: 0,
             },
-          ])
+          },
+        ])
         : [];
 
     let finalEvents = [...suggestedEvents];
@@ -3397,6 +3398,429 @@ const getLiveEvents = async (req, res) => {
   }
 }
 
+
+const requestCancellation = async (req, res) => {
+  try {
+    const { id, reason, agreeToTerms } = req.body;
+    if (!id || !reason) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Event ID and reason are required.");
+    }
+
+    if (reason.length < 20) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Reason must be at least 20 characters long.");
+    }
+
+    if (!agreeToTerms) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("You must agree to the terms and conditions.");
+    }
+
+    const event = await Event.findById(id);
+
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Event not found with provided ID.");
+    }
+
+    event.cancellation.requested = true;
+    event.cancellation.requestedBy = req.user.id;
+    event.cancellation.reason = reason;
+    await event.save();
+
+    //secondary actions
+    try {
+      const admins = await fetchEventAdminsByFields({
+        fields: ["name", "email", "pushToken"]
+      })
+      const subject = `Cancellation Request for "${event.name}"`;
+
+      const intro = `A cancellation request has been submitted for the event "${event.name}".
+
+      The organizer has requested that this event be cancelled. Please review the request and take the necessary action. Until an administrator approves the cancellation, the event will remain active and participants will not be notified.
+
+      Once approved, attendees will receive a cancellation email and any eligible refunds can begin their slow parade back through the banking labyrinth.`;
+
+      const outro = `Please review and approve or reject this request at your earliest convenience.`;
+
+      const action = {
+        instructions: "Click the button below to review the cancellation request:",
+        button: {
+          color: "#1ea1ed",
+          text: "Review Request",
+          url: `https://admin.macbease.com/events/requests/${event._id}`,
+        },
+      };
+
+      for (const admin of admins) {
+        const { name, email, pushToken } = admin;
+        const destination = email;
+        const { ses, params } = await sendMail(
+          name,
+          intro,
+          outro,
+          subject,
+          destination,
+          action,
+          null
+        );
+
+        await ses.sendEmail(params).promise();
+      }
+
+    } catch (err) {
+      console.log("Error in secondary actions:", err);
+    }
+
+    return res
+      .status(StatusCodes.OK)
+      .json({
+        success: true,
+        message: "Event cancellation requested successfully.",
+      });
+
+  } catch (error) {
+    console.error("Error in requestEventCancellation:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        message: "Something went wrong",
+      });
+  }
+}
+
+const processRefund = async (
+  razorpay_payment_id,
+  amtPaid,
+  userId,
+  eventId
+) => {
+  try {
+    // step 1 : verify payment status from Razorpay API
+    const authHeader = `Basic ${Buffer.from(
+      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
+    ).toString("base64")}`;
+
+    const paymentResponse = await axios.get(
+      `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
+      { headers: { Authorization: authHeader } },
+    );
+
+    const payment = paymentResponse.data;
+
+    if (payment.status === "captured") {
+      // Step 2: Initiate refund since the payment is valid
+      const refundResponse = await axios.post(
+        `https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`,
+        { amount: 100 }, // Refund full amount
+        { headers: { Authorization: authHeader } },
+      );
+
+      // Step 3: Log the refund
+      await sendKafkaMessage("CREATE_REFUND", "refund", {
+        paymentId: razorpay_payment_id,
+        eventId,
+        userId,
+        amtPaid,
+        refundStatus: "PENDING",
+      });
+
+      console.log(`Refund initiated successfully.`);
+    } else {
+      console.log(
+        `Payment ID ${razorpay_payment_id} is not captured. Refund not possible.`,
+      );
+    }
+
+  } catch (error) {
+    console.error("Error in processRefund:", error);
+  }
+}
+
+const cancelEvent = async (req, res) => {
+  const { id } = req.body;
+
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const event = await Event.findById(id);
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Event not found with provided ID.");
+    }
+    event.status = "cancelled";
+    await event.save();
+
+    const tickets = await fetchTicketFieldsById(
+      {
+        ticketIds: event.bookedBy,
+        populateFields: ["boughtBy"],
+        fields: ["name", "email", "pushToken", "paymentId", "amtPaid"]
+      });
+
+    // Initate Refund for the ticket buyers
+    for (const ticket of tickets) {
+      await processRefund(ticket.paymentId, ticket.amtPaid, ticket.boughtBy._id, event._id);
+    }
+
+    try {
+      const intro = `We're sorry to let you know that "${event.name}" has been cancelled.
+
+    We know you were looking forward to it, and we sincerely apologize for the change in plans.
+
+    If you have already made a payment, your refund has been initiated and will usually be credited back to your original payment method within 5-7 working days. In some cases, depending on your bank or payment provider, it may take a little longer.
+
+    You will receive a separate confirmation email once the refund has been successfully processed.`;
+
+      const outro = "Thank you for your understanding and patience.";
+
+      const subject = "Event Cancelled & Refund Information";
+
+      const action = {
+        instructions: "Click the button below to view your tickets and refund status:",
+        button: {
+          color: "#1ea1ed",
+          text: "View Details",
+          url: `https://app.macbease.com/tickets`,
+        },
+      };
+
+      for (const ticket of tickets) {
+        const { name, email, pushToken } = ticket;
+        const destination = email;
+        const { ses, params } = await sendMail(
+          name,
+          intro,
+          outro,
+          subject,
+          destination,
+          action,
+          null
+        );
+
+        await ses.sendEmail(params).promise();
+      }
+    } catch (err) {
+      console.error("Error sending emails:", err);
+    }
+    return res
+      .status(StatusCodes.OK)
+      .send("Event cancelled successfully.");
+  } catch (error) {
+    console.error("Error cancelling event:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+}
+
+const requestEventLive = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    if (!eventId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Event ID is required.");
+    }
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Event not found with provided ID.");
+    }
+
+    // send mail to admins
+    try {
+      const admins = await fetchEventAdminsByFields({
+        fields: ["name", "email", "pushToken"]
+      })
+      const subject = `Make "${event.name}" Live`;
+
+      const intro = `A request has been submitted to make the event "${event.name}" live on the platform.
+
+      Please review the event details and verify that all required information, content, ticket settings, and policies are in place before approving it. Until approval is granted, the event will remain hidden from students and will not be available for registration.
+
+      Once approved, the event will spring onto the platform stage like a curtain finally rising 🎭.`;
+
+      const outro = `Please review this request and approve or reject it at your earliest convenience.`;
+
+      const action = {
+        instructions: "Click the button below to review the event and take action:",
+        button: {
+          color: "#16a34a",
+          text: "Review Event",
+          url: `https://app.macbease.com/admin/events/requests/${event._id}`,
+        },
+      };
+
+      for (const admin of admins) {
+        const { name, email, pushToken } = admin;
+        const destination = email;
+        const { ses, params } = await sendMail(
+          name,
+          intro,
+          outro,
+          subject,
+          destination,
+          action,
+          null
+        );
+
+        await ses.sendEmail(params).promise();
+      }
+    } catch (err) {
+      console.error("Error sending emails:", err);
+    }
+    return res
+      .status(StatusCodes.OK)
+      .send("Event is now live.");
+  } catch (err) {
+    console.error("Error requesting event to be live:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+}
+
+const requestPostponement = async (req, res) => {
+  try {
+    const { eventId, eventData, eventEndDate, startTime, endTime } = req.body;
+
+    if (!eventId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event ID is required." });
+    }
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Event not found with provided ID." });
+    }
+
+    if (event.postponement.requested) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is already postponed." });
+    }
+
+    if (event.status !== "featured") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is not featured." });
+    }
+
+    // eventdate and time validation
+    const prev_eventDate = new Date(event.eventDate);
+    const prev_eventEndDate = new Date(event.eventEndDate);
+    const prev_startTime = new Date(event.startTime);
+    const prev_endTime = new Date(event.endTime);
+
+
+    if (prev_eventDate <= Date.now() || eventDate > prev_eventDate) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Postponement date is invalid." });
+    }
+
+    if (prev_eventEndDate <= Date.now()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is already started." });
+    }
+
+    if (startTime < Date.now()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is already started." });
+    }
+
+    if (endTime < Date.now()) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is already ended." });
+    }
+
+    event.postponement = {
+      requested: true,
+      requestedBy: req.user.id,
+      reason: req.body.reason,
+      eventData: req.body.eventData,
+      eventEndDate: req.body.eventEndDate,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+    };
+
+    await event.save();
+    // send mail to admins
+    try {
+      const admins = await fetchEventAdminsByFields({
+        fields: ["name", "email", "pushToken"]
+      })
+      const subject = `Request to Postpone "${event.name}"`;
+
+      const intro = `A request has been submitted to postpone the event "${event.name}" on the platform.
+
+      Please review the event details and verify that all required information, content, ticket settings, and policies are in place before approving it. Until approval is granted, the event will remain hidden from students and will not be available for registration.
+
+      Once approved, the event will spring onto the platform stage like a curtain finally rising.`;
+
+      const outro = `Please review this request and approve or reject it at your earliest convenience.`;
+
+      const action = {
+        instructions: "Click the button below to review the event and take action:",
+        button: {
+          color: "#16a34a",
+          text: "Review Event",
+          url: `https://app.macbease.com/admin/events/requests/${event._id}`,
+        },
+      };
+
+      for (const admin of admins) {
+        const { name, email, pushToken } = admin;
+        const destination = email;
+        const { ses, params } = await sendMail(
+          name,
+          intro,
+          outro,
+          subject,
+          destination,
+          action,
+          null
+        );
+
+        await ses.sendEmail(params).promise();
+      }
+    } catch (err) {
+      console.error("Error sending emails:", err);
+    }
+    return res
+      .status(StatusCodes.OK)
+      .send("Event is now live.");
+  } catch (err) {
+    console.error("Error requesting event to be live:", err);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong");
+  }
+}
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -3450,5 +3874,9 @@ module.exports = {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
-  getLiveEvents
+  getLiveEvents,
+  requestCancellation,
+  requestPostponement,
+  requestEventLive,
+  cancelEvent,
 };

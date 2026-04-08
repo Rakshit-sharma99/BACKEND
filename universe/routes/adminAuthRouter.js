@@ -23,4 +23,6 @@ router.post('/setNewPassword', setNewPassword);
 router.post('/chapterLeaderReviewAccess', chapterLeaderReviewAccess)
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/fetchEventAdminsByFields', fetchEventAdminsByFields);
+
 module.exports = router;

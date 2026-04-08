@@ -1330,6 +1330,24 @@ const fetchTicketFieldsByQuery = async (query) => {
   }
 };
 
+const fetchEventAdminsByFields = async (query) => {
+  try {
+    const { fields } = query;
+    const config = generateServiceToken();
+    const admins = await axios.post(
+      `http://universe:7000/universe/api/v1/admin/fetchEventAdminsByFields`,
+      {
+        fields,
+      },
+      config
+    );
+    return admins.data;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
 module.exports = {
   fetchItineraries,
   fetchNativeUserData,
@@ -1353,5 +1371,6 @@ module.exports = {
   reminder,
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
-  fetchTicketFieldsByQuery
+  fetchTicketFieldsByQuery,
+  fetchEventAdminsByFields
 };
