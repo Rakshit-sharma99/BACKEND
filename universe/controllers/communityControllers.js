@@ -3668,6 +3668,8 @@ const getCommunitiesForFeed = async (req, res) => {
                 tag: 1,
                 activeMembers: 1,
                 label: 1,
+                uid: 1,
+                universeMetaData: 1,
               },
             },
           ])
@@ -3696,6 +3698,8 @@ const getCommunitiesForFeed = async (req, res) => {
             tag: 1,
             activeMembers: 1,
             label: 1,
+            uid: 1,
+            universeMetaData: 1,
           },
         },
       ]);
