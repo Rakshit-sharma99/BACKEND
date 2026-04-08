@@ -853,6 +853,16 @@ const generateTicket = async (req, res) => {
       console.error("user.activity publish failed:", kafkaErr.message);
     }
 
+    // Add user to event channel via Kafka
+    try {
+      await sendKafkaMessage("ADD_MEMBER_TO_CHANNEL", "event", {
+        userId: req.user.id,
+        ticketId: ticket._id.toString(),
+      });
+    } catch (kafkaErr) {
+      console.error("add_member_to_channel publish failed:", kafkaErr.message);
+    }
+
     await session.commitTransaction();
     await releaseSeatLocks({
       eventId,

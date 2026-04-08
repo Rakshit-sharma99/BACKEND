@@ -67,6 +67,7 @@ const layoutRouter = require("./routes/layoutRouter");
 const seatLock = require("./sockets/seatLock");
 
 const sessionRouter = require("./routes/sessionRouter");
+const accessCodeRouter = require("./routes/accessRouter");
 
 app.set("trust proxy", 1);
 app.use(cors(
@@ -141,6 +142,7 @@ app.use("/universe/api/v1/layout", authenticate, layoutRouter);
 
 // admin routes
 app.use("/universe/api/v1/session", authenticate, sessionRouter);
+app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });

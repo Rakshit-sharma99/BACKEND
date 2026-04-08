@@ -13,6 +13,7 @@ const createItinerary = async (req, res) => {
   try {
     const {
       eventId,
+      clubId,
       title,
       description,
       venue,
@@ -22,6 +23,9 @@ const createItinerary = async (req, res) => {
       allowed,
       rsvpEnabled = false,
       maxRsvps,
+      grandRewards,
+      sub_Itinerary,
+      attachment
     } = req.body;
 
     // Step 1: Validate required fields
@@ -30,19 +34,35 @@ const createItinerary = async (req, res) => {
       !title ||
       !description ||
       !venue ||
-      !cover ||
-      !start ||
-      !end
+      !cover
     ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Step 2: Validate date range
-    if (new Date(start) >= new Date(end)) {
-      return res
-        .status(400)
-        .json({ error: "Start time must be before end time" });
+    if (!sub_Itinerary && (!start || !end)) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
+
+    // Validate grandRewards and sub_Itinerary
+    if (grandRewards && !Array.isArray(grandRewards)) {
+      return res.status(400).json({ error: "grandRewards must be an array" });
+    }
+
+    if (sub_Itinerary) {
+      if (!Array.isArray(sub_Itinerary)) {
+        return res
+          .status(400)
+          .json({ error: "sub_Itinerary must be an array" });
+      }
+      for (const item of sub_Itinerary) {
+        if (item.rewards && !Array.isArray(item.rewards)) {
+          return res
+            .status(400)
+            .json({ error: "sub_Itinerary rewards must be an array" });
+        }
+      }
+    }
+
 
     // Step 3: Validate event existence
     const event_query = {
@@ -71,6 +91,9 @@ const createItinerary = async (req, res) => {
       allowed: allowedTypes,
       rsvpEnabled,
       maxRsvps: rsvpEnabled ? maxRsvps : null,
+      grandRewards,
+      sub_Itinerary,
+      attachment
     });
 
     const savedItinerary = await newItinerary.save();
@@ -80,6 +103,14 @@ const createItinerary = async (req, res) => {
       eventId,
       itineraryId: savedItinerary._id.toString(),
     });
+
+    if (clubId) {
+      await sendKafkaMessage("UPDATE_CLUB_ITINERARIES", "universe", {
+        clubId,
+        eventId,
+        itineraryId: savedItinerary._id.toString(),
+      });
+    }
 
     return res.status(201).json({
       message: "Itinerary created successfully",
@@ -293,7 +324,7 @@ const addToNotifyList = async (req, res) => {
 //Controller 6
 const getItinerariesByIds = async (req, res) => {
   try {
-    const { itineraryIds,ticketId } = req.body;
+    const { itineraryIds, ticketId } = req.body;
 
     if (!Array.isArray(itineraryIds)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -306,10 +337,10 @@ const getItinerariesByIds = async (req, res) => {
     let scannedList = [];
     if (ticketId) {
       const ticket_query = {
-      ticketId,
-      fields: ["checkPoints"],
-    };
-    const ticket = await fetchTicketFieldsById(ticket_query);
+        ticketId,
+        fields: ["checkPoints"],
+      };
+      const ticket = await fetchTicketFieldsById(ticket_query);
       scannedList = ticket.checkPoints.map((sl) => sl.toString());
     }
 
@@ -322,7 +353,7 @@ const getItinerariesByIds = async (req, res) => {
       };
     });
 
-    return res.status(StatusCodes.OK).json({ itineraries:finalData });
+    return res.status(StatusCodes.OK).json({ itineraries: finalData });
   } catch (error) {
     console.error(error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -414,6 +445,28 @@ const editItinerary = async (req, res) => {
       });
     }
 
+    const { grandRewards, sub_Itinerary } = updateData;
+
+    // Validate grandRewards and sub_Itinerary if provided
+    if (grandRewards && !Array.isArray(grandRewards)) {
+      return res.status(400).json({ error: "grandRewards must be an array" });
+    }
+
+    if (sub_Itinerary) {
+      if (!Array.isArray(sub_Itinerary)) {
+        return res
+          .status(400)
+          .json({ error: "sub_Itinerary must be an array" });
+      }
+      for (const item of sub_Itinerary) {
+        if (item.rewards && !Array.isArray(item.rewards)) {
+          return res
+            .status(400)
+            .json({ error: "sub_Itinerary rewards must be an array" });
+        }
+      }
+    }
+
     // Apply only valid updates
     Object.keys(updateData).forEach((key) => {
       if (key in itinerary) {
@@ -438,7 +491,7 @@ const editItinerary = async (req, res) => {
 
 const getItineraryFieldsById = async (req, res) => {
   try {
-    const { id,ids, fields } = req.body;
+    const { id, ids, fields } = req.body;
 
     if (!id && (!ids || !Array.isArray(ids) || ids.length === 0)) {
       return res
@@ -464,7 +517,7 @@ const getItineraryFieldsById = async (req, res) => {
     // Convert array of fields to space-separated string for Mongoose projection
     const projection = isArrayProjection ? fields.join(" ") : fields;
 
-     if (Array.isArray(ids) && ids.length > 0) {
+    if (Array.isArray(ids) && ids.length > 0) {
       const itineraries = await Itinerary.find({ _id: { $in: ids } }).select(projection);
 
       if (!itineraries || itineraries.length === 0) {

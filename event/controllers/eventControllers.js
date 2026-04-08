@@ -27,6 +27,7 @@ const {
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
 const { default: mongoose } = require("mongoose");
+const { createChannelForEvent } = require("./channelControllers");
 
 //MiddleWare
 const isAuthorized = async (id, role, belongsTo, callSign) => {
@@ -298,6 +299,11 @@ const createEvent = async (req, res) => {
 
     const event = await Event.create({ ...req.body, uid: req.user.uid });
 
+    // Auto-trigger channel creation (fire-and-forget — don't block the response)
+    createChannelForEvent(event._id).catch((channelErr) =>
+      console.error("Auto channel creation failed (non-blocking):", channelErr.message)
+    );
+
     return res.status(StatusCodes.CREATED).json({ event });
   } catch (error) {
     console.error("Error creating event:", error);
@@ -528,7 +534,7 @@ const changeEventStatus = async (req, res) => {
     if (status === "featured") {
       await sendKafkaMessage(
         "FEATURED_SECONDARY_ACTION",
-        event.universeMetaData.callSign,
+        "universe",
         {
           clubId: event.belongsTo.id,
           eventId: id,
@@ -1398,9 +1404,20 @@ const getReviews = async (req, res) => {
 //Controller 18
 const checkTicketAvailability = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    const { eventId, slug } = req.query;
 
-    const event = await Event.findById(eventId, {
+    let query = {};
+    if (eventId) {
+      query._id = eventId;
+    } else if (slug) {
+      query.slug = slug;
+    } else {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "eventId or slug is required.",
+      });
+    }
+
+    const event = await Event.findOne(query, {
       bookedBy: 1,
       ticketTypes: 1,
       itineraries: 1,
@@ -1695,9 +1712,11 @@ const getEvents = async (req, res) => {
         belongsTo: 1,
         url: 1,
         eventDate: 1,
+        description: 1,
         startTime: 1,
         endTime: 1,
         place: 1,
+        status: 1,
       },
     )
       .sort({ eventDate: -1 })
@@ -1714,10 +1733,22 @@ const getEvents = async (req, res) => {
 //Controller 23
 const checkEventStatus = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    const { eventId, slug } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(eventId)) {
       return res.status(StatusCodes.BAD_REQUEST).send("Invalid eventId.");
+    }
+
+    let query = {};
+
+    if (eventId) {
+      query._id = eventId;
+    } else if (slug) {
+      query.slug = slug;
+    } else {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "eventId or slug is required.",
+      });
     }
 
     const defaultResponse = {
@@ -1729,7 +1760,7 @@ const checkEventStatus = async (req, res) => {
       hasAdminAccess: false,
     };
 
-    const event = await Event.findById(eventId, {
+    const event = await Event.findOne(query, {
       bookedBy: 0,
       cumulativeRevenue: 0,
       courseAnalytics: 0,
@@ -1819,10 +1850,22 @@ const checkEventStatus = async (req, res) => {
 //Controller 24
 const getEventById = async (req, res) => {
   try {
-    const { eventId } = req.query;
+    const { eventId, slug } = req.query;
+
+    let query = {};
+
+    if (eventId) {
+      query._id = eventId;
+    } else if (slug) {
+      query.slug = slug;
+    } else {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "eventId or slug is required.",
+      });
+    }
 
     // First check if event exists
-    const event = await Event.findById(eventId).lean();
+    const event = await Event.findOne(query).lean();
 
     if (!event) {
       return res
@@ -1887,7 +1930,9 @@ const setEventLayout = async (req, res) => {
 const editEventDetails = async (req, res) => {
   try {
     const { eventId, clubId } = req.query;
-    const { url, description, ticketTypes } = req.body;
+    const { url, description, ticketTypes, place,
+      eventManagerMail,
+      eventManagerPhone, } = req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(eventId) ||
@@ -1896,8 +1941,19 @@ const editEventDetails = async (req, res) => {
       return res.status(400).json({ message: "Invalid eventId or clubId" });
     }
 
-    if (!url && !description && !ticketTypes) {
+    if (!url && !description && !ticketTypes && !place) {
       return res.status(400).json({ message: "No fields to update" });
+    }
+
+    const event = await Event.findById(eventId, { permissions: 1 }).lean();
+    const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
+      ? event.permissions.whoCanEditEvent.includes(req.user.id)
+      : false;
+
+    if (!authorized) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .json({ msg: "Unaccessible route." });
     }
 
     // Update Event
@@ -1907,8 +1963,11 @@ const editEventDetails = async (req, res) => {
         ...(url !== undefined && { url }),
         ...(description !== undefined && { description }),
         ...(ticketTypes !== undefined && { ticketTypes }),
+        ...(place !== undefined && { place }),
+        ...(eventManagerMail !== undefined && { eventManagerMail }),
+        ...(eventManagerPhone !== undefined && { eventManagerPhone }),
       },
-      { new: true },
+      { new: true }
     );
 
     if (!updatedEvent) {
@@ -1917,8 +1976,8 @@ const editEventDetails = async (req, res) => {
 
     await sendKafkaMessage(
       "EDIT_EVENT",
-      updatedEvent.universeMetaData.callSign,
-      { clubId, eventId, newData: { url, description, ticketTypes } },
+      "universe",
+      { clubId, eventId, newData: { url, description, ticketTypes, place, eventManagerMail, eventManagerPhone } },
     );
 
     res
@@ -2256,7 +2315,7 @@ const getEventPermissions = async (req, res) => {
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
       fields: ["adminId", "members", "team"],
-      callSign: event.universeMetaData.callSign,
+      callSign: "universe",
     });
 
     const permissions = event.permissions || {};
@@ -2390,7 +2449,7 @@ const updateEventPermission = async (req, res) => {
     const club = await fetchNativeClubData({
       id: event.belongsTo.id,
       fields: ["adminId", "members", "team", "mainAdmin"],
-      callSign: event.universeMetaData.callSign,
+      callSign: "universe",
     });
     if (!club) {
       return res.status(404).json({ message: "Club not found" });
@@ -3638,25 +3697,151 @@ const getFeaturedEventsForFeed = async (req, res) => {
   }
 };
 
-const getLiveEvents = async (req, res) => {
+const slugifyAllEvents = async (req, res) => {
   try {
-    const now = new Date();
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        message: "You are not authorized to perform this action.",
+      });
+    }
+    const events = await Event.find({}, { _id: 1, name: 1, slug: 1 });
 
-    const count = await Event.countDocuments({
-      eventDate: { $lte: now },
-      eventEndDate: { $exists: true, $ne: null, $gte: now },
-    });
-    return res.status(StatusCodes.OK).json({
+    let updatedCount = 0;
+
+    for (const event of events) {
+      if (!event.slug && event.name) {
+        let baseSlug = slugify(event.name, {
+          lower: true,
+          strict: true,
+        });
+
+        let slug = baseSlug;
+        let counter = 1;
+
+        // Ensure uniqueness
+        while (await Event.findOne({ slug })) {
+          slug = `${baseSlug}-${counter}`;
+          counter++;
+        }
+
+        await Event.updateOne(
+          { _id: event._id },
+          { $set: { slug } }
+        );
+
+        updatedCount++;
+      }
+    }
+
+    return res.status(200).json({
       success: true,
-      count
+      message: "Slug generation completed",
+      updated: updatedCount,
     });
   } catch (error) {
-    console.error("Error in getLiveEvents:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Something went wrong");
+    console.error(error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
+};
+
+async function ticketBuyResolver(access_level, clubId, userId, uids = [], n_uids = [], privateCodes = [], usersList = [], user_uid, user_privateCode) {
+
+  if (access_level === "public") {
+    if (n_uids.length && n_uids.includes(user_uid)) {
+      return false;
+    }
+    return true;
+  }
+
+  let club;
+  if (["club_members", "club_admins", "club_core"].includes(access_level)) {
+    club = await Club.findById(clubId);
+    if (!club) return false;
+  }
+
+  if (access_level === "club_members") {
+    return club.members.some(member => member.toString() === userId.toString());
+  }
+
+  if (access_level === "club_admins") {
+    return club.adminId.some(admin => admin.toString() === userId.toString());
+  }
+
+  if (access_level === "club_core") {
+    return club.team.some(member => member.toString() === userId.toString());
+  }
+
+  if (access_level === "native") {
+    return uids.includes(user_uid);
+  }
+
+  if (access_level === "private_code") {
+    return privateCodes.includes(user_privateCode);
+  }
+
+  if (access_level === "users_list") {
+    return usersList.includes(userId);
+  }
+
+  return false;
 }
+
+const canBuyTicket = async (req, res) => {
+  try {
+    const { eventId, ticketType, privateCode, uid } = req.body;
+
+    if (!eventId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Event ID is required" });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Event not found" });
+    }
+
+    const ticketTypes = event.ticketTypes;
+
+    if (!ticketType) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Ticket type is required" });
+    }
+
+    if (!ticketTypes || ticketTypes.length === 0) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "No tickets available for this event" });
+    }
+
+    const type = ticketTypes.find((t) => t.type === ticketType);
+    if (!type) {
+      return res.status(StatusCodes.NOT_FOUND).json({ message: "Ticket type not found" });
+    }
+
+    const access_level = type.visibility.scope;
+    const clubId = event.belongsTo.id;
+    const userId = req.user.id;
+    const uids = type.visibility.uids || [];
+    const n_uids = type.visibility.n_uids || [];
+    const privateCodes = type.visibility.privateCodes || [];
+    const usersList = type.visibility.usersList || [];
+    const user_uid = uid;
+    const user_privateCode = privateCode;
+
+    const canBuy = await ticketBuyResolver(
+      access_level, clubId, userId, uids, n_uids, privateCodes, usersList, user_uid, user_privateCode
+    );
+
+    if (!canBuy) {
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, canBuy: false, message: "You are not authorized to buy this ticket" });
+    }
+
+    return res.status(StatusCodes.OK).json({ success: true, canBuy: true, message: "You can buy ticket" });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
+  }
+};
 
 module.exports = {
   createEvent,
@@ -3713,5 +3898,6 @@ module.exports = {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
-  getLiveEvents,
+  slugifyAllEvents,
+  canBuyTicket
 };

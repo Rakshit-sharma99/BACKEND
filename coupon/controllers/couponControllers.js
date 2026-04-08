@@ -9,7 +9,7 @@ const createCoupon = async (req, res) => {
         .send("You are not authorized to access this route.");
     }
 
-    const { code, discountType, discountValue, validForEvents, validForUsers,uid,universeMetaData } =
+    const { code, discountType, discountValue, validForEvents, validForUsers, isPublic, uid, universeMetaData } =
       req.body;
 
     // Basic validations
@@ -25,6 +25,7 @@ const createCoupon = async (req, res) => {
       validForEvents: validForEvents || [],
       validForUsers: validForUsers || [],
       usedBy: [],
+      isPublic,
       uid,
       universeMetaData
     });
@@ -47,13 +48,13 @@ const createCoupon = async (req, res) => {
 
 const getAvailableCoupons = async (req, res) => {
   try {
-    let { eventId,userId } = req.query;
+    let { eventId, userId } = req.query;
 
     if (!eventId) {
       return res.status(400).json({ error: "eventId are required" });
     }
 
-    if(!userId){
+    if (!userId) {
       userId = req.user.id;
     }
 
@@ -78,6 +79,7 @@ const getAvailableCoupons = async (req, res) => {
           },
         ],
         usedBy: { $ne: userId },
+        isPublic: true,
       },
       { validForUsers: 0, usedBy: 0 }
     );
@@ -94,33 +96,33 @@ const getAvailableCoupons = async (req, res) => {
 
 const getCouponById = async (req, res) => {
   try {
-    let { couponId,userId,eventId } = req.query;
+    let { couponId, userId, eventId } = req.query;
 
     if (!couponId || !eventId) {
       return res.status(400).json({ error: "couponId and eventId are required" });
     }
 
-    if(!userId){
+    if (!userId) {
       userId = req.user.id;
     }
 
     // Find coupons that match conditions
     const coupons = await Coupon.findOne({
-        _id: couponId,
-        isActive: true,
-        $and: [
-          {
-            $or: [
-              { validForEvents: { $size: 0 } },
-              { validForEvents: eventId },
-            ],
-          },
-          {
-            $or: [{ validForUsers: { $size: 0 } }, { validForUsers: userId }],
-          },
-        ],
-        usedBy: { $ne: userId }, // just validation, redemption happens later
-      });
+      _id: couponId,
+      isActive: true,
+      $and: [
+        {
+          $or: [
+            { validForEvents: { $size: 0 } },
+            { validForEvents: eventId },
+          ],
+        },
+        {
+          $or: [{ validForUsers: { $size: 0 } }, { validForUsers: userId }],
+        },
+      ],
+      usedBy: { $ne: userId }, // just validation, redemption happens later
+    });
 
     return res.status(200).json({
       message: "Coupon fetched successfully",
@@ -134,59 +136,55 @@ const getCouponById = async (req, res) => {
 
 const isValidCoupon = async (req, res) => {
   try {
-    let { eventId, couponCode, userId } = req.query;
+    const { eventId, couponCode } = req.query;
+
+    console.log(eventId, couponCode);
 
     if (!eventId || !couponCode) {
-      return res.status(400).json({
-        error: "eventId and couponCode are required",
-      });
+      return res
+        .status(400)
+        .json({ error: "couponCode and eventId are required" });
     }
 
-    if (!userId) {
-      userId = req.user.id;
-    }
+    const userId = req.user.id;
 
-    const coupon = await Coupon.findOne({
-      code: couponCode,
-      isActive: true,
-      $and: [
-        {
-          $or: [
-            { validForEvents: { $exists: false } },
-            { validForEvents: { $size: 0 } },
-            { validForEvents: eventId },
-          ],
-        },
-        {
-          $or: [
-            { validForUsers: { $exists: false } },
-            { validForUsers: { $size: 0 } },
-            { validForUsers: userId },
-          ],
-        },
-      ],
-      usedBy: { $ne: userId },
-    });
+    const coupon = await Coupon.findOne(
+      {
+        code: couponCode,
+        isActive: true,
+        usedBy: { $ne: userId },
+        $and: [
+          {
+            $or: [
+              { validForEvents: { $exists: false } },
+              { validForEvents: { $size: 0 } },
+              { validForEvents: eventId },
+            ],
+          },
+          {
+            $or: [
+              { validForUsers: { $exists: false } },
+              { validForUsers: { $size: 0 } },
+              { validForUsers: userId },
+            ],
+          },
+        ],
+      },
+      { validForUsers: 0, usedBy: 0 }
+    );
 
     if (!coupon) {
-      return res.status(400).json({
-        error: "Coupon is invalid or unavailable for this event.",
-      });
+      return res.status(400).json({ error: "couponCode is invalid." });
     }
 
     return res.status(200).json({
+      message: "Coupon is valid.",
       coupon,
-      success: true,
     });
-  } catch (err) {
-    console.error("Error validating coupon:", err);
+  } catch (error) {
+    console.error("isValidCoupon error:", error);
     return res.status(500).json({ error: "Server error" });
   }
 };
 
-module.exports = {
-  createCoupon,
-  getAvailableCoupons,
-  getCouponById,
-  isValidCoupon,
-};
+module.exports = { createCoupon, getAvailableCoupons, getCouponById, isValidCoupon };

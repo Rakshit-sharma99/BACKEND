@@ -32,6 +32,13 @@ const edit_event = async (messageValue) => {
             ...(newData.ticketTypes !== undefined && {
               ticketTypes: newData.ticketTypes,
             }),
+            ...(newData.place !== undefined && { place: newData.place }),
+            ...(newData.eventManagerMail !== undefined && {
+              eventManagerMail: newData.eventManagerMail,
+            }),
+            ...(newData.eventManagerPhone !== undefined && {
+              eventManagerPhone: newData.eventManagerPhone,
+            }),
           };
         }
         return e;

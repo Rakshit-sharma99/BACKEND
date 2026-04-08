@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const slugify = require("slugify");
 
 // Sub-schema for universeMetaData
 const UniverseMetaDataSchema = new mongoose.Schema(
@@ -177,6 +178,12 @@ const eventSchema = new mongoose.Schema(
   {
     url: String,
     name: String,
+    slug: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
     description: String,
     place: String,
 
@@ -191,7 +198,45 @@ const eventSchema = new mongoose.Schema(
     dl: { type: Boolean, default: false },
     ticketAvailable: { type: Boolean, default: false },
 
-    ticketTypes: [TicketTypeSchema],
+    ticketTypes: [
+      {
+        _id: String,
+        type: { type: String, required: true },
+        price: { type: Number },
+        available: { type: Number },
+        extraFieldsRequired: { type: Boolean, default: false },
+        extraFields: { type: Array, default: [] },
+        visibility: {
+          scope: {
+            type: String,
+            enum: [
+              "public",
+              "club_members",
+              "club_admins",
+              "club_core",
+              "native",
+              "private_code",
+              "users_list"
+            ],
+            default: "public",
+          },
+          uids: [String], // if scope is native and want to allow specific universities
+          n_uids: [String], // if scope if public and want to restrict specific universities
+          privateCodes: [   // if scope is private_code and want to allow specific users with private codes
+            {
+              type: String,
+            }
+          ],
+          usersList: [  // if scope is users_list and want to allow specific users
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "User",
+            },
+          ],
+        },
+        customLabel: { type: String }
+      },
+    ],
 
     bookedBy: [
       {
@@ -200,15 +245,12 @@ const eventSchema = new mongoose.Schema(
       },
     ],
 
-    layoutId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Layout",
-    },
-
-    seatsBooked: {
-      type: [String],
-      default: [],
-    },
+    waitlist: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
 
     belongsTo: BelongsToSchema,
 
@@ -390,6 +432,34 @@ const eventSchema = new mongoose.Schema(
       default: 2.5,
     },
 
+    layoutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Layout"
+    },
+
+    seatsBooked: {
+      type: [String],
+      default: []
+    },
+    // documents of rules or instructions for participants
+    attachment: {
+      type: String
+    },
+
+    pastMoments: [
+      {
+        type: {
+          type: String,
+          enum: ["image", "video"],
+          required: true,
+        },
+        url: {
+          type: String,
+          required: true,
+        },
+      }
+    ],
+
     uid: {
       type: String,
       trim: true,
@@ -401,6 +471,16 @@ const eventSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+eventSchema.pre("save", function (next) {
+  if (this.isModified("name")) {
+    this.slug = slugify(this.name, {
+      lower: true,
+      strict: true,
+    });
+  }
+  next();
+});
 
 // Indexes
 eventSchema.index({ uid: 1 });

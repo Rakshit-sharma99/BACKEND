@@ -645,11 +645,30 @@ const userSchema = new mongoose.Schema(
     vicinityAsset: [assetItemSchema],
 
     universeMetaData: universeSchema,
+
+    channels: [
+      {
+        channelId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true,
+        },
+
+        role: {
+          type: String,
+          enum: ["admin", "team", "member"],
+          default: "member",
+        },
+
+        rooms: [String],
+      },
+    ],
   },
   {
     timestamps: true,
   },
 );
+
+userSchema.index({ "channels.channelId": 1 });
 
 userSchema.set("toJSON", {
   transform: function (doc, ret) {

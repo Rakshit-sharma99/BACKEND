@@ -888,8 +888,8 @@ const removeEvent = async (req, res) => {
             cantDelete = true;
             return eventPoint; // Keep the event
           }
-          // TODO: Delete event from event service
-          // await Event.findByIdAndDelete(eventPoint.eventId);
+          // Delete event from event service via Kafka
+          await sendKafkaMessage("DELETE_EVENT", "event", { eventId: eventPoint.eventId });
           return null; // Remove event
         }
         return eventPoint;
@@ -1025,102 +1025,192 @@ const postContent = async (req, res) => {
 
 //Controller 12
 const removeContent = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
+  try {
     const { clubId, contentId } = req.body;
-    const isAuthorized = await checkAuthorization(clubId, req.user.id);
-    if (isAuthorized === "Fully-authorized" || isAuthorized === "Authorized") {
-      Club.findById(clubId, (err, club) => {
-        if (err) return console.error(err);
-        let contents = club.content;
-        let videos = club.videos;
-        contents = contents.filter((item) => item.contentId !== contentId);
-        videos = videos.filter((item) => item.contentId !== contentId);
-        club.content = [];
-        club.videos = [];
-        club.content = [...contents];
-        club.videos = [...videos];
-        club.save((err, update) => {
-          if (err) return console.error(err);
-          return res
-            .status(StatusCodes.OK)
-            .send("Successfully removed content!");
-        });
-      });
-    } else {
+
+    // ✅ Validate input
+    if (!clubId || !contentId) {
       return res
-        .status(StatusCodes.OK)
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId and contentId are required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this route of removing a content.");
+    }
+
+    // ✅ Authorization check
+    const isAuthorized = await checkAuthorization(clubId, req.user.id);
+
+    if (
+      isAuthorized !== "Fully-authorized" &&
+      isAuthorized !== "Authorized"
+    ) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to remove a content.");
     }
-  } else {
+
+    // ✅ Atomic update (NO array fetch)
+    const updatedClub = await Club.findByIdAndUpdate(
+      clubId,
+      {
+        $pull: {
+          content: { contentId: contentId },
+          videos: { contentId: contentId },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedClub) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res
       .status(StatusCodes.OK)
-      .send(
-        "You are not authorized to access this route of removing a content.",
-      );
+      .send("Successfully removed content!");
+  } catch (error) {
+    console.error("removeContent error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to remove content. Please try again later.");
   }
 };
 
 //Controller 13
 const postGallery = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
-    let { clubId, url, id, desc, date } = req.body;
-    const isAuthorized = await checkAuthorization(clubId, req.user.id);
-    if (isAuthorized === "Fully-authorized" || isAuthorized === "Authorized") {
-      let data = { url, id, postedBy: req.user.id, desc, date };
-      Club.findById(clubId, (err, club) => {
-        if (err) return console.error(err);
-        club.gallery.push(data);
-        club.save((err, update) => {
-          if (err) return console.error(err);
-          return res
-            .status(StatusCodes.OK)
-            .send("Successfully posted in gallery!");
-        });
-      });
-    } else {
+  try {
+    const { clubId, url, id, desc, date } = req.body;
+
+    // ✅ Validate input
+    if (!clubId || !url || !id) {
       return res
-        .status(StatusCodes.OK)
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId, url, and id are required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send(
+          "You are not authorized to access this route of posting in gallery."
+        );
+    }
+
+    // ✅ Authorization check
+    const isAuthorized = await checkAuthorization(clubId, req.user.id);
+
+    if (
+      isAuthorized !== "Fully-authorized" &&
+      isAuthorized !== "Authorized"
+    ) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to post in gallery!");
     }
-  } else {
+
+    const data = {
+      url,
+      id,
+      postedBy: req.user.id,
+      desc: desc || "",
+      date: date || new Date(),
+    };
+
+    // ✅ Atomic update (NO fetch + push + save)
+    const updatedClub = await Club.findByIdAndUpdate(
+      clubId,
+      {
+        $push: { gallery: data },
+      },
+      { new: true }
+    );
+
+    if (!updatedClub) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res
       .status(StatusCodes.OK)
-      .send(
-        "You are not authorized to access this route of posting in gallery.",
-      );
+      .send("Successfully posted in gallery!");
+  } catch (error) {
+    console.error("postGallery error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to post in gallery. Please try again later.");
   }
 };
 
 //Controller 14
 const removeGallery = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
+  try {
     const { clubId, id } = req.body;
+
+    // ✅ Validate input
+    if (!clubId || !id) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId and id are required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send(
+          "You are not authorized to access this route of removing from gallery."
+        );
+    }
+
+    // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
-    if (isAuthorized === "Fully-authorized" || isAuthorized === "Authorized") {
-      Club.findById(clubId, (err, club) => {
-        if (err) return console.error(err);
-        let gallery = club.gallery;
-        gallery = gallery.filter((item) => item.id !== id);
-        club.gallery = [];
-        club.gallery = [...gallery];
-        club.save((err, update) => {
-          if (err) return console.error(err);
-          return res
-            .status(StatusCodes.OK)
-            .send("Successfully removed from gallery!");
-        });
-      });
-    } else {
-      res
-        .status(StatusCodes.OK)
+
+    if (
+      isAuthorized !== "Fully-authorized" &&
+      isAuthorized !== "Authorized"
+    ) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to remove from gallery.");
     }
-  } else {
+
+    // ✅ Atomic removal
+    const updatedClub = await Club.findByIdAndUpdate(
+      clubId,
+      {
+        $pull: {
+          gallery: { id: id },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedClub) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res
       .status(StatusCodes.OK)
-      .send(
-        "You are not authorized to access this route of removing from gallery.",
-      );
+      .send("Successfully removed from gallery!");
+  } catch (error) {
+    console.error("removeGallery error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to remove from gallery. Please try again later.");
   }
 };
 
@@ -1192,54 +1282,138 @@ const addNotifications = async (req, res) => {
 
 //Controller 16
 const deleteNotifications = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
-    let { clubId, uid } = req.body;
+  try {
+    const { clubId, uid } = req.body;
+
+    // ✅ Validate input
+    if (!clubId || !uid) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId and uid are required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to delete notifications from the club.");
+    }
+
+    // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
-    if (isAuthorized === "Fully-authorized" || isAuthorized === "Authorized") {
-      Club.findById(clubId, (err, club) => {
-        if (err) return console.error(err);
-        let notifications = club.notifications;
-        notifications = notifications.filter((item) => item.uid !== uid);
-        club.notifications = [];
-        club.notifications = [...notifications];
-        club.save((err, update) => {
-          if (err) return console.error(err);
-          return res
-            .status(StatusCodes.OK)
-            .send("Notification has been successfully deleted.");
-        });
-      });
-    } else {
-      res
-        .status(StatusCodes.OK)
+
+    if (
+      isAuthorized !== "Fully-authorized" &&
+      isAuthorized !== "Authorized"
+    ) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to delete notification.");
     }
-  } else {
+
+    // ✅ Atomic removal
+    const updatedClub = await Club.findByIdAndUpdate(
+      clubId,
+      {
+        $pull: {
+          notifications: { uid: uid },
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedClub) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res
       .status(StatusCodes.OK)
-      .send("You are not authorized to delete notifications from the club.");
+      .send("Notification has been successfully deleted.");
+  } catch (error) {
+    console.error("deleteNotifications error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to delete notification. Please try again later.");
   }
 };
 
 //Controller 17
 const editProfile = async (req, res) => {
-  if (req.user.role === "user" || req.user.role === "admin") {
+  try {
     const { clubId, data } = req.body;
-    const isAuthorized = await checkAuthorization(clubId, req.user.id);
-    if (isAuthorized === "Fully-authorized") {
-      const club = await Club.findByIdAndUpdate(clubId, { ...data });
-      return res.status(StatusCodes.OK).send("Successfully updated!");
-    } else {
+
+    // ✅ Validate input
+    if (!clubId || !data || typeof data !== "object") {
       return res
-        .status(StatusCodes.OK)
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId and valid data object are required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send(
+          "You are not authorized to access this route of editing club's profile."
+        );
+    }
+
+    // ✅ Authorization check
+    const isAuthorized = await checkAuthorization(clubId, req.user.id);
+
+    if (isAuthorized !== "Fully-authorized") {
+      return res
+        .status(StatusCodes.FORBIDDEN)
         .send("You have to be main admin to edit the profile.");
     }
-  } else {
+
+    // ✅ Whitelist allowed fields (VERY IMPORTANT)
+    const allowedFields = [
+      "name",
+      "motto",
+      "tags",
+      "featuringImg",
+      "secondaryImg",
+    ];
+
+    const updateData = {};
+    for (const key of allowedFields) {
+      if (data[key] !== undefined) {
+        updateData[key] = data[key];
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("No valid fields provided for update.");
+    }
+
+    // ✅ Update safely
+    const updatedClub = await Club.findByIdAndUpdate(
+      clubId,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedClub) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res
       .status(StatusCodes.OK)
-      .send(
-        "You are not authorized to access this route of editing club's profile.",
-      );
+      .send("Successfully updated!");
+  } catch (error) {
+    console.error("editProfile error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to update club profile. Please try again later.");
   }
 };
 
@@ -1396,72 +1570,162 @@ const getAllEvents = async (req, res) => {
 
 //Controller 21
 const getClubsByTag = async (req, res) => {
-  const { tag } = req.query;
-  const clubs = await Club.find(
-    { tags: new RegExp(tag, "i", "g") },
-    { secondaryImg: 1, name: 1, tags: 1, motto: 1 },
-  );
-  if (req.user.role === "user") {
-    User.findById(req.user.id, (err, user) => {
-      if (err) return console.error(err);
-      user.lastActive = new Date();
-      user.save();
-    });
-  } else if (req.user.role === "admin") {
-    Admin.findById(req.user.id, (err, admin) => {
-      if (err) return console.error(err);
-      admin.lastActive = new Date();
-      admin.save();
-    });
+  try {
+    const { tag } = req.query;
+
+    // ✅ Validate input
+    if (!tag || typeof tag !== "string") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Valid tag is required.");
+    }
+
+    // ✅ Escape regex to prevent injection/ReDoS
+    const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escapedTag, "i");
+
+    // ✅ Fetch clubs
+    const clubs = await Club.find(
+      { tags: regex },
+      { secondaryImg: 1, name: 1, tags: 1, motto: 1 }
+    ).lean();
+
+    // ✅ Update lastActive asynchronously (non-blocking)
+    const updateLastActive = async () => {
+      try {
+        if (req.user.role === "user") {
+          await User.findByIdAndUpdate(req.user.id, {
+            lastActive: new Date(),
+          });
+        } else if (req.user.role === "admin") {
+          await Admin.findByIdAndUpdate(req.user.id, {
+            lastActive: new Date(),
+          });
+        }
+      } catch (err) {
+        console.error("lastActive update failed:", err);
+      }
+    };
+
+    updateLastActive(); // fire & forget safely
+
+    return res.status(StatusCodes.OK).json(clubs);
+  } catch (error) {
+    console.error("getClubsByTag error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch clubs.");
   }
-  return res.status(StatusCodes.OK).json(clubs);
 };
 
 //Controller 22
 const getLikeStatus = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
+  try {
     const { contentId } = req.query;
-    const content = await fetchContent({ contentId, select: "likes" });
-    let liked = content.likes.includes(req.user.id);
+    const userId = req.user.id;
+
+    // ✅ Validate input
+    if (!contentId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("contentId is required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to get the like status.");
+    }
+
+    // ✅ Fetch only likes
+    const content = await fetchContent({
+      contentId,
+      select: "likes",
+    });
+
+    if (!content) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Content not found.");
+    }
+
+    const likes = content.likes || [];
+
+    // ✅ Safe comparison (ObjectId support)
+    const liked = likes.some(
+      (id) => id.toString() === userId
+    );
+
     return res.status(StatusCodes.OK).json({ liked });
-  } else {
+  } catch (error) {
+    console.error("getLikeStatus error:", error);
+
     return res
-      .status(StatusCodes.OK)
-      .send("You are not authorized to get the like status. ");
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to get like status.");
   }
 };
 
 //Controller 23
 const getLatestContent = async (req, res) => {
-  const { clubId } = req.query;
-  if (req.user.role === "user") {
-    const user = await User.findById(req.user.id);
-    let lastActive = user.lastActive;
-    lastActive = new Date(lastActive);
-    let arr = [];
-    Club.findById(clubId, (err, club) => {
-      if (err) return console.error(err);
-      let contents = club.content;
-      for (let i = 0; i < contents.length; i++) {
-        let content = contents[i];
-        if (lastActive - new Date(content.timeStamp) < 0) arr.push(content);
-      }
-      return res.status(StatusCodes.OK).json(arr);
-    });
-  } else if (req.user.role === "admin") {
-    const admin = await Admin.findById(req.user.id);
-    let lastActive = admin.lastActive;
-    lastActive = new Date(lastActive);
-    let arr = [];
-    Club.findById(clubId, (err, club) => {
-      if (err) return console.error(err);
-      let contents = club.content;
-      for (let i = 0; i < contents.length; i++) {
-        let content = contents[i];
-        if (lastActive - new Date(content.timeStamp) < 0) arr.push(content);
-      }
-      return res.status(StatusCodes.OK).json(arr);
-    });
+  try {
+    const { clubId } = req.query;
+    const userId = req.user.id;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch lastActive (common logic)
+    const Model = req.user.role === "user" ? User : Admin;
+
+    const entity = await Model.findById(userId, {
+      lastActive: 1,
+    }).lean();
+
+    if (!entity) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("User/Admin not found.");
+    }
+
+    const lastActive = new Date(entity.lastActive || 0);
+
+    // ✅ Fetch club
+    const club = await Club.findById(clubId, {
+      content: 1,
+    }).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
+    // ✅ Filter efficiently (still array-based, but cleaner)
+    const latestContent = (club.content || []).filter(
+      (item) => new Date(item.timeStamp) > lastActive
+    );
+
+    return res.status(StatusCodes.OK).json(latestContent);
+  } catch (error) {
+    console.error("getLatestContent error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch latest content.");
   }
 };
 
@@ -1656,94 +1920,298 @@ const getClubBio = async (req, res) => {
 
 //Controller 28
 const getClubContent = async (req, res) => {
-  if (req.user.role === "user" || req.user.role === "admin") {
+  try {
     const { clubId } = req.query;
-    const club = await Club.findById(clubId, { content: 1, _id: 0 });
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch club content
+    const club = await Club.findById(
+      clubId,
+      { content: 1, _id: 0 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res.status(StatusCodes.OK).json(club);
+  } catch (error) {
+    console.error("getClubContent error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch club content.");
   }
 };
 
 //Controller 29
 const getClubGallery = async (req, res) => {
-  if (req.user.role === "user" || req.user.role === "admin") {
-    const { clubId, mode, batch, batchSize } = req.query;
-    const club = await Club.findById(clubId, { gallery: 1, _id: 0 });
-    let data = [];
-    if (mode === "tiles") {
-      data = club.gallery.slice((batch - 1) * batchSize, batch * batchSize);
-    } else {
-      data = club.gallery.slice((batch - 1) * batchSize, batch * batchSize);
-      for (let i = 0; i < data.length; i++) {
-        const userId = data[i].postedBy;
-        const userInfo = await User.findById(userId, {
-          name: 1,
-          image: 1,
-          pushToken: 1,
-        });
-        data[i] = { ...data[i], userInfo };
-      }
+  try {
+    const { clubId, mode = "tiles", batch = 1, batchSize = 10 } = req.query;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
     }
+
+    const page = parseInt(batch);
+    const limit = parseInt(batchSize);
+
+    if (isNaN(page) || isNaN(limit) || page < 1 || limit < 1) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Invalid batch or batchSize.");
+    }
+
+    // ✅ Role check
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch paginated slice directly
+    const club = await Club.findById(
+      clubId,
+      {
+        gallery: {
+          $slice: [(page - 1) * limit, limit],
+        },
+        _id: 0,
+      }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
+    let data = club.gallery || [];
+
+    // ✅ If detailed mode → batch fetch users
+    if (mode !== "tiles" && data.length > 0) {
+      const userIds = [...new Set(data.map((item) => item.postedBy))];
+
+      const users = await User.find(
+        { _id: { $in: userIds } },
+        { name: 1, image: 1, pushToken: 1 }
+      ).lean();
+
+      const userMap = {};
+      users.forEach((u) => {
+        userMap[u._id.toString()] = u;
+      });
+
+      data = data.map((item) => ({
+        ...item,
+        userInfo: userMap[item.postedBy?.toString()] || null,
+      }));
+    }
+
     return res.status(StatusCodes.OK).json(data);
+  } catch (error) {
+    console.error("getClubGallery error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch club gallery.");
   }
 };
 
 // new controller added
 const getClubVideos = async (req, res) => {
-  if (req.user.role === "user" || req.user.role === "admin") {
-    const { clubId } = req.query;
-    const club = await Club.findById(clubId, { videos: 1, _id: 0 });
-    let videos = club.videos;
-    videos = videos.reverse();
-    let len = videos.length;
-    if (len > 6) {
-      videos = videos.slice(0, 12);
+  try {
+    const { clubId, limit = 12 } = req.query;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
     }
-    let actualContent = [];
-    for (let k = 0; k < videos.length; k++) {
-      let contentId = videos[k].contentId;
-      let actualData = await fetchContent({ contentId });
-      actualData = actualData;
-      let data = { ...actualData };
-      actualContent.push(data);
+
+    // ✅ Role check
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
     }
-    let finishedContent = [];
-    for (let l = 0; l < actualContent.length; l++) {
-      let data = actualContent[l];
-      let userId = data.idOfSender;
-      let user = await User.findById(userId, {
-        image: 1,
-        name: 1,
-        _id: 0,
-        pushToken: 1,
-      });
-      let withPicData = {
+
+    const maxLimit = Math.min(parseInt(limit) || 12, 50);
+
+    // ✅ Fetch only required videos
+    const club = await Club.findById(
+      clubId,
+      { videos: { $slice: -maxLimit }, _id: 0 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
+    const videos = (club.videos || []).slice().reverse();
+
+    const contentIds = videos.map((v) => v.contentId);
+
+    // ✅ Fetch all content in parallel
+    const contents = await fetchMultipleContents({ ids: contentIds });
+
+    // ✅ Extract userIds
+    const userIds = [
+      ...new Set(contents.map((c) => c?.idOfSender).filter(Boolean)),
+    ];
+
+    // ✅ Fetch all users in ONE query
+    const users = await User.find(
+      { _id: { $in: userIds } },
+      { image: 1, name: 1, pushToken: 1 }
+    ).lean();
+
+    const userMap = {};
+    users.forEach((u) => {
+      userMap[u._id.toString()] = u;
+    });
+
+    // ✅ Merge data
+    const finalData = contents.map((data) => {
+      if (!data) return null;
+
+      const user = userMap[data.idOfSender?.toString()] || {};
+
+      return {
         ...data,
-        userName: user.name,
-        userPic: user.image,
-        userPushToken: user.pushToken,
+        userName: user.name || null,
+        userPic: user.image || null,
+        userPushToken: user.pushToken || null,
       };
-      finishedContent.push(withPicData);
-    }
-    return res.status(StatusCodes.OK).json(finishedContent);
+    }).filter(Boolean);
+
+    return res.status(StatusCodes.OK).json(finalData);
+  } catch (error) {
+    console.error("getClubVideos error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch club videos.");
   }
 };
 
 //Controller 30
 const isAdmin = async (req, res) => {
-  const { clubId } = req.query;
-  let club = await Club.findById(clubId, { adminId: 1, _id: 0 });
-  let admin = club.adminId;
-  let result = admin.includes(req.user.id);
-  return res.status(StatusCodes.OK).json(result);
+  try {
+    const { clubId } = req.query;
+    const userId = req.user.id;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check (optional but recommended)
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch club
+    const club = await Club.findById(
+      clubId,
+      { adminId: 1, _id: 0 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
+    const adminList = club.adminId || [];
+
+    // ✅ Safe ObjectId comparison
+    const result = adminList.some(
+      (id) => id.toString() === userId
+    );
+
+    return res.status(StatusCodes.OK).json(result);
+  } catch (error) {
+    console.error("isAdmin error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to check admin status.");
+  }
 };
 
 //Controller 31
 const isMember = async (req, res) => {
-  const { clubId } = req.query;
-  let club = await Club.findById(clubId, { members: 1, _id: 0 });
-  let members = club.members;
-  let result = members.includes(req.user.id);
-  return res.status(StatusCodes.OK).json(result);
+  try {
+    const { clubId } = req.query;
+    const userId = req.user.id;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check (optional but recommended)
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch club
+    const club = await Club.findById(
+      clubId,
+      { members: 1, _id: 0 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
+    const members = club.members || [];
+
+    // ✅ Safe ObjectId comparison
+    const result = members.some(
+      (id) => id.toString() === userId
+    );
+
+    return res.status(StatusCodes.OK).json(result);
+  } catch (error) {
+    console.error("isMember error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to check member status.");
+  }
 };
 
 //Controller 32
@@ -1771,21 +2239,79 @@ const getClubNotifications = async (req, res) => {
 
 //Controller 35
 const isMainAdmin = async (req, res) => {
-  const { clubId } = req.query;
-  const isAuthorized = await checkAuthorization(clubId, req.user.id);
-  if (isAuthorized === "Fully-authorized") {
-    return res.status(StatusCodes.OK).send(true);
-  } else {
-    return res.status(StatusCodes.OK).send(false);
+  try {
+    const { clubId } = req.query;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check (optional but recommended)
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Authorization check
+    const isAuthorized = await checkAuthorization(
+      clubId,
+      req.user.id
+    );
+
+    const isMainAdmin = isAuthorized === "Fully-authorized";
+
+    return res.status(StatusCodes.OK).json({ isMainAdmin });
+  } catch (error) {
+    console.error("isMainAdmin error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to check main admin status.");
   }
 };
 
 //Controller 36
 const getCreatorId = async (req, res) => {
-  const { clubId } = req.query;
-  if (req.user.role === "user" || req.user.role === "admin") {
-    const club = await Club.findById(clubId, { mainAdmin: 1, _id: 0 });
+  try {
+    const { clubId } = req.query;
+
+    // ✅ Validate input
+    if (!clubId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId is required.");
+    }
+
+    // ✅ Role check (optional but recommended)
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    // ✅ Fetch club
+    const club = await Club.findById(
+      clubId,
+      { mainAdmin: 1, _id: 0 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Club not found.");
+    }
+
     return res.status(StatusCodes.OK).json(club);
+  } catch (error) {
+    console.error("getCreatorId error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to get creator ID.");
   }
 };
 
@@ -1941,16 +2467,42 @@ const getFastNativeFeed = async (req, res) => {
 //Controller 40
 
 const getClub = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
+  try {
     const { id } = req.query;
-    const club = await Club.findById(id, { name: 1, secondaryImg: 1 });
-    if (club) return res.status(StatusCodes.OK).json(club);
-    else
-      return res.status(StatusCodes.NOT_FOUND).send("Could not find the club.");
-  } else {
+
+    // ✅ Validate input
+    if (!id) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Club id is required.");
+    }
+
+    // ✅ Role check
+    if (!["admin", "user"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access the club data.");
+    }
+
+    // ✅ Fetch club
+    const club = await Club.findById(
+      id,
+      { name: 1, secondaryImg: 1 }
+    ).lean();
+
+    if (!club) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Could not find the club.");
+    }
+
+    return res.status(StatusCodes.OK).json(club);
+  } catch (error) {
+    console.error("getClub error:", error);
+
     return res
-      .status(StatusCodes.FORBIDDEN)
-      .send("You are not authorized to access the club data.");
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch club.");
   }
 };
 
@@ -3105,10 +3657,10 @@ const getProposalsFromIds = async (req, res) => {
         const fpData = dataMap.get(fp.id);
         return fpData
           ? {
-              ...fp,
-              endorsedBy: fpData.endorsedBy,
-              expiration: fpData.expiration,
-            }
+            ...fp,
+            endorsedBy: fpData.endorsedBy,
+            expiration: fpData.expiration,
+          }
           : null;
       })
       .filter(Boolean); // Remove null values
@@ -3303,9 +3855,9 @@ const getRandomClubs = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-          acc[field.trim()] = 1;
-          return acc;
-        }, {})
+        acc[field.trim()] = 1;
+        return acc;
+      }, {})
       : {};
 
     const clubs = await Club.aggregate([
@@ -3531,6 +4083,7 @@ const assignDefaultPermissions = async (req, res) => {
         whoCanPost: club.adminId || [],
         whoCanSendNotifications: club.adminId || [],
         whoCanAcceptProposals: club.mainAdmin ? [club.mainAdmin] : [],
+        whoCanDispatchAwards: club.mainAdmin ? [club.mainAdmin] : [],
       };
       return club.save();
     });
@@ -3571,6 +4124,7 @@ const updateClubPermission = async (req, res) => {
       "whoCanAcceptProposals",
       "chatModerators",
       "whoCanSendNotifications",
+      "whoCanDispatchAwards",
     ];
     if (!validKeys.includes(permissionKey)) {
       return res.status(400).json({ message: "Invalid permission key" });
@@ -3975,8 +4529,8 @@ const getClubsRecommendation = async (req, res) => {
 
     const excludedIds = Array.isArray(nIds)
       ? nIds
-          .filter((id) => mongoose.Types.ObjectId.isValid(id))
-          .map((id) => new mongoose.Types.ObjectId(id))
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id))
       : [];
 
     const pipeline = [];
@@ -4098,12 +4652,11 @@ const getClubsForFeed = async (req, res) => {
     const suggestedClubs =
       interestTags.length > 0
         ? await Club.aggregate([
-            {
-              $match: {
-                tags: { $in: interestTags },
-                _id: { $nin: joinedClubIds },
-                ...universeFilter,
-              },
+          {
+            $match: {
+              tags: { $in: interestTags },
+              _id: { $nin: joinedClubIds },
+              ...universeFilter,
             },
             { $sample: { size: limit } },
             {
@@ -4116,7 +4669,8 @@ const getClubsForFeed = async (req, res) => {
                 universeMetaData: 1,
               },
             },
-          ])
+          },
+        ])
         : [];
 
     let finalClubs = [...suggestedClubs];
