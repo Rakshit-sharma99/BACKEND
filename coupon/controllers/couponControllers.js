@@ -132,4 +132,61 @@ const getCouponById = async (req, res) => {
   }
 };
 
-module.exports = { createCoupon, getAvailableCoupons, getCouponById};
+const isValidCoupon = async (req, res) => {
+  try {
+    let { eventId, couponCode, userId } = req.query;
+
+    if (!eventId || !couponCode) {
+      return res.status(400).json({
+        error: "eventId and couponCode are required",
+      });
+    }
+
+    if (!userId) {
+      userId = req.user.id;
+    }
+
+    const coupon = await Coupon.findOne({
+      code: couponCode,
+      isActive: true,
+      $and: [
+        {
+          $or: [
+            { validForEvents: { $exists: false } },
+            { validForEvents: { $size: 0 } },
+            { validForEvents: eventId },
+          ],
+        },
+        {
+          $or: [
+            { validForUsers: { $exists: false } },
+            { validForUsers: { $size: 0 } },
+            { validForUsers: userId },
+          ],
+        },
+      ],
+      usedBy: { $ne: userId },
+    });
+
+    if (!coupon) {
+      return res.status(400).json({
+        error: "Coupon is invalid or unavailable for this event.",
+      });
+    }
+
+    return res.status(200).json({
+      coupon,
+      success: true,
+    });
+  } catch (err) {
+    console.error("Error validating coupon:", err);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
+module.exports = {
+  createCoupon,
+  getAvailableCoupons,
+  getCouponById,
+  isValidCoupon,
+};

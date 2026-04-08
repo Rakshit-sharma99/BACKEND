@@ -191,6 +191,70 @@ const fetchEventData = async (query) => {
   }
 };
 
+const verifyTicketPurchaseAccess = async ({
+  eventId,
+  ticketType,
+  privateCode,
+  uid,
+  userId,
+}) => {
+  try {
+    if (!eventId || !ticketType || !userId) {
+      return {
+        success: false,
+        canBuy: false,
+        message: "Missing eventId, ticketType or userId",
+      };
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://event:5060/event/api/v1/canBuyTicket",
+      {
+        eventId,
+        ticketType,
+        privateCode,
+        uid,
+        userId,
+      },
+      config,
+    );
+
+    return response.data;
+  } catch (error) {
+    return (
+      error.response?.data || {
+        success: false,
+        canBuy: false,
+        message: "Unable to verify ticket access",
+      }
+    );
+  }
+};
+
+const updateEventLayout = async ({ eventId, layoutId }) => {
+  try {
+    if (!eventId || !layoutId) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://event:5060/event/api/v1/setEventLayout",
+      {
+        eventId,
+        layoutId,
+      },
+      config,
+    );
+
+    return response.data?.event || null;
+  } catch (error) {
+    console.error("updateEventLayout error:", error.message);
+    return null;
+  }
+};
+
 const fetchPastEvents = async ({
   monthsAgo,
   daysAgo,
@@ -461,6 +525,7 @@ module.exports = {
   searchContentsFromIds,
   searchCardsFromTags,
   fetchEventData,
+  verifyTicketPurchaseAccess,
   fetchPastEvents,
   fetchEventGallery,
   fetchCouponById,
@@ -469,6 +534,7 @@ module.exports = {
   getMemoryCount,
   fetchTicketFieldsByQuery,
   fetchFeaturedEvent,
+  updateEventLayout,
   fetchAllowedDomains,
   fetchSearchedProfileFacets,
   registerCustomUniverse,

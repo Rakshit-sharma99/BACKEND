@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
 const add_ticket_to_event_schema = async (messageValue) => {
   try {
     const data = JSON.parse(messageValue);
-    const { eventId, ticketId, amtPaid, userField } = data;
+    const { eventId, ticketId, amtPaid, userField, seatIds = [] } = data;
 
     if (
       !eventId ||
@@ -24,6 +24,10 @@ const add_ticket_to_event_schema = async (messageValue) => {
     // Add ticket reference to event
     await Event.findByIdAndUpdate(eventId, {
       $push: { bookedBy: new mongoose.Types.ObjectId(ticketId) },
+      ...(Array.isArray(seatIds) &&
+        seatIds.length > 0 && {
+          $addToSet: { seatsBooked: { $each: seatIds } },
+        }),
     });
 
     // Update event stats

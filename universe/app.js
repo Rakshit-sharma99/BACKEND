@@ -63,6 +63,8 @@ const recentSearchesRouter = require("./routes/recentSearchesRouter");
 const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
 const productRouter = require("./routes/productRouter");
 const orderRouter = require("./routes/orderRouter");
+const layoutRouter = require("./routes/layoutRouter");
+const seatLock = require("./sockets/seatLock");
 
 const sessionRouter = require("./routes/sessionRouter");
 
@@ -135,6 +137,7 @@ app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
 app.use("/universe/api/v1/product", authenticate, productRouter)
 app.use("/universe/api/v1/order", authenticate, orderRouter)
 app.use("/universe/api/v1/push", authenticate, pushRouter);
+app.use("/universe/api/v1/layout", authenticate, layoutRouter);
 
 // admin routes
 app.use("/universe/api/v1/session", authenticate, sessionRouter);
@@ -212,6 +215,7 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
     io.on("connection", (socket) => {
       console.log("A user connected!");
+      seatLock(io, socket);
       socket.on("disconnect", () => {
         console.log("A user disconnected!");
       });

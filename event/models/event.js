@@ -121,6 +121,58 @@ const postProductionSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const TicketVisibilitySchema = new mongoose.Schema(
+  {
+    scope: {
+      type: String,
+      enum: [
+        "public",
+        "club_full",
+        "club_admin",
+        "club_admins",
+        "club_core",
+        "club_members",
+        "native",
+        "private_code",
+        "users_list",
+      ],
+      default: "public",
+    },
+    uids: {
+      type: [String],
+      default: [],
+    },
+    n_uids: {
+      type: [String],
+      default: [],
+    },
+    privateCodes: {
+      type: [String],
+      default: [],
+    },
+    usersList: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+  },
+  { _id: false },
+);
+
+const TicketTypeSchema = new mongoose.Schema(
+  {
+    type: { type: String },
+    price: { type: Number },
+    available: { type: Number },
+    visibility: {
+      type: TicketVisibilitySchema,
+      default: () => ({}),
+    },
+  },
+  { _id: true },
+);
+
 const eventSchema = new mongoose.Schema(
   {
     url: String,
@@ -139,13 +191,7 @@ const eventSchema = new mongoose.Schema(
     dl: { type: Boolean, default: false },
     ticketAvailable: { type: Boolean, default: false },
 
-    ticketTypes: [
-      {
-        type: { type: String },
-        price: { type: Number },
-        available: { type: Number },
-      },
-    ],
+    ticketTypes: [TicketTypeSchema],
 
     bookedBy: [
       {
@@ -153,6 +199,16 @@ const eventSchema = new mongoose.Schema(
         ref: "Ticket",
       },
     ],
+
+    layoutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Layout",
+    },
+
+    seatsBooked: {
+      type: [String],
+      default: [],
+    },
 
     belongsTo: BelongsToSchema,
 

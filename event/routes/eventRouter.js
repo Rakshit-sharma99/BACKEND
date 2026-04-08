@@ -16,6 +16,7 @@ const {
   getFaq,
   changeStatusJob,
   getTickets,
+  canBuyTicket,
   generateTicketListPdf,
   getReviews,
   checkTicketAvailability,
@@ -25,6 +26,7 @@ const {
   getEvents,
   checkEventStatus,
   getEventById,
+  setEventLayout,
   editEventDetails,
   searchEvents,
   mailEventStats,
@@ -71,6 +73,7 @@ router.post("/answerTheQuestion", answerTheQuestion);
 router.get("/getFaq", getFaq);
 router.get("/changeStatusJob", changeStatusJob);
 router.get("/getTickets", getTickets);
+router.post("/canBuyTicket", canBuyTicket);
 router.get("/generateTicketListPdf", generateTicketListPdf);
 router.get("/getReviews", getReviews);
 router.get("/checkTicketAvailability", checkTicketAvailability);
@@ -80,6 +83,7 @@ router.get("/getAllTicketsBought", getAllTicketsBought);
 router.get("/getEvents", getEvents);
 router.get("/checkEventStatus", checkEventStatus);
 router.get("/getEventById", getEventById);
+router.post("/setEventLayout", setEventLayout);
 router.post("/editEventDetails", editEventDetails);
 router.get("/searchEvents", searchEvents);
 router.get("/mailEventStats", mailEventStats);

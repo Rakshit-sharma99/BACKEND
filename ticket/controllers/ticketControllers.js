@@ -17,13 +17,20 @@ const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
   fetchUserData,
   fetchEventData,
+  fetchLayoutById,
   fetchNativeClubData,
   scheduleNotification,
   getUserMetaMap,
   fetchItineraries,
   fetchItinerary,
+  verifyTicketPurchaseAccess,
 } = require("./utilControllers");
 const { io } = require("../app");
+const {
+  redis,
+  verifySeatLocks,
+  buildSeatId,
+} = require("../utils/seatUtils");
 
 // middleware
 const checkAuthorization = async (ticketId, role, id) => {
@@ -127,11 +134,372 @@ const processRefund = async ({
   }
 };
 
+function collectValidSeatIds(layout) {
+  const validSeatIds = new Set();
+
+  if (Array.isArray(layout?.levels)) {
+    layout.levels.forEach((level) => {
+      (level.rows || []).forEach((row) => {
+        for (let i = 1; i <= row.seats; i++) {
+          validSeatIds.add(
+            buildSeatId({
+              levelCode: level.code,
+              rowCode: row.code,
+              seatNumber: i,
+              hasLevels: true,
+              hasBlocks: false,
+            }),
+          );
+        }
+      });
+    });
+  }
+
+  if (Array.isArray(layout?.blocks)) {
+    layout.blocks.forEach((block) => {
+      (block.rows || []).forEach((row) => {
+        for (let i = 1; i <= row.seats; i++) {
+          validSeatIds.add(
+            buildSeatId({
+              blockCode: block.code,
+              rowCode: row.code,
+              seatNumber: i,
+              hasLevels: false,
+              hasBlocks: true,
+            }),
+          );
+        }
+      });
+    });
+  }
+
+  return validSeatIds;
+}
+
+function verifySeatIds(layout, seatIds = []) {
+  if (!Array.isArray(seatIds) || seatIds.length === 0) {
+    return {
+      isValid: true,
+      invalidSeatIds: [],
+      message: "No seat IDs provided.",
+    };
+  }
+
+  const validSeatIds = collectValidSeatIds(layout);
+  const invalidSeatIds = seatIds.filter((seatId) => !validSeatIds.has(seatId));
+
+  return {
+    isValid: invalidSeatIds.length === 0,
+    invalidSeatIds,
+    message:
+      invalidSeatIds.length > 0
+        ? `Invalid seat IDs: ${invalidSeatIds.join(", ")}`
+        : "All seat IDs are valid.",
+  };
+}
+
+function createHttpError(message, status = StatusCodes.BAD_REQUEST) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function normalizeSeatGroups(seats = []) {
+  if (!Array.isArray(seats)) {
+    return [];
+  }
+
+  return seats
+    .map((group) => ({
+      type: String(group?.type || group?.ticketType || "").trim(),
+      seatIds: Array.isArray(group?.seatIds)
+        ? group.seatIds
+            .map((seatId) => String(seatId || "").trim())
+            .filter(Boolean)
+        : [],
+    }))
+    .filter((group) => group.type && group.seatIds.length > 0);
+}
+
+function buildRequestedTickets({ type, types, seats }) {
+  const seatGroups = normalizeSeatGroups(seats);
+
+  if (seatGroups.length > 0) {
+    return {
+      explicitSeatSelection: true,
+      requestedTickets: seatGroups.flatMap((group) =>
+        group.seatIds.map((seatId) => ({
+          type: group.type,
+          seatId,
+        })),
+      ),
+    };
+  }
+
+  const requestedTypes = (
+    Array.isArray(types) && types.length > 0 ? types : type ? [type] : []
+  )
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return {
+    explicitSeatSelection: false,
+    requestedTickets: requestedTypes.map((ticketType) => ({
+      type: ticketType,
+      seatId: null,
+    })),
+  };
+}
+
+function buildLayoutSeatCatalog(layout) {
+  const catalog = [];
+
+  const appendRows = ({ sections = [], hasLevels, hasBlocks }) => {
+    sections.forEach((section) => {
+      (section.rows || []).forEach((row) => {
+        for (let i = 1; i <= row.seats; i++) {
+          catalog.push({
+            seatId: buildSeatId({
+              levelCode: hasLevels ? section.code : null,
+              blockCode: hasBlocks ? section.code : null,
+              rowCode: row.code,
+              seatNumber: i,
+              hasLevels,
+              hasBlocks,
+            }),
+            ticketType: row.ticketType || null,
+          });
+        }
+      });
+    });
+  };
+
+  if (Array.isArray(layout?.levels) && layout.levels.length > 0) {
+    appendRows({
+      sections: layout.levels,
+      hasLevels: true,
+      hasBlocks: false,
+    });
+  }
+
+  if (Array.isArray(layout?.blocks) && layout.blocks.length > 0) {
+    appendRows({
+      sections: layout.blocks,
+      hasLevels: false,
+      hasBlocks: true,
+    });
+  }
+
+  return catalog;
+}
+
+function getDuplicateSeatIds(seatIds = []) {
+  const seen = new Set();
+  const duplicates = new Set();
+
+  seatIds.forEach((seatId) => {
+    if (seen.has(seatId)) {
+      duplicates.add(seatId);
+      return;
+    }
+
+    seen.add(seatId);
+  });
+
+  return [...duplicates];
+}
+
+function findMatchingTicketType(ticketTypes = [], requestedType) {
+  return ticketTypes.find(
+    (ticketType) =>
+      ticketType?.type === requestedType ||
+      ticketType?._id?.toString() === requestedType?.toString(),
+  );
+}
+
+function seatBelongsToTicketType(rowTicketType, ticketMeta) {
+  if (!rowTicketType || !ticketMeta) {
+    return false;
+  }
+
+  const allowedTypes = new Set(
+    [ticketMeta.type, ticketMeta._id?.toString()].filter(Boolean),
+  );
+
+  return allowedTypes.has(rowTicketType);
+}
+
+function distributeAmountAcrossTickets(totalAmount, count) {
+  if (!count || count <= 0) {
+    return [];
+  }
+
+  const totalPaise = Math.round(Number(totalAmount || 0) * 100);
+  const basePaise = Math.floor(totalPaise / count);
+  const remainder = totalPaise % count;
+
+  return Array.from({ length: count }, (_, index) => {
+    const paise = basePaise + (index < remainder ? 1 : 0);
+    return paise / 100;
+  });
+}
+
+async function fetchSoldCountsByType(eventId, ticketTypes = []) {
+  if (!eventId || ticketTypes.length === 0) {
+    return {};
+  }
+
+  const eventObjectId = mongoose.Types.ObjectId.isValid(eventId)
+    ? new mongoose.Types.ObjectId(eventId)
+    : eventId;
+
+  const counts = await Ticket.aggregate([
+    {
+      $match: {
+        eventId: eventObjectId,
+        type: { $in: ticketTypes },
+      },
+    },
+    {
+      $group: {
+        _id: "$type",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  return counts.reduce((acc, item) => {
+    acc[item._id] = item.count;
+    return acc;
+  }, {});
+}
+
+async function lockSeatsForTicketGeneration({ eventId, userId, seatIds = [] }) {
+  if (!eventId || !userId || seatIds.length === 0) {
+    return [];
+  }
+
+  const lockedSeatIds = [];
+
+  for (const seatId of seatIds) {
+    const seatKey = `seat:${eventId}:${seatId}`;
+    const existingLock = await redis.get(seatKey);
+
+    if (existingLock && existingLock !== userId) {
+      for (const lockedSeatId of lockedSeatIds) {
+        await redis.del(`seat:${eventId}:${lockedSeatId}`);
+      }
+
+      throw createHttpError(
+        `Seat ${seatId} is not available anymore.`,
+        StatusCodes.CONFLICT,
+      );
+    }
+
+    if (existingLock === userId) {
+      lockedSeatIds.push(seatId);
+      continue;
+    }
+
+    const result = await redis.set(seatKey, userId, "NX", "EX", 300);
+
+    if (!result) {
+      for (const lockedSeatId of lockedSeatIds) {
+        await redis.del(`seat:${eventId}:${lockedSeatId}`);
+      }
+
+      throw createHttpError(
+        `Seat ${seatId} is not available anymore.`,
+        StatusCodes.CONFLICT,
+      );
+    }
+
+    lockedSeatIds.push(seatId);
+  }
+
+  return lockedSeatIds;
+}
+
+async function releaseSeatLocks({ eventId, userId, seatIds = [] }) {
+  if (!eventId || !userId || seatIds.length === 0) {
+    return;
+  }
+
+  for (const seatId of seatIds) {
+    const seatKey = `seat:${eventId}:${seatId}`;
+    const existingLock = await redis.get(seatKey);
+
+    if (existingLock === userId) {
+      await redis.del(seatKey);
+    }
+  }
+}
+
+async function getLockedSeatIdsForEvent(eventId) {
+  if (!eventId) {
+    return [];
+  }
+
+  const lockedKeys = await redis.keys(`seat:${eventId}:*`);
+  return lockedKeys.map((key) => key.split(":")[2]);
+}
+
+function buildTicketAccessMap(ticketAccess = [], fallbackType = null, privateCode = null) {
+  const accessMap = {};
+
+  if (Array.isArray(ticketAccess)) {
+    ticketAccess.forEach((entry) => {
+      const type = String(entry?.type || "").trim();
+      if (!type) {
+        return;
+      }
+
+      accessMap[type] = String(entry?.privateCode || "").trim();
+    });
+  }
+
+  if (fallbackType && privateCode && !accessMap[fallbackType]) {
+    accessMap[fallbackType] = String(privateCode).trim();
+  }
+
+  return accessMap;
+}
+
+async function validateTicketPurchaseAccess({
+  eventId,
+  types = [],
+  userId,
+  uid,
+  privateCode,
+  ticketAccess,
+}) {
+  const uniqueTypes = [...new Set((types || []).filter(Boolean))];
+  const accessMap = buildTicketAccessMap(
+    ticketAccess,
+    uniqueTypes.length === 1 ? uniqueTypes[0] : null,
+    privateCode,
+  );
+
+  for (const ticketType of uniqueTypes) {
+    const result = await verifyTicketPurchaseAccess({
+      eventId,
+      ticketType,
+      privateCode: accessMap[ticketType],
+      uid,
+      userId,
+    });
+
+    if (!result?.canBuy) {
+      throw createHttpError(
+        result?.message || `You are not allowed to buy ${ticketType}.`,
+        StatusCodes.FORBIDDEN,
+      );
+    }
+  }
+}
+
 //Controller 1
 const generateTicket = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   const {
     eventId,
     razorpay_payment_id,
@@ -139,25 +507,39 @@ const generateTicket = async (req, res) => {
     razorpay_signature,
     amtPaid,
     type,
+    types,
+    seats,
     extraFieldsData,
     couponId,
+    privateCode,
+    ticketAccess,
     uid,
     universeMetaData,
   } = req.body;
 
+  const safeUserId = req.user.id?.toString();
+  const amountPaid = Number(amtPaid || 0);
+  let shouldRefund = false;
+  let session = null;
+  let seatIdsToRelease = [];
+
   try {
-    // Validate mandatory fields
+    const { explicitSeatSelection, requestedTickets } = buildRequestedTickets({
+      type,
+      types,
+      seats,
+    });
+
     if (
       !eventId ||
-      !type ||
-      (amtPaid !== 0 &&
+      requestedTickets.length === 0 ||
+      (amountPaid !== 0 &&
         (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature))
     ) {
-      return res.status(400).send("Insufficient data to create a ticket.");
+      throw createHttpError("Insufficient data to create a ticket.");
     }
 
-    // Check duplicate paymentId
-    if (amtPaid !== 0) {
+    if (amountPaid !== 0) {
       const existingTicket = await Ticket.findOne({
         paymentId: razorpay_payment_id,
       });
@@ -165,19 +547,15 @@ const generateTicket = async (req, res) => {
         return res.status(400).send("This payment ID has already been used.");
       }
 
-      // Signature verification
       const expectedSignature = crypto
         .createHmac("sha256", process.env.RAZOR_PAY_SECRET)
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest("hex");
 
       if (expectedSignature !== razorpay_signature) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).send("Invalid Razorpay signature.");
+        throw createHttpError("Invalid Razorpay signature.");
       }
 
-      // Razorpay API verification
       const authHeader = `Basic ${Buffer.from(
         `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
       ).toString("base64")}`;
@@ -188,38 +566,16 @@ const generateTicket = async (req, res) => {
       );
 
       if (payment.status !== "captured") {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).send("Payment not captured.");
+        throw createHttpError("Payment not captured.");
       }
 
-      if (payment.amount !== amtPaid * 100) {
-        await session.abortTransaction();
-        session.endSession();
-        return res.status(400).send("Incorrect payment amount.");
+      if (payment.amount !== Math.round(amountPaid * 100)) {
+        throw createHttpError("Incorrect payment amount.");
       }
+
+      shouldRefund = true;
     }
 
-    // Create ticket
-    const [ticket] = await Ticket.create(
-      [
-        {
-          eventId,
-          paymentId: razorpay_payment_id || "free",
-          amtPaid,
-          boughtBy: req.user.id,
-          generatedAt: new Date(),
-          type,
-          extraFieldsData,
-          couponId,
-          uid,
-          universeMetaData,
-        },
-      ],
-      { session },
-    );
-
-    // Fetch event & user data
     const [event, user] = await Promise.all([
       fetchEventData({
         id: eventId,
@@ -229,6 +585,11 @@ const generateTicket = async (req, res) => {
           "url",
           "authorizedPerson",
           "belongsTo",
+          "ticketTypes",
+          "layoutId",
+          "seatsBooked",
+          "uid",
+          "universeMetaData",
         ],
       }),
       fetchUserData({
@@ -238,31 +599,249 @@ const generateTicket = async (req, res) => {
     ]);
 
     if (!event || !user) {
-      await session.abortTransaction();
-      session.endSession();
-      return res.status(404).send("Event or User not found.");
+      throw createHttpError("Event or User not found.", StatusCodes.NOT_FOUND);
     }
 
-    // Send Kafka messages
-    await sendKafkaMessage("ADD_TICKET_TO_USER_SCHEMA", "universe", {
-      userId: req.user.id,
-      ticketId: ticket._id.toString(),
-      eventData: {
+    let finalizedTickets = requestedTickets.map((ticket) => {
+      const matchedTicketType =
+        Array.isArray(event.ticketTypes) && event.ticketTypes.length > 0
+          ? findMatchingTicketType(event.ticketTypes, ticket.type)
+          : null;
+
+      if (Array.isArray(event.ticketTypes) && event.ticketTypes.length > 0) {
+        if (!matchedTicketType) {
+          throw createHttpError(`Ticket type "${ticket.type}" not found.`);
+        }
+      }
+
+      return {
+        ...ticket,
+        type: matchedTicketType?.type || ticket.type,
+        ticketMeta: matchedTicketType || null,
+      };
+    });
+
+    if (Array.isArray(event.ticketTypes) && event.ticketTypes.length > 0) {
+      const requestedCounts = finalizedTickets.reduce((acc, ticket) => {
+        acc[ticket.type] = (acc[ticket.type] || 0) + 1;
+        return acc;
+      }, {});
+
+      const soldCounts = await fetchSoldCountsByType(
         eventId,
-        eventName: event.name,
-        eventPoster: event.url,
-        eventManagerMail: event.eventManagerMail,
-      },
-    });
+        Object.keys(requestedCounts),
+      );
 
-    await sendKafkaMessage("ADD_TICKET_TO_EVENT_SCHEMA", "event", {
+      Object.entries(requestedCounts).forEach(([ticketType, requestedCount]) => {
+        const matchedType = event.ticketTypes.find(
+          (eventTicketType) => eventTicketType?.type === ticketType,
+        );
+
+        const availableCount = Number(matchedType?.available);
+
+        if (
+          Number.isFinite(availableCount) &&
+          (soldCounts[ticketType] || 0) + requestedCount > availableCount
+        ) {
+          throw createHttpError(
+            `${ticketType} tickets are sold out or no longer available.`,
+            StatusCodes.CONFLICT,
+          );
+        }
+      });
+    }
+
+    await validateTicketPurchaseAccess({
       eventId,
-      ticketId: ticket._id.toString(),
-      amtPaid,
-      userField: user.field,
+      types: finalizedTickets.map((ticket) => ticket.type),
+      userId: req.user.id,
+      uid: uid || req.user.uid,
+      privateCode,
+      ticketAccess,
     });
 
-    // Publish user.activity event for SERE onboarding tracking
+    if (event.layoutId) {
+      const layout = await fetchLayoutById(event.layoutId);
+
+      if (!layout) {
+        throw createHttpError("Layout not found.", StatusCodes.NOT_FOUND);
+      }
+
+      const layoutSeatCatalog = buildLayoutSeatCatalog(layout);
+      const seatTypeMap = new Map(
+        layoutSeatCatalog.map((seat) => [seat.seatId, seat.ticketType]),
+      );
+      const bookedSeatsSet = new Set(event.seatsBooked || []);
+
+      if (explicitSeatSelection) {
+        const requestedSeatIds = finalizedTickets.map((ticket) => ticket.seatId);
+        const duplicateSeatIds = getDuplicateSeatIds(requestedSeatIds);
+
+        if (duplicateSeatIds.length > 0) {
+          throw createHttpError(
+            `Duplicate seats selected: ${duplicateSeatIds.join(", ")}`,
+          );
+        }
+
+        const seatIdVerification = verifySeatIds(layout, requestedSeatIds);
+
+        if (!seatIdVerification.isValid) {
+          throw createHttpError(seatIdVerification.message);
+        }
+
+        if (amountPaid === 0) {
+          seatIdsToRelease = await lockSeatsForTicketGeneration({
+            eventId,
+            userId: safeUserId,
+            seatIds: requestedSeatIds,
+          });
+        } else {
+          const canBookSeats = await verifySeatLocks(
+            requestedSeatIds,
+            eventId,
+            safeUserId,
+          );
+
+          if (!canBookSeats) {
+            throw createHttpError(
+              "Selected seats are not available or not locked by you.",
+              StatusCodes.CONFLICT,
+            );
+          }
+
+          seatIdsToRelease = requestedSeatIds;
+        }
+
+        finalizedTickets.forEach((ticket) => {
+          if (bookedSeatsSet.has(ticket.seatId)) {
+            throw createHttpError(
+              `Seat ${ticket.seatId} is already booked.`,
+              StatusCodes.CONFLICT,
+            );
+          }
+
+          if (
+            !seatBelongsToTicketType(
+              seatTypeMap.get(ticket.seatId),
+              ticket.ticketMeta,
+            )
+          ) {
+            throw createHttpError(
+              `Seat ${ticket.seatId} does not belong to ticket type "${ticket.type}".`,
+            );
+          }
+        });
+      } else {
+        const lockedSeatsSet = new Set(await getLockedSeatIdsForEvent(eventId));
+        const assignedSeatIdsByType = {};
+        const requestedCounts = finalizedTickets.reduce((acc, ticket) => {
+          acc[ticket.type] = (acc[ticket.type] || 0) + 1;
+          return acc;
+        }, {});
+
+        Object.entries(requestedCounts).forEach(([ticketType, requestedCount]) => {
+          const sampleTicket = finalizedTickets.find(
+            (ticket) => ticket.type === ticketType,
+          );
+
+          const availableSeatIds = layoutSeatCatalog
+            .filter((seat) => {
+              if (
+                bookedSeatsSet.has(seat.seatId) ||
+                lockedSeatsSet.has(seat.seatId)
+              ) {
+                return false;
+              }
+
+              return seatBelongsToTicketType(
+                seat.ticketType,
+                sampleTicket.ticketMeta,
+              );
+            })
+            .map((seat) => seat.seatId);
+
+          if (availableSeatIds.length < requestedCount) {
+            throw createHttpError(
+              `Not enough seats are available for ticket type "${ticketType}".`,
+              StatusCodes.CONFLICT,
+            );
+          }
+
+          assignedSeatIdsByType[ticketType] = availableSeatIds.slice(
+            0,
+            requestedCount,
+          );
+
+          assignedSeatIdsByType[ticketType].forEach((seatId) => {
+            lockedSeatsSet.add(seatId);
+          });
+        });
+
+        seatIdsToRelease = await lockSeatsForTicketGeneration({
+          eventId,
+          userId: safeUserId,
+          seatIds: Object.values(assignedSeatIdsByType).flat(),
+        });
+
+        finalizedTickets = finalizedTickets.map((ticket) => ({
+          ...ticket,
+          seatId: assignedSeatIdsByType[ticket.type].shift(),
+        }));
+      }
+    } else if (explicitSeatSelection) {
+      throw createHttpError("This event does not support reserved seating.");
+    }
+
+    const ticketAmounts = distributeAmountAcrossTickets(
+      amountPaid,
+      finalizedTickets.length,
+    );
+    const ticketUid = uid || event.uid || null;
+    const ticketUniverseMetaData = universeMetaData || event.universeMetaData || null;
+
+    session = await mongoose.startSession();
+    session.startTransaction();
+
+    const createdTickets = await Ticket.create(
+      finalizedTickets.map((ticket, index) => ({
+        eventId,
+        paymentId: razorpay_payment_id || "free",
+        amtPaid: ticketAmounts[index] || 0,
+        boughtBy: req.user.id,
+        generatedAt: new Date(),
+        type: ticket.type,
+        seatId: ticket.seatId || undefined,
+        extraFieldsData,
+        couponId,
+        uid: ticketUid,
+        universeMetaData: ticketUniverseMetaData,
+      })),
+      { session },
+    );
+
+    for (let index = 0; index < createdTickets.length; index++) {
+      const ticket = createdTickets[index];
+
+      await sendKafkaMessage("ADD_TICKET_TO_USER_SCHEMA", "universe", {
+        userId: req.user.id,
+        ticketId: ticket._id.toString(),
+        eventData: {
+          eventId,
+          eventName: event.name,
+          eventPoster: event.url,
+          eventManagerMail: event.eventManagerMail,
+        },
+      });
+
+      await sendKafkaMessage("ADD_TICKET_TO_EVENT_SCHEMA", "event", {
+        eventId,
+        ticketId: ticket._id.toString(),
+        amtPaid: ticketAmounts[index] || 0,
+        userField: user.field,
+        seatIds: ticket.seatId ? [ticket.seatId] : [],
+      });
+    }
+
     try {
       await sendKafkaMessage("USER_ACTIVITY", "user", {
         userId: req.user.id,
@@ -275,23 +854,58 @@ const generateTicket = async (req, res) => {
     }
 
     await session.commitTransaction();
+    await releaseSeatLocks({
+      eventId,
+      userId: safeUserId,
+      seatIds: seatIdsToRelease,
+    });
     session.endSession();
+    session = null;
 
-    return res.status(StatusCodes.OK).json({ ticket });
+    return res.status(StatusCodes.OK).json({
+      ticket: createdTickets[0] || null,
+      tickets: createdTickets,
+    });
   } catch (error) {
     console.error("❌ Ticket generation failed:", error);
 
-    if (razorpay_payment_id) {
+    if (seatIdsToRelease.length > 0) {
+      await releaseSeatLocks({
+        eventId,
+        userId: safeUserId,
+        seatIds: seatIdsToRelease,
+      });
+    }
+
+    if (session?.inTransaction()) {
+      await session.abortTransaction();
+    }
+
+    if (session) {
+      session.endSession();
+      session = null;
+    }
+
+    if (razorpay_payment_id && shouldRefund) {
       await processRefund({
         razorpay_payment_id,
         eventId,
         userId: req.user.id,
-        amtPaid,
+        amtPaid: amountPaid,
       });
     }
 
-    await session.abortTransaction();
-    session.endSession();
+    if (error?.code === 11000 && error?.keyPattern?.seatId) {
+      return res
+        .status(StatusCodes.CONFLICT)
+        .send(
+          "One of the selected seats was booked just now. If money was deducted, a refund will be processed.",
+        );
+    }
+
+    if (error?.status) {
+      return res.status(error.status).send(error.message);
+    }
 
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
