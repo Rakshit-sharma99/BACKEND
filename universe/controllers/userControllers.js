@@ -3100,6 +3100,47 @@ const getAssetSuggestions = async (req, res) => {
   }
 };
 
+const getRecommendedProfiles = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "User not found" });
+    }
+
+    const users = await User.aggregate([
+      {
+        $match: {
+          _id: { $ne: user._id },
+          profession: "Student",
+          $or: [
+            { course: user.course },
+            { interests: { $in: user.interests } }
+          ]
+        }
+      },
+      { $sample: { size: 5 } }, // RANDOM 5 USERS
+      {
+        $project: {
+          name: 1,
+          image: 1,
+          course: 1,
+          field: 1
+        }
+      }
+    ]);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched users successfully",
+      recommendedProfiles: users
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Server error" });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -3168,4 +3209,5 @@ module.exports = {
   verifyProfessionalEmailOTP,
   searchUsersByFacet,
   getAlumniByCompany,
+  getRecommendedProfiles
 };

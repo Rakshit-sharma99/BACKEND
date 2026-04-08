@@ -67,6 +67,7 @@ const {
   getUserAssetById,
   searchUsersByFacet,
   getAlumniByCompany,
+  getRecommendedProfiles
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -135,5 +136,5 @@ router.get("/getAssetSuggestions", getAssetSuggestions);
 router.get("/getUserAssetById", getUserAssetById);
 router.get("/searchUsersByFacet", searchUsersByFacet);
 router.get("/getAlumniByCompany", getAlumniByCompany);
-
+router.get("/getRecommendedProfiles",getRecommendedProfiles);
 module.exports = router;
