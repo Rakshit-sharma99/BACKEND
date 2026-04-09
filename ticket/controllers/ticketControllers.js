@@ -1390,6 +1390,41 @@ const addMetaDataToTickets = async (req, res) => {
   }
 }
 
+const getMultipleTicketFieldsByIds = async (req, res) => {
+  try {
+    const { ticketIds, fields } = req.body;
+
+    if (!ticketIds) {
+      return res.status(400).json({ error: "Ticket IDs is required." });
+    }
+
+    if (!fields || !Array.isArray(fields)) {
+      return res.status(400).json({ error: "An array of fields is required." });
+    }
+
+    // Convert array of fields to space-separated string for Mongoose projection
+    const projection = fields.join(" ");
+
+    let query = Ticket.find(
+      {
+        _id : {$in : ticketIds}
+      });
+    
+    const tickets = await query.select(projection);
+
+    if (!tickets) {
+      return res.status(404).json({ error: "Tickets not found." });
+    }
+
+    return res.status(200).json({ tickets });
+  } catch (error) {
+    console.error("❌ Error in getMultipleTicketFieldsByIds:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong while fetching tickets.");
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -1409,5 +1444,6 @@ module.exports = {
   checkIncompleteTickets,
   fetchPaymentDetails,
   searchMyTickets,
-  addMetaDataToTickets
+  addMetaDataToTickets,
+  getMultipleTicketFieldsByIds
 };

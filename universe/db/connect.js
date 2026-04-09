@@ -10,6 +10,7 @@ const connectDB = async (url) => {
   const maxRetries = 10;
   for (let i = 0; i < maxRetries; i++) {
     try {
+      console.log(url)
       const conn = await mongoose.connect(url, options);
       console.log(`✅ MongoDB Connected successfully`);
       return conn;

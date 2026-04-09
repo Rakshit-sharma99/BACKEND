@@ -9,7 +9,8 @@ const {
   setNewPassword,
   chapterLeaderReviewAccess,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  fetchEventAdminsByFields
 } = require('../controllers/adminAuthControllers');
 
 router.post('/register', registerAdmin);

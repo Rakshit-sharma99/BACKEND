@@ -32,6 +32,7 @@ const connectConsumer = async () => {
         eachMessage: async ({ topic, message }) => {
           const messageValue = message.value.toString();
           const handler = handlers[topic];
+          console.log("messageValue", messageValue);
           if (handler) {
             try {
               await handler(messageValue);

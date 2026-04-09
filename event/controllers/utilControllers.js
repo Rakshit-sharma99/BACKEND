@@ -163,6 +163,7 @@ const fetchTicketTypesCount = async (query) => {
 };
 
 const fetchTicketFieldsById = async (query) => {
+  console.log("Hitt tickets")
   const url = `http://ticket:6000/ticket/api/v1/getTicketFieldsById`;
   try {
     if (!query.ticketId || !Array.isArray(query.fields)) {
@@ -258,11 +259,21 @@ const sendMail = async (
       },
     },
   };
+  console.log(
+    "region", process.env.AWS_REGION,
+    "accessKey", process.env.AWS_ACCESS_KEY_ID,
+    "sceret", process.env.AWS_SECRET_ACCESS_KEY
+  )
+  const AWS = require("aws-sdk");
 
   AWS.config.update({
     region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    httpOptions: {
+      timeout: 5000,         // total request timeout
+      connectTimeout: 5000   // connection timeout
+    }
   });
 
   const ses = new AWS.SES();
@@ -1335,7 +1346,7 @@ const fetchEventAdminsByFields = async (query) => {
     const { fields } = query;
     const config = generateServiceToken();
     const admins = await axios.post(
-      `http://universe:7000/universe/api/v1/admin/fetchEventAdminsByFields`,
+      `http://universe:5050/universe/api/v1/admin/fetchEventAdminsByFields`,
       {
         fields,
       },
@@ -1345,6 +1356,21 @@ const fetchEventAdminsByFields = async (query) => {
   } catch (error) {
     console.log(error);
     return null;
+  }
+}
+
+const fetchMultipleTicketFieldsById = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getMultipleTicketFieldsByIds`;
+  try {
+    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
+      return [];
+    }
+    const config = generateServiceToken();
+    const ticketData = await axios.post(url, query, config);
+    return ticketData.data.tickets || [];
+  } catch (error) {
+    console.error(`❌ Error in fetchMultipleTicketsByIds (${url}):`, error.message);
+    return [];
   }
 }
 
@@ -1372,5 +1398,6 @@ module.exports = {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
-  fetchEventAdminsByFields
+  fetchEventAdminsByFields,
+  fetchMultipleTicketFieldsById
 };

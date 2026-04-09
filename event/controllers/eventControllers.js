@@ -22,11 +22,13 @@ const {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
-  fetchEventAdminsByFields
+  fetchEventAdminsByFields,
+  fetchMultipleTicketFieldsById
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const schedule = require("node-schedule");
 const { default: mongoose } = require("mongoose");
+const axios = require("axios");
 
 //MiddleWare
 const isAuthorized = async (id, role, belongsTo, callSign) => {
@@ -3420,7 +3422,13 @@ const requestCancellation = async (req, res) => {
         .send("You must agree to the terms and conditions.");
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findByIdAndUpdate(id, {
+      $set: {
+        "cancellation.requested": true,
+        "cancellation.requestedBy": req.user.id,
+        "cancellation.reason": reason
+      }
+    });
 
     if (!event) {
       return res
@@ -3428,19 +3436,16 @@ const requestCancellation = async (req, res) => {
         .send("Event not found with provided ID.");
     }
 
-    event.cancellation.requested = true;
-    event.cancellation.requestedBy = req.user.id;
-    event.cancellation.reason = reason;
-    await event.save();
+
 
     //secondary actions
     try {
       const admins = await fetchEventAdminsByFields({
         fields: ["name", "email", "pushToken"]
       })
-      const subject = `Cancellation Request for "${event.name}"`;
+      const subject = `Event Cancellation Request for ${event.name}`;
 
-      const intro = `A cancellation request has been submitted for the event "${event.name}".
+      const intro = `A cancellation request has been submitted for the event ${event.name}.
 
       The organizer has requested that this event be cancelled. Please review the request and take the necessary action. Until an administrator approves the cancellation, the event will remain active and participants will not be notified.
 
@@ -3502,46 +3507,50 @@ const processRefund = async (
   eventId
 ) => {
   try {
-    // step 1 : verify payment status from Razorpay API
+
+    if (!razorpay_payment_id?.startsWith("pay_")) {
+      console.log("Invalid payment ID → skipping refund");
+      return;
+    }
+
     const authHeader = `Basic ${Buffer.from(
-      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
+      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
     ).toString("base64")}`;
 
+    // Step 1: Fetch payment from Razorpay
     const paymentResponse = await axios.get(
       `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
-      { headers: { Authorization: authHeader } },
+      { headers: { Authorization: authHeader } }
     );
 
     const payment = paymentResponse.data;
 
-    if (payment.status === "captured") {
-      // Step 2: Initiate refund since the payment is valid
-      const refundResponse = await axios.post(
-        `https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`,
-        { amount: 100 }, // Refund full amount
-        { headers: { Authorization: authHeader } },
-      );
-
-      // Step 3: Log the refund
-      await sendKafkaMessage("CREATE_REFUND", "refund", {
-        paymentId: razorpay_payment_id,
-        eventId,
-        userId,
-        amtPaid,
-        refundStatus: "PENDING",
-      });
-
-      console.log(`Refund initiated successfully.`);
-    } else {
-      console.log(
-        `Payment ID ${razorpay_payment_id} is not captured. Refund not possible.`,
-      );
+    if (payment.status !== "captured") {
+      return;
     }
 
+    // Step 2: Refund using Razorpay amount (NOT amtPaid)
+    const refundResponse = await axios.post(
+      `https://api.razorpay.com/v1/payments/${razorpay_payment_id}/refund`,
+      {
+        amount: payment.amount,
+      },
+      { headers: { Authorization: authHeader } }
+    );
+
+    // Step 3: Log refund
+    await sendKafkaMessage("CREATE_REFUND", "refund", {
+      paymentId: razorpay_payment_id,
+      eventId,
+      userId,
+      amtPaid: payment.amount / 100,
+      refundStatus: "PENDING",
+    });
+
   } catch (error) {
-    console.error("Error in processRefund:", error);
+    console.error("Razorpay error:", error.response?.data || error.message);
   }
-}
+};
 
 const cancelEvent = async (req, res) => {
   const { id } = req.body;
@@ -3554,25 +3563,40 @@ const cancelEvent = async (req, res) => {
       });
     }
 
-    const event = await Event.findById(id);
+    const event = await Event.findByIdAndUpdate(id, {
+      $set: {
+        status: "cancelled"
+      }
+    });
+
     if (!event) {
       return res
         .status(StatusCodes.NOT_FOUND)
         .send("Event not found with provided ID.");
     }
-    event.status = "cancelled";
-    await event.save();
 
-    const tickets = await fetchTicketFieldsById(
+    const tickets = await fetchMultipleTicketFieldsById(
       {
         ticketIds: event.bookedBy,
-        populateFields: ["boughtBy"],
-        fields: ["name", "email", "pushToken", "paymentId", "amtPaid"]
+        fields: ["boughtBy", "paymentId", "amtPaid"]
       });
+    const usersData = [];
+    const uniqueUsers = [...new Set(tickets.map(ticket => ticket.boughtBy))];
+
+    for (const userId of uniqueUsers) {
+      const user = await fetchUserData(
+        {
+          id: userId,
+          fields: ["name", "email", "pushToken"]
+        });
+      usersData.push(user);
+    }
 
     // Initate Refund for the ticket buyers
     for (const ticket of tickets) {
-      await processRefund(ticket.paymentId, ticket.amtPaid, ticket.boughtBy._id, event._id);
+      if (ticket.amtPaid > 0) {
+        await processRefund(ticket.paymentId, ticket.amtPaid, ticket.boughtBy, event._id);
+      }
     }
 
     try {
@@ -3597,8 +3621,8 @@ const cancelEvent = async (req, res) => {
         },
       };
 
-      for (const ticket of tickets) {
-        const { name, email, pushToken } = ticket;
+      for (const user of usersData) {
+        const { name, email, pushToken } = user;
         const destination = email;
         const { ses, params } = await sendMail(
           name,
@@ -3628,11 +3652,13 @@ const cancelEvent = async (req, res) => {
 
 const requestEventLive = async (req, res) => {
   try {
+
     const { eventId } = req.query;
+
     if (!eventId) {
       return res
         .status(StatusCodes.BAD_REQUEST)
-        .send("Event ID is required.");
+        .json({ success: false, message: "Event ID is required." });
     }
 
     const event = await Event.findById(eventId);
@@ -3640,9 +3666,15 @@ const requestEventLive = async (req, res) => {
     if (!event) {
       return res
         .status(StatusCodes.NOT_FOUND)
-        .send("Event not found with provided ID.");
+        .json({ success: false, message: "Event not found with provided ID." });
     }
 
+    if (event.status === "featured") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "Event is already live." });
+    }
+    
     // send mail to admins
     try {
       const admins = await fetchEventAdminsByFields({
@@ -3698,93 +3730,97 @@ const requestEventLive = async (req, res) => {
 
 const requestPostponement = async (req, res) => {
   try {
-    const { eventId, eventData, eventEndDate, startTime, endTime } = req.body;
+    const { eventId, eventData, eventEndDate, startTime, endTime, reason } = req.body;
 
     if (!eventId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event ID is required." });
+      return res.status(400).json({
+        success: false,
+        message: "Event ID is required.",
+      });
     }
 
     const event = await Event.findById(eventId);
 
     if (!event) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .json({ success: false, message: "Event not found with provided ID." });
+      return res.status(404).json({
+        success: false,
+        message: "Event not found.",
+      });
     }
 
-    if (event.postponement.requested) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event is already postponed." });
+    if (event.postponement?.requested) {
+      return res.status(400).json({
+        success: false,
+        message: "Postponement already requested.",
+      });
     }
 
     if (event.status !== "featured") {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event is not featured." });
+      return res.status(400).json({
+        success: false,
+        message: "Only featured events can be postponed.",
+      });
     }
 
-    // eventdate and time validation
-    const prev_eventDate = new Date(event.eventDate);
-    const prev_eventEndDate = new Date(event.eventEndDate);
-    const prev_startTime = new Date(event.startTime);
-    const prev_endTime = new Date(event.endTime);
+    const now = new Date();
+    const prevEventDate = new Date(event.eventDate);
+    const prevEventEndDate = new Date(event.eventEndDate);
 
+    const newStartTime = new Date(startTime);
+    const newEndTime = new Date(endTime);
 
-    if (prev_eventDate <= Date.now() || eventDate > prev_eventDate) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Postponement date is invalid." });
+    if (prevEventDate <= now) {
+      return res.status(400).json({
+        success: false,
+        message: "Event already started. Cannot postpone.",
+      });
     }
 
-    if (prev_eventEndDate <= Date.now()) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event is already started." });
+    if (prevEventEndDate <= now) {
+      return res.status(400).json({
+        success: false,
+        message: "Event already ended.",
+      });
     }
 
-    if (startTime < Date.now()) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event is already started." });
+    if (newStartTime <= now) {
+      return res.status(400).json({
+        success: false,
+        message: "New start time must be in future.",
+      });
     }
 
-    if (endTime < Date.now()) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({ success: false, message: "Event is already ended." });
+    if (newEndTime <= newStartTime) {
+      return res.status(400).json({
+        success: false,
+        message: "End time must be after start time.",
+      });
     }
 
-    event.postponement = {
-      requested: true,
-      requestedBy: req.user.id,
-      reason: req.body.reason,
-      eventData: req.body.eventData,
-      eventEndDate: req.body.eventEndDate,
-      startTime: req.body.startTime,
-      endTime: req.body.endTime,
-    };
+    await Event.findByIdAndUpdate(eventId, {
+      $set: {
+        "postponement.requested": true,
+        "postponement.requestedBy": req.user.id,
+        "postponement.reason": reason,
+        "postponement.eventData": eventData,
+        "postponement.eventEndDate": eventEndDate,
+        "postponement.startTime": startTime,
+        "postponement.endTime": endTime,
+      },
+    });
 
-    await event.save();
-    // send mail to admins
     try {
       const admins = await fetchEventAdminsByFields({
-        fields: ["name", "email", "pushToken"]
-      })
+        fields: ["name", "email", "pushToken"],
+      });
+
       const subject = `Request to Postpone "${event.name}"`;
 
-      const intro = `A request has been submitted to postpone the event "${event.name}" on the platform.
-
-      Please review the event details and verify that all required information, content, ticket settings, and policies are in place before approving it. Until approval is granted, the event will remain hidden from students and will not be available for registration.
-
-      Once approved, the event will spring onto the platform stage like a curtain finally rising.`;
-
-      const outro = `Please review this request and approve or reject it at your earliest convenience.`;
+      const intro = `A request has been submitted to postpone the event "${event.name}". Please review it.`;
+      const outro = `Please approve or reject this request.`;
 
       const action = {
-        instructions: "Click the button below to review the event and take action:",
+        instructions: "Click below:",
         button: {
           color: "#16a34a",
           text: "Review Event",
@@ -3793,14 +3829,14 @@ const requestPostponement = async (req, res) => {
       };
 
       for (const admin of admins) {
-        const { name, email, pushToken } = admin;
-        const destination = email;
+        const { name, email } = admin;
+
         const { ses, params } = await sendMail(
           name,
           intro,
           outro,
           subject,
-          destination,
+          email,
           action,
           null
         );
@@ -3808,18 +3844,22 @@ const requestPostponement = async (req, res) => {
         await ses.sendEmail(params).promise();
       }
     } catch (err) {
-      console.error("Error sending emails:", err);
+      console.error("Email error:", err.message);
     }
-    return res
-      .status(StatusCodes.OK)
-      .send("Event is now live.");
+
+    return res.status(200).json({
+      success: true,
+      message: "Postponement request submitted successfully.",
+    });
+
   } catch (err) {
-    console.error("Error requesting event to be live:", err);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Something went wrong");
+    console.error("Controller error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
-}
+};
 
 module.exports = {
   createEvent,

@@ -447,7 +447,7 @@ const loginUser = async (req, res) => {
     console.log("login attempted");
 
     const { email, password, platform = "app" } = req.body;
-
+    console.log(email,password)
     const user = await User.findOne(
       { email },
       {

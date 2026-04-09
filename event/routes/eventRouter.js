@@ -54,7 +54,11 @@ const {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
-  getLiveEvents
+  getLiveEvents,
+  requestCancellation,
+  requestPostponement,
+  requestEventLive,
+  cancelEvent,
 } = require("../controllers/eventControllers");
 
 router.post("/createEvent", createEvent);
@@ -110,4 +114,8 @@ router.post("/insertNewFields", insertNewFields);
 router.post("/getFeaturedEvents", getFeaturedEvents);
 router.get("/getLandingEvent", getFeaturedEventsForFeed);
 router.get("/getLiveEvents", getLiveEvents);
+router.post("/requestCancellation",requestCancellation);
+router.post("/cancelEvent",cancelEvent)
+router.get("/requestEventLive",requestEventLive)
+router.post("/requestPostponement",requestPostponement)
 module.exports = router;

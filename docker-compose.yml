@@ -1,19 +1,6 @@
 version: '3.8'
 
 services:
-  ipls:
-    build:
-      context: ./ipls
-      dockerfile: Dockerfile
-    image: spargens/ipls
-    env_file:
-      - ./env/ipls/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped # Automatically restart
 
   universe:
     build:
@@ -28,6 +15,8 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    ports:
+      - "5050:5050"
 
   multiverse:
     build:
@@ -84,6 +73,8 @@ services:
     networks:
       - app-network
     restart: unless-stopped
+    ports:
+      - "5060:5060"
 
   bag:
     build:
@@ -238,7 +229,8 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-
+    ports:
+      - "6000:6000"
   refund:
     build:
       context: ./refund
@@ -330,79 +322,6 @@ services:
     image: spargens/starman
     env_file:
       - ./env/starman/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  credit:
-    build:
-      context: ./credit
-      dockerfile: Dockerfile
-    image: spargens/credit
-    env_file:
-      - ./env/credit/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  question:
-    build:
-      context: ./question
-      dockerfile: Dockerfile
-    image: spargens/question
-    env_file:
-      - ./env/question/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  knowledge:
-    build:
-      context: ./knowledge
-      dockerfile: Dockerfile
-    image: spargens/knowledge
-    env_file:
-      - ./env/knowledge/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  sere:
-    build:
-      context: ./sere
-      dockerfile: Dockerfile
-    image: spargens/sere
-    env_file:
-      - ./env/sere/.env
-    depends_on:
-      - kafka
-      - redis
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  social-claw:
-    build:
-      context: ./social-claw
-      dockerfile: Dockerfile
-    image: spargens/social-claw
-    env_file:
-      - ./env/social-claw/.env
-    volumes:
-      - social-claw-data:/app/data
-      - social-claw-auth:/app/auth_info
     depends_on:
       - kafka
       - redis
