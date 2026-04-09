@@ -3347,6 +3347,9 @@ const checkUserChannelRole = async (req, res) => {
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ error: "Something went wrong" });
+  }
+};
+
 const getRecommendedProfiles = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
