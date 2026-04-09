@@ -52,6 +52,8 @@ const shortcutSchema = new mongoose.Schema(
       location: String,
       logo: String,
       logoKey: String,
+      lat: Number,
+      lng: Number,
     },
   },
   { _id: false },
