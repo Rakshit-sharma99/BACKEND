@@ -3747,101 +3747,6 @@ const slugifyAllEvents = async (req, res) => {
   }
 };
 
-async function ticketBuyResolver(access_level, clubId, userId, uids = [], n_uids = [], privateCodes = [], usersList = [], user_uid, user_privateCode) {
-
-  if (access_level === "public") {
-    if (n_uids.length && n_uids.includes(user_uid)) {
-      return false;
-    }
-    return true;
-  }
-
-  let club;
-  if (["club_members", "club_admins", "club_core"].includes(access_level)) {
-    club = await Club.findById(clubId);
-    if (!club) return false;
-  }
-
-  if (access_level === "club_members") {
-    return club.members.some(member => member.toString() === userId.toString());
-  }
-
-  if (access_level === "club_admins") {
-    return club.adminId.some(admin => admin.toString() === userId.toString());
-  }
-
-  if (access_level === "club_core") {
-    return club.team.some(member => member.toString() === userId.toString());
-  }
-
-  if (access_level === "native") {
-    return uids.includes(user_uid);
-  }
-
-  if (access_level === "private_code") {
-    return privateCodes.includes(user_privateCode);
-  }
-
-  if (access_level === "users_list") {
-    return usersList.includes(userId);
-  }
-
-  return false;
-}
-
-const canBuyTicket = async (req, res) => {
-  try {
-    const { eventId, ticketType, privateCode, uid } = req.body;
-
-    if (!eventId) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Event ID is required" });
-    }
-
-    const event = await Event.findById(eventId);
-    if (!event) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "Event not found" });
-    }
-
-    const ticketTypes = event.ticketTypes;
-
-    if (!ticketType) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Ticket type is required" });
-    }
-
-    if (!ticketTypes || ticketTypes.length === 0) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "No tickets available for this event" });
-    }
-
-    const type = ticketTypes.find((t) => t.type === ticketType);
-    if (!type) {
-      return res.status(StatusCodes.NOT_FOUND).json({ message: "Ticket type not found" });
-    }
-
-    const access_level = type.visibility.scope;
-    const clubId = event.belongsTo.id;
-    const userId = req.user.id;
-    const uids = type.visibility.uids || [];
-    const n_uids = type.visibility.n_uids || [];
-    const privateCodes = type.visibility.privateCodes || [];
-    const usersList = type.visibility.usersList || [];
-    const user_uid = uid;
-    const user_privateCode = privateCode;
-
-    const canBuy = await ticketBuyResolver(
-      access_level, clubId, userId, uids, n_uids, privateCodes, usersList, user_uid, user_privateCode
-    );
-
-    if (!canBuy) {
-      return res.status(StatusCodes.FORBIDDEN).json({ success: false, canBuy: false, message: "You are not authorized to buy this ticket" });
-    }
-
-    return res.status(StatusCodes.OK).json({ success: true, canBuy: true, message: "You can buy ticket" });
-
-  } catch (error) {
-    console.error(error);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
-  }
-};
 
 module.exports = {
   createEvent,
@@ -3858,7 +3763,6 @@ module.exports = {
   getFaq,
   changeStatusJob,
   getTickets,
-  canBuyTicket,
   generateTicketListPdf,
   getReviews,
   checkTicketAvailability,
