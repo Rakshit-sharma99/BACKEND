@@ -1353,6 +1353,8 @@ const fetchClubFieldsById = async (query) => {
       "fetchClubFieldsById error:",
       error.response?.data || error.message,
     );
+  }
+}
 // ─── Channel Inter-Service Helpers ─────────────────────────────────────
 
 /**

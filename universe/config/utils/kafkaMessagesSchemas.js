@@ -367,7 +367,6 @@ const DELETE_EVENT = {
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
-  ...CREATE_COMMUNITY,
   ...UPDATE_CONTENT,
   ...UPDATE_INVITATION,
   ...UPDATE_JOINLINK,
