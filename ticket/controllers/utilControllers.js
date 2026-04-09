@@ -44,6 +44,66 @@ const fetchEventData = async (query) => {
   }
 };
 
+const fetchLayoutById = async (layoutId) => {
+  try {
+    if (!layoutId) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.get(
+      `http://universe:5050/universe/api/v1/layout/getLayoutById?layoutId=${layoutId}`,
+      config
+    );
+
+    return response.data.data || null;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+};
+
+const verifyTicketPurchaseAccess = async ({
+  eventId,
+  ticketType,
+  privateCode,
+  uid,
+  userId,
+}) => {
+  try {
+    if (!eventId || !ticketType || !userId) {
+      return {
+        success: false,
+        canBuy: false,
+        message: "Missing eventId, ticketType or userId",
+      };
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://event:5060/event/api/v1/canBuyTicket",
+      {
+        eventId,
+        ticketType,
+        privateCode,
+        uid,
+        userId,
+      },
+      config
+    );
+
+    return response.data;
+  } catch (error) {
+    return (
+      error.response?.data || {
+        success: false,
+        canBuy: false,
+        message: "Unable to verify ticket access",
+      }
+    );
+  }
+};
+
 const fetchUserData = async (query) => {
   try {
     if (
@@ -339,7 +399,9 @@ const scheduleNotification2 = ({ pushToken, title, body, image, url }) => {
 };
 
 module.exports = {
+  fetchLayoutById,
   fetchEventData,
+  verifyTicketPurchaseAccess,
   fetchUserData,
   fetchNativeClubData,
   scheduleNotification,

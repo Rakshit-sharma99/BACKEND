@@ -98,73 +98,6 @@ const CREATE_USER = {
   },
 };
 
-/**
- * @typedef {Object} CREATE_COMMUNITY_PAYLOAD
- * @property {String} _id
- * @property {String} title
- * @property {String} cover
- * @property {String} secondaryCover
- * @property {String} label
- * @property {Date} createdOn
- * @property {String[]} tag
- * @property {String[]} hiddenTags
- * @property {String} uid
- * @property {Object} universeMetaData
- */
-
-const CREATE_COMMUNITY = {
-  CREATE_COMMUNITY: {
-    topicSuffix: "_create_community",
-
-    validate: (data) => {
-      if (!data || typeof data !== "object") {
-        throw new Error("Payload must be an object");
-      }
-
-      const requiredStringFields = [
-        "_id",
-        "title",
-        "cover",
-        "secondaryCover",
-        "label",
-        "uid"
-      ];
-
-      const requiredArrayFields = ["tag", "hiddenTags"];
-
-      for (const field of requiredStringFields) {
-        if (typeof data[field] !== "string" || !data[field].trim()) {
-          throw new Error(`'${field}' must be a non-empty string`);
-        }
-      }
-
-      for (const field of requiredArrayFields) {
-        if (
-          !Array.isArray(data[field])
-        ) {
-          throw new Error(`'${field}' must be an array of strings`);
-        }
-      }
-
-      const date = new Date(data.createdOn);
-      if (isNaN(date.getTime())) {
-        throw new Error("'createdOn' must be a valid ISO date string");
-      }
-
-      if (
-        typeof data.universeMetaData !== "object" ||
-        data.universeMetaData === null ||
-        Array.isArray(data.universeMetaData)
-      ) {
-        throw new Error("'universeMetaData' must be a valid object");
-      }
-    },
-
-    build: (payload) => ({
-      value: JSON.stringify(payload),
-    }),
-  }
-}
 
 /**
  * @typedef {Object} UPDATE_CONTENT_PAYLOAD
@@ -407,6 +340,30 @@ const CREATE_UNIVERSE = {
   }
 }
 
+/**
+ * @typedef {Object} DELETE_EVENT_PAYLOAD
+ * @property {string} eventId
+ */
+
+const DELETE_EVENT = {
+  DELETE_EVENT: {
+    topicSuffix: "_delete_event",
+
+    validate: (data) => {
+      if (!data || typeof data !== "object") {
+        throw new Error("Payload must be an object");
+      }
+      if (typeof data.eventId !== "string" || !data.eventId.trim()) {
+        throw new Error("'eventId' must be a non-empty string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -417,5 +374,6 @@ module.exports = {
   ...CREATE_MEMORY,
   ...USER_ACTIVITY,
   ...USER_SIGNUP,
-  ...CREATE_UNIVERSE
+  ...CREATE_UNIVERSE,
+  ...DELETE_EVENT
 }

@@ -67,6 +67,9 @@ const ticketSchema = new mongoose.Schema(
     type: {
       type: String,
     },
+    seatId: {
+      type: String,
+    },
     reviewLiked: {
       type: Boolean,
       default: false,
@@ -111,5 +114,7 @@ const ticketSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+ticketSchema.index({ eventId: 1, seatId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Ticket", ticketSchema);

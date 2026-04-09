@@ -16,7 +16,6 @@ const {
   fetchJoinLinkById,
   fetchBags,
 } = require("./utils");
-const JoinLink = require("../models/joinLink");
 
 const STOP_WORDS = new Set([
   "did",
@@ -136,18 +135,6 @@ const createCommunity = async (req, res) => {
       scope,
     });
 
-    await sendKafkaMessage("CREATE_COMMUNITY", "multiverse", {
-      _id: community._id.toString(),
-      title,
-      cover,
-      secondaryCover,
-      label,
-      createdOn,
-      tag,
-      hiddenTags,
-      uid: req.user.uid,
-      universeMetaData,
-    });
 
     const shortCut = {
       type: "community",
@@ -200,20 +187,50 @@ const createCommunity = async (req, res) => {
 
 //Controller 2
 const deleteCommunity = async (req, res) => {
-  if (req.user.role === "admin") {
+  try {
     const { id } = req.body;
-    const community = await Community.findByIdAndDelete(id);
-    if (community) {
-      return res.status(StatusCodes.OK).json({ deletedCommunity: community });
-    } else {
+
+    // ✅ Validate input
+    if (!id) {
       return res
-        .status(StatusCodes.OK)
-        .send("Unable to find the community and delete it.");
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Community id is required.");
     }
-  } else {
+
+    // ✅ Role check
+    if (req.user.role !== "admin") {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to delete a community.");
+    }
+
+    // ✅ (Optional but recommended) ownership check
+    const community = await Community.findById(id);
+    if (!community) {
+      return res.status(StatusCodes.NOT_FOUND).send("Community not found.");
+    }
+    if (community.createdBy.toString() !== req.user.id) {
+      return res.status(StatusCodes.FORBIDDEN).send("Not your community.");
+    }
+
+    // ✅ Delete
+    const deletedCommunity = await Community.findByIdAndDelete(id).lean();
+
+    if (!deletedCommunity) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Community not found.");
+    }
+
+    return res.status(StatusCodes.OK).json({
+      deletedCommunity,
+    });
+  } catch (error) {
+    console.error("deleteCommunity error:", error);
+
     return res
-      .status(StatusCodes.OK)
-      .send("You are not authorized to delete a community.");
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to delete community.");
   }
 };
 
@@ -1032,65 +1049,145 @@ const getCommunityById = async (req, res) => {
 
 //Controller 14
 const getCommunityByTag = async (req, res) => {
-  const { tag } = req.query;
-  const communities = await Community.find(
-    { tag: new RegExp(tag, "i", "g") },
-    { secondaryCover: 1, title: 1, tag: 1, activeMembers: 1, label: 1 },
-  );
-  if (req.user.role === "user") {
-    User.findById(req.user.id, (err, user) => {
-      if (err) return console.error(err);
-      user.lastActive = new Date();
-      user.save();
-    });
-  } else if (req.user.role === "admin") {
-    Admin.findById(req.user.id, (err, admin) => {
-      if (err) return console.error(err);
-      admin.lastActive = new Date();
-      admin.save();
-    });
+  try {
+    const { tag } = req.query;
+
+    // ✅ Validate input
+    if (!tag || typeof tag !== "string") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("Valid tag is required.");
+    }
+
+    // ✅ Escape regex (prevent injection/ReDoS)
+    const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(escapedTag, "i");
+
+    // ✅ Fetch communities
+    const communities = await Community.find(
+      { tag: regex },
+      {
+        secondaryCover: 1,
+        title: 1,
+        tag: 1,
+        activeMembers: 1,
+        label: 1,
+      }
+    ).lean();
+
+    // ✅ Non-blocking lastActive update
+    const updateLastActive = async () => {
+      try {
+        if (req.user.role === "user") {
+          await User.findByIdAndUpdate(req.user.id, {
+            lastActive: new Date(),
+          });
+        } else if (req.user.role === "admin") {
+          await Admin.findByIdAndUpdate(req.user.id, {
+            lastActive: new Date(),
+          });
+        }
+      } catch (err) {
+        console.error("lastActive update failed:", err);
+      }
+    };
+
+    updateLastActive(); // fire & forget
+
+    return res.status(StatusCodes.OK).json(communities);
+  } catch (error) {
+    console.error("getCommunityByTag error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch communities.");
   }
-  return res.status(StatusCodes.OK).json(communities);
 };
 
 //Controller 15
 const isMember = async (req, res) => {
-  const { communityId } = req.query;
-  if (req.user.role === "user") {
-    User.findById(req.user.id, (err, user) => {
-      if (err) return console.error(err);
-      let communitiesPartOf = user.communitiesPartOf;
-      communitiesPartOf = communitiesPartOf.filter(
-        (item) => item.communityId === communityId,
-      );
-      if (communitiesPartOf.length !== 0) {
-        return res.status(StatusCodes.OK).send("You are member.");
-      } else {
-        return res.status(StatusCodes.OK).send("You are not a member.");
-      }
-    });
-  } else if (req.user.role === "admin") {
-    Admin.findById(req.user.id, (err, admin) => {
-      if (err) return console.error(err);
-      let communitiesPartOf = admin.communitiesPartOf;
-      communitiesPartOf = communitiesPartOf.filter(
-        (item) => item.communityId === communityId,
-      );
-      if (communitiesPartOf.length !== 0) {
-        return res.status(StatusCodes.OK).send("You are member.");
-      } else {
-        return res.status(StatusCodes.OK).send("You are not a member.");
-      }
-    });
+  try {
+    const { communityId } = req.query;
+    const userId = req.user.id;
+
+    if (!communityId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("communityId is required.");
+    }
+
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    const Model = req.user.role === "user" ? User : Admin;
+
+    const entity = await Model.findById(
+      userId,
+      { communitiesPartOf: 1 }
+    ).lean();
+
+    if (!entity) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("User/Admin not found.");
+    }
+
+    const communities = entity.communitiesPartOf || [];
+
+    const isMember = communities.some(
+      (item) => item.communityId?.toString() === communityId
+    );
+
+    if (isMember) {
+      return res.status(StatusCodes.OK).send("You are member.");
+    } else {
+      return res.status(StatusCodes.OK).send("You are not a member.");
+    }
+  } catch (error) {
+    console.error("isMember error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to check membership.");
   }
 };
 
 //Controller 16
 const getContentOfACommunity = async (req, res) => {
-  const { communityId } = req.query;
-  const community = await Community.findById(communityId);
-  const contents = community.content;
-  return res.status(StatusCodes.OK).json(contents);
+  try {
+    const { communityId } = req.query;
+
+    // ✅ Validate input
+    if (!communityId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("communityId is required.");
+    }
+
+    // ✅ Fetch community with content
+    const community = await Community.findById(communityId, {
+      content: 1,
+    }).lean();
+
+    if (!community) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Community not found.");
+    }
+
+    const contents = community.content || [];
+
+    return res.status(StatusCodes.OK).json(contents);
+  } catch (error) {
+    console.error("getContentOfACommunity error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch community content.");
+  }
 };
 
 //Controller 17
@@ -1149,35 +1246,60 @@ const getCommunitiesPartOf = async (req, res) => {
 
 //Controller 18
 const getLatestContent = async (req, res) => {
-  const { communityId } = req.query;
-  if (req.user.role === "user") {
-    const user = await User.findById(req.user.id);
-    let lastActive = user.lastActive;
-    lastActive = new Date(lastActive);
-    let arr = [];
-    Community.findById(communityId, (err, community) => {
-      if (err) return console.error(err);
-      let contents = community.content;
-      for (let i = 0; i < contents.length; i++) {
-        let content = contents[i];
-        if (lastActive - new Date(content.timeStamp) < 0) arr.push(content);
-      }
-      return res.status(StatusCodes.OK).json(arr);
-    });
-  } else if (req.user.role === "admin") {
-    const admin = await Admin.findById(req.user.id);
-    let lastActive = admin.lastActive;
-    lastActive = new Date(lastActive);
-    let arr = [];
-    Community.findById(communityId, (err, community) => {
-      if (err) return console.error(err);
-      let contents = community.content;
-      for (let i = 0; i < contents.length; i++) {
-        let content = contents[i];
-        if (lastActive - new Date(content.timeStamp) < 0) arr.push(content);
-      }
-      return res.status(StatusCodes.OK).json(arr);
-    });
+  try {
+    const { communityId } = req.query;
+    const userId = req.user.id;
+
+    if (!communityId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("communityId is required.");
+    }
+
+    if (!["user", "admin"].includes(req.user.role)) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to access this resource.");
+    }
+
+    const Model = req.user.role === "user" ? User : Admin;
+
+    const entity = await Model.findById(userId, {
+      lastActive: 1,
+    }).lean();
+
+    if (!entity) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("User/Admin not found.");
+    }
+
+    const lastActive = new Date(entity.lastActive || 0);
+
+    const community = await Community.findById(
+      communityId,
+      { content: 1 }
+    ).lean();
+
+    if (!community) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Community not found.");
+    }
+
+    const contents = community.content || [];
+
+    const arr = contents.filter(
+      (item) => new Date(item.timeStamp) > lastActive
+    );
+
+    return res.status(StatusCodes.OK).json(arr);
+  } catch (error) {
+    console.error("getLatestContent error:", error);
+
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch latest content.");
   }
 };
 
@@ -1712,7 +1834,7 @@ const secondaryActionsForPost = async (
             lastPosted.getMonth(),
             lastPosted.getDate(),
           )) /
-          _MS_PER_DAY,
+        _MS_PER_DAY,
       );
 
       if (diff < 0) {
@@ -1849,9 +1971,54 @@ const post = async (req, res) => {
 
 //Controller 30
 const editCommunityProfile = async (req, res) => {
-  const { communityId, data } = req.body;
-  await Community.findByIdAndUpdate(communityId, { ...data });
-  return res.status(StatusCodes.OK).send("Successfully updated!");
+  try {
+    const { communityId, data } = req.body;
+
+    if (!communityId || !data || typeof data !== "object") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("communityId and valid data object are required.");
+    }
+
+    const allowedFields = [
+      "title",
+      "cover",
+      "secondaryCover",
+      "tag",
+      "label",
+    ];
+
+    const updateData = {};
+    for (const key of allowedFields) {
+      if (data[key] !== undefined) {
+        updateData[key] = data[key];
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("No valid fields provided for update.");
+    }
+
+    const updatedCommunity = await Community.findByIdAndUpdate(
+      communityId,
+      { $set: updateData },
+      { runValidators: true }
+    );
+
+    if (!updatedCommunity) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Community not found.");
+    }
+
+    return res.status(StatusCodes.OK).send("Successfully updated!");
+  } catch (error) {
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to update community.");
+  }
 };
 
 //Controller 31
@@ -2678,9 +2845,8 @@ const setEntryRules = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: `Passout year must be between 1900 and ${
-          new Date().getFullYear() + 6
-        }.`,
+        message: `Passout year must be between 1900 and ${new Date().getFullYear() + 6
+          }.`,
       });
     }
 
@@ -3317,9 +3483,9 @@ const getRandomCommunities = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-          acc[field.trim()] = 1;
-          return acc;
-        }, {})
+        acc[field.trim()] = 1;
+        return acc;
+      }, {})
       : {};
 
     const communities = await Community.aggregate([
@@ -3523,8 +3689,8 @@ const getCommunitiesRecommendation = async (req, res) => {
 
     const excludedIds = Array.isArray(nIds)
       ? nIds
-          .filter((id) => mongoose.Types.ObjectId.isValid(id))
-          .map((id) => new mongoose.Types.ObjectId(id))
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+        .map((id) => new mongoose.Types.ObjectId(id))
       : [];
 
     const pipeline = [];
@@ -3649,16 +3815,15 @@ const getCommunitiesForFeed = async (req, res) => {
     const suggestedCommunities =
       interestTags.length > 0
         ? await Community.aggregate([
-            {
-              $match: {
-                _id: { $nin: joinedCommunityIds },
-                $or: [
-                  { tag: { $in: interestTags } },
-                  { label: { $in: interestTags } },
-                  // Optional: { title: { $in: interestTags } } if titles match interests
-                ],
-                ...universeFilter,
-              },
+          {
+            $match: {
+              _id: { $nin: joinedCommunityIds },
+              $or: [
+                { tag: { $in: interestTags } },
+                { label: { $in: interestTags } },
+                // Optional: { title: { $in: interestTags } } if titles match interests
+              ],
+              ...universeFilter,
             },
             { $sample: { size: limit } },
             {
@@ -3672,7 +3837,8 @@ const getCommunitiesForFeed = async (req, res) => {
                 universeMetaData: 1,
               },
             },
-          ])
+          },
+        ])
         : [];
 
     let finalCommunities = [...suggestedCommunities];
