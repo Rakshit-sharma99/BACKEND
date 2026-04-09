@@ -3825,15 +3825,17 @@ const getCommunitiesForFeed = async (req, res) => {
               ],
               ...universeFilter,
             },
-          },
-          { $sample: { size: limit } },
-          {
-            $project: {
-              secondaryCover: 1,
-              title: 1,
-              tag: 1,
-              activeMembers: 1,
-              label: 1,
+            { $sample: { size: limit } },
+            {
+              $project: {
+                secondaryCover: 1,
+                title: 1,
+                tag: 1,
+                activeMembers: 1,
+                label: 1,
+                uid: 1,
+                universeMetaData: 1,
+              },
             },
           },
         ])
@@ -3862,6 +3864,8 @@ const getCommunitiesForFeed = async (req, res) => {
             tag: 1,
             activeMembers: 1,
             label: 1,
+            uid: 1,
+            universeMetaData: 1,
           },
         },
       ]);

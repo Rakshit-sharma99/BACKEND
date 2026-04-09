@@ -71,6 +71,7 @@ const {
   bulkUpdateUserChannels,
   getUserChannels,
   checkUserChannelRole,
+  getRecommendedProfiles
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -146,4 +147,5 @@ router.post("/bulkUpdateUserChannels", bulkUpdateUserChannels);
 router.post("/getUserChannels", getUserChannels);
 router.post("/checkUserChannelRole", checkUserChannelRole);
 
+router.get("/getRecommendedProfiles",getRecommendedProfiles);
 module.exports = router;

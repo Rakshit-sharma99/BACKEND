@@ -4695,6 +4695,8 @@ const getClubsForFeed = async (req, res) => {
             secondaryImg: 1,
             tags: 1,
             motto: 1,
+            uid: 1,
+            universeMetaData: 1,
           },
         },
       ]);
