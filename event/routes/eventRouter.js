@@ -57,7 +57,6 @@ const {
   getFeaturedEvents,
   getFeaturedEventsForFeed,
   slugifyAllEvents,
-  canBuyTicket,
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
@@ -78,7 +77,6 @@ router.post("/answerTheQuestion", answerTheQuestion);
 router.get("/getFaq", getFaq);
 router.get("/changeStatusJob", changeStatusJob);
 router.get("/getTickets", getTickets);
-router.post("/canBuyTicket", canBuyTicket);
 router.get("/generateTicketListPdf", generateTicketListPdf);
 router.get("/getReviews", getReviews);
 router.get("/checkTicketAvailability", checkTicketAvailability);
