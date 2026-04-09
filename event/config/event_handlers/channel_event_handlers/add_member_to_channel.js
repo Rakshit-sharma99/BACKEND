@@ -1,4 +1,4 @@
-const { addMemberToChannel } = require("../../controllers/channelControllers");
+const { addMemberToChannel } = require("../../../controllers/channelControllers");
 
 const add_member_to_channel = async (messageValue) => {
   try {
