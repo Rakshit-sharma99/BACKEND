@@ -9,7 +9,10 @@ const create_universe = async (messageValue) => {
             return;
         }
 
-        const universe = await Universe.create(data);
+        const universe = await Universe.create({
+            ...data,
+            members: data.members ?? 1,
+        });
 
         await sendKafkaMessage(
             "UNIVERSE_CREATED",

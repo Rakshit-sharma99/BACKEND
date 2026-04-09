@@ -118,6 +118,20 @@ const createClub = async (req, res) => {
 
     secondaryActionsForClubCreation(req, club, founder);
 
+    // Emit stats update for the universe
+    const clubUniverseId = club.uid || req.user.uid;
+    if (clubUniverseId) {
+      try {
+        await sendKafkaMessage("UNIVERSE_STATS_UPDATE", "multiverse", {
+          universeId: clubUniverseId.toString(),
+          field: "clubs",
+          delta: 1,
+        });
+      } catch (kafkaErr) {
+        console.error("Failed to emit club stats update:", kafkaErr.message);
+      }
+    }
+
     return res.status(StatusCodes.OK).json(club);
   } catch (error) {
     console.error(error);
@@ -4652,11 +4666,12 @@ const getClubsForFeed = async (req, res) => {
     const suggestedClubs =
       interestTags.length > 0
         ? await Club.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              _id: { $nin: joinedClubIds },
-              ...universeFilter,
+            {
+              $match: {
+                tags: { $in: interestTags },
+                _id: { $nin: joinedClubIds },
+                ...universeFilter,
+              },
             },
           },
           { $sample: { size: limit } },
@@ -4669,7 +4684,6 @@ const getClubsForFeed = async (req, res) => {
               uid: 1,
               universeMetaData: 1,
             },
-          },
         ])
         : [];
 

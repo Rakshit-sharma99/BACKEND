@@ -364,6 +364,44 @@ const DELETE_EVENT = {
   },
 };
 
+/**
+ * @typedef {Object} UNIVERSE_STATS_UPDATE_PAYLOAD
+ * @property {string} universeId - The _id of the target universe
+ * @property {"clubs"|"communities"|"members"} field - The stat field to increment
+ * @property {number} delta - The increment value (typically 1 or -1)
+ */
+
+const UNIVERSE_STATS_UPDATE = {
+  UNIVERSE_STATS_UPDATE: {
+    topicSuffix: "_stats_update",
+
+    validate: (data) => {
+      if (!data || typeof data !== "object") {
+        throw new Error("Payload must be an object");
+      }
+
+      if (typeof data.universeId !== "string" || !data.universeId.trim()) {
+        throw new Error("'universeId' must be a non-empty string");
+      }
+
+      const validFields = ["clubs", "communities", "members"];
+      if (!validFields.includes(data.field)) {
+        throw new Error(
+          `'field' must be one of: ${validFields.join(", ")}`
+        );
+      }
+
+      if (typeof data.delta !== "number" || data.delta === 0) {
+        throw new Error("'delta' must be a non-zero number");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_USERTO_ORG,
   ...CREATE_USER,
@@ -374,5 +412,6 @@ module.exports = {
   ...USER_ACTIVITY,
   ...USER_SIGNUP,
   ...CREATE_UNIVERSE,
-  ...DELETE_EVENT
+  ...DELETE_EVENT,
+  ...UNIVERSE_STATS_UPDATE,
 }

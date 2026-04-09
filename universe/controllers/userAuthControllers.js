@@ -280,6 +280,19 @@ const registerUser = async (req, res) => {
       console.error("user.signup publish failed:", kafkaErr.message);
     }
 
+    /* ---------- Publish universe stats update ---------- */
+    if (finalUniverse._id) {
+      try {
+        await sendKafkaMessage("UNIVERSE_STATS_UPDATE", "multiverse", {
+          universeId: finalUniverse._id.toString(),
+          field: "members",
+          delta: 1,
+        });
+      } catch (kafkaErr) {
+        console.error("universe stats update publish failed:", kafkaErr.message);
+      }
+    }
+
     /* ---------- Cookies ---------- */
     res.cookie("access_token", accessToken, {
       httpOnly: true,

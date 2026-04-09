@@ -176,6 +176,20 @@ const createCommunity = async (req, res) => {
       { new: true },
     );
 
+    // Emit stats update for the universe
+    const communityUniverseId = community.uid || req.user.uid;
+    if (communityUniverseId) {
+      try {
+        await sendKafkaMessage("UNIVERSE_STATS_UPDATE", "multiverse", {
+          universeId: communityUniverseId.toString(),
+          field: "communities",
+          delta: 1,
+        });
+      } catch (kafkaErr) {
+        console.error("Failed to emit community stats update:", kafkaErr.message);
+      }
+    }
+
     return res.status(StatusCodes.OK).json(community);
   } catch (error) {
     console.error(error);

@@ -6,6 +6,7 @@ const {
   getQR,
   connect,
   logout,
+  requestPairingCode,
 } = require("../controllers/whatsapp/connectionController");
 
 const {
@@ -27,6 +28,7 @@ const {
 router.get("/status", getStatus);
 router.get("/qr", getQR);
 router.post("/connect", connect);
+router.post("/pairing-code", requestPairingCode);
 router.post("/logout", logout);
 
 // ── Community Management ──

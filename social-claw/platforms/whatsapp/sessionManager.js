@@ -552,12 +552,193 @@ async function createSession(userId, messageCallback) {
     return afterCount - beforeCount;
   }
 
+  /**
+   * Request a pairing code for phone-number-based linking.
+   *
+   * QR and pairing-code are mutually exclusive in Baileys — you cannot call
+   * requestPairingCode on a socket that already entered QR mode. So we tear
+   * down the current socket and create a fresh one specifically for pairing.
+   *
+   * @param {string} phoneNumber — Full international number (e.g. "919876543210")
+   * @returns {string} 8-character pairing code
+   */
+  async function requestPairingCode(phoneNumber) {
+    // Strip everything except digits
+    const cleaned = phoneNumber.replace(/[^\d]/g, "");
+    if (cleaned.length < 10) {
+      throw new Error("Invalid phone number — must include country code");
+    }
+
+    // Tear down any existing socket
+    if (sock) {
+      try { sock.end(); } catch (_) {}
+      sock = null;
+    }
+    // Clear any reconnect timer the old socket's close handler may have scheduled.
+    // sock.end() fires a close event whose handler schedules connect() in 3s —
+    // that stale timer would create a competing QR-mode socket mid-pairing.
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    connectionState = "connecting";
+    currentQR = null;
+
+    const baileys = await getBaileys();
+    const makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket || baileys.default;
+    const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+
+    // Clear stale auth so Baileys starts a fresh un-registered session
+    if (fs.existsSync(authDir)) {
+      fs.rmSync(authDir, { recursive: true, force: true });
+      fs.mkdirSync(authDir, { recursive: true });
+    }
+
+    const { version } = await fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+
+    const logger = pino({ level: "silent" });
+
+    sock = makeWASocket({
+      version,
+      auth: state,
+      logger,
+      printQRInTerminal: false,
+      browser: ["Macbease Starman", "Desktop", "20.0.04"],
+      syncFullHistory: true,
+    });
+
+    // Persist creds on this new socket
+    sock.ev.on("creds.update", saveCreds);
+
+    // Track whether the pairing code has been returned to the caller.
+    // During the handshake, Baileys may close/reopen the WS multiple times
+    // (status undefined). We must NOT reconnect via connect() during this
+    // window — doing so creates a QR-mode socket that conflicts with the
+    // pairing negotiation and triggers an immediate 401 loop.
+    let pairingCodeResolved = false;
+    let pairingSucceeded = false;
+
+    const code = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for WhatsApp server — try again"));
+      }, 30000);
+
+      sock.ev.on("connection.update", async (update) => {
+        if (destroyed) {
+          clearTimeout(timeout);
+          return reject(new Error("Session destroyed"));
+        }
+
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr && !pairingCodeResolved) {
+          // Server is ready — request pairing code instead of showing QR
+          try {
+            const pairingCode = await sock.requestPairingCode(cleaned);
+            clearTimeout(timeout);
+            pairingCodeResolved = true;
+            console.log(`📲 [${userId}] Pairing code generated for ${cleaned}: ${pairingCode}`);
+            resolve(pairingCode);
+          } catch (err) {
+            clearTimeout(timeout);
+            console.error(`[${userId}] Pairing code request failed:`, err.message);
+            reject(new Error("Could not generate pairing code — try again"));
+          }
+        }
+
+        if (connection === "open") {
+          pairingSucceeded = true;
+          connectionState = "open";
+          currentQR = null;
+          linkedPhoneInfo = sock.user || null;
+          console.log(`✅ [${userId}] WhatsApp connected via pairing code: ${linkedPhoneInfo?.id || "unknown"}`);
+
+          // Transition to the full session with all event listeners.
+          // The current socket has partial listeners; reconnecting via
+          // connect() wires up history sync, chats.set, etc.
+          console.log(`🔄 [${userId}] Transitioning pairing socket to full session...`);
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(() => connect(), 1000);
+        }
+
+        if (connection === "close") {
+          const statusCode =
+            lastDisconnect?.error?.output?.statusCode ||
+            lastDisconnect?.error?.statusCode;
+
+          if (!pairingCodeResolved) {
+            // Pairing code hasn't been returned yet — this is a fatal failure
+            connectionState = "disconnected";
+            console.log(`❌ [${userId}] Connection closed before pairing code was generated (status: ${statusCode})`);
+            // Don't reconnect — let the promise timeout or the user retry
+          } else if (pairingSucceeded) {
+            // Already connected once — use normal reconnect logic
+            connectionState = "disconnected";
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(
+              `❌ [${userId}] Post-pairing connection closed (status: ${statusCode}). ${shouldReconnect ? "Reconnecting..." : "Logged out."}`,
+              lastDisconnect?.error || "No error attached"
+            );
+            if (shouldReconnect && !destroyed) {
+              if (reconnectTimer) clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(() => connect(), 3000);
+            }
+          } else {
+            // Pairing code was returned but user hasn't entered it yet.
+            // Interim WS closes (status undefined) are NORMAL during the
+            // Baileys pairing handshake. We MUST reconnect so a live socket
+            // exists to receive the "open" event when the user enters the code.
+            // connect() uses the EXISTING auth dir (creds saved by saveCreds)
+            // so the server can complete the pairing handshake.
+
+            if (statusCode === DisconnectReason.loggedOut) {
+              // 401 = pairing was rejected or timed out on the WA server side
+              connectionState = "disconnected";
+              console.log(`🔑 [${userId}] Pairing rejected (401). Clearing credentials for fresh start...`);
+              if (fs.existsSync(authDir)) {
+                fs.rmSync(authDir, { recursive: true, force: true });
+                fs.mkdirSync(authDir, { recursive: true });
+              }
+              if (!destroyed) {
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => connect(), 2000);
+              }
+            } else if (!destroyed) {
+              // Non-fatal close — reconnect to keep the session alive
+              console.log(
+                `⏳ [${userId}] Interim connection close during pairing (status: ${statusCode}) — reconnecting to await code entry...`
+              );
+              connectionState = "pairing";
+              if (reconnectTimer) clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(() => connect(), 2000);
+            }
+          }
+        }
+      });
+
+      // Wire up message listeners on the new socket too
+      sock.ev.on("messages.upsert", ({ messages, type }) => {
+        if (type !== "notify") return;
+        const incoming = messages.filter(
+          (m) => !m.key.fromMe && m.message && !m.key.remoteJid.endsWith("@s.whatsapp.net"),
+        );
+        if (incoming.length > 0 && messageCallback) {
+          messageCallback(incoming);
+        }
+      });
+    });
+
+    return code;
+  }
+
   return {
     connect,
     getGroups,
     getChannels,
     getStatus,
     getQR,
+    requestPairingCode,
     logout,
     destroy,
     getHistoricalMessages,
