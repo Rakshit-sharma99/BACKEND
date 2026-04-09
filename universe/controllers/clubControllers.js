@@ -4673,18 +4673,18 @@ const getClubsForFeed = async (req, res) => {
                 ...universeFilter,
               },
             },
-          },
-          { $sample: { size: limit } },
-          {
-            $project: {
-              name: 1,
-              secondaryImg: 1,
-              tags: 1,
-              motto: 1,
-              uid: 1,
-              universeMetaData: 1,
+            { $sample: { size: limit } },
+            {
+              $project: {
+                name: 1,
+                secondaryImg: 1,
+                tags: 1,
+                motto: 1,
+                uid: 1,
+                universeMetaData: 1,
+              },
             },
-        ])
+          ])
         : [];
 
     let finalClubs = [...suggestedClubs];
