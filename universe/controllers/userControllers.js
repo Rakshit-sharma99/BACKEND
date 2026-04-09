@@ -2112,16 +2112,15 @@ const DEFAULT_UNIVERSE = {
 const addUniverseMetaDataToShortcuts = async (req, res) => {
   try {
     const result = await User.updateMany(
-      { "shortCuts.universeMetaData": { $exists: false } },
+      { "shortCuts.0": { $exists: true } },
       {
         $set: {
-          "shortCuts.$[elem].universeMetaData": DEFAULT_UNIVERSE,
+          "shortCuts.$[].universeMetaData": DEFAULT_UNIVERSE,
         },
       },
       {
-        arrayFilters: [{ "elem.universeMetaData": { $exists: false } }],
-        strict: false, // 🔥 THIS LINE FIXES YOUR ERROR
-      },
+        strict: false,
+      }
     );
 
     return res.json({
@@ -2983,7 +2982,6 @@ const getAlumniByCompany = async (req, res) => {
   }
 };
 
-
 /**
  * Suggests 2–3 asset categories the user hasn't uploaded yet.
  * Prioritises categories whose assets have payloadConfig (audio/book/movie),
@@ -3039,7 +3037,9 @@ const getAssetSuggestions = async (req, res) => {
     const allCategories = await fetchAssetCategories();
 
     if (!allCategories || allCategories.length === 0) {
-      return res.status(StatusCodes.OK).json({ success: true, suggestions: [] });
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, suggestions: [] });
     }
 
     // 3. Split into payload vs non-payload categories the user hasn't used
