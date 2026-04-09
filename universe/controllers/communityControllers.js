@@ -3824,20 +3824,20 @@ const getCommunitiesForFeed = async (req, res) => {
                 // Optional: { title: { $in: interestTags } } if titles match interests
               ],
               ...universeFilter,
-            },
-            { $sample: { size: limit } },
-            {
-              $project: {
-                secondaryCover: 1,
-                title: 1,
-                tag: 1,
-                activeMembers: 1,
-                label: 1,
-                uid: 1,
-                universeMetaData: 1,
-              },
-            },
+            }
           },
+          { $sample: { size: limit } },
+          {
+            $project: {
+              secondaryCover: 1,
+              title: 1,
+              tag: 1,
+              activeMembers: 1,
+              label: 1,
+              uid: 1,
+              universeMetaData: 1,
+            }
+          }
         ])
         : [];
 
