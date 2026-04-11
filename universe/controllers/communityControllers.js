@@ -4044,6 +4044,53 @@ const getCommunityGrowthStats = async (req, res) => {
   }
 };
 
+const getMembersPerUniverse = async (req, res) => {
+  try {
+    const communityId = req.query.id;
+    if (!communityId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Community ID is required" });
+    }
+
+    const community = await Community.findById(communityId, { members: 1 }).lean();
+    if (!community || !community.members || community.members.length === 0) {
+      return res.status(StatusCodes.OK).json({ universeMembership: [] });
+    }
+
+    // Fetch all members with their universeMetaData
+    const members = await User.find(
+      { _id: { $in: community.members } },
+      { "universeMetaData.name": 1, "universeMetaData.logoKey": 1, "universeMetaData.callSign": 1 }
+    ).lean();
+
+    // Group by universe name
+    const universeMap = {};
+    members.forEach((m) => {
+      const uniName = m.universeMetaData?.name || m.universeMetaData?.callSign || "Unknown";
+      const logoKey = m.universeMetaData?.logoKey || null;
+      if (!universeMap[uniName]) {
+        universeMap[uniName] = { name: uniName, count: 0, logoKey };
+      }
+      universeMap[uniName].count += 1;
+    });
+
+    const universeData = Object.values(universeMap).sort((a, b) => b.count - a.count);
+    const maxCount = universeData.length > 0 ? universeData[0].count : 1;
+
+    const universeMembership = universeData.map((u) => ({
+      name: u.name,
+      count: u.count,
+      pct: maxCount > 0 ? parseFloat((u.count / maxCount).toFixed(2)) : 0,
+      logoKey: u.logoKey,
+    }));
+
+    return res.status(StatusCodes.OK).json({ universeMembership });
+  } catch (error) {
+    console.error("Error fetching members per universe:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong." });
+  }
+};
+
+
 module.exports = {
   createCommunity,
   deleteCommunity,
@@ -4113,4 +4160,5 @@ module.exports = {
   searchCommunitiesWithRegex,
   getCommunitiesForFeed,
   getCommunityGrowthStats,
+  getMembersPerUniverse
 };
