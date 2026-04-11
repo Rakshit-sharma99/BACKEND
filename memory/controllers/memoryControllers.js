@@ -27,16 +27,16 @@ async function handleTags({ tags, memoryId, userId, callSign }) {
       validTags.map(async (tag) => {
         try {
           if (tag.type === "people") {
-            validPeopleTags.push(tag._id);
+            validPeopleTags.push(tag._id.toString());
             await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
-              id: tag._id,
-              memoryId,
+              id: tag._id.toString(),
+              memoryId: memoryId.toString(),
               operation: "add"
             })
           } else if (tag.type === "club") {
             await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
-              id: tag._id,
-              memoryId,
+              id: tag._id.toString(),
+              memoryId: memoryId.toString(),
               operation: "add"
             })
           }
@@ -52,7 +52,7 @@ async function handleTags({ tags, memoryId, userId, callSign }) {
     //  Add all valid people to the creator's memoryList (no duplicates)
     if (validPeopleTags.length > 0) {
       await sendKafkaMessage("UPDATE_MEMORY_LIST", callSign, {
-        id: userId,
+        id: userId.toString(),
         validPeopleTags
       })
     }
@@ -139,7 +139,7 @@ async function memoryCreationSecondaryActions({
     // Push the notice into each tagged user's unreadNotice array
     await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE", creatorMetaData.callSign, {
       notice,
-      validPeopleTags
+      validPeopleTags: validPeopleTags.map(id => id.toString())
     })
   } catch (error) {
     console.error("Error in memoryCreationSecondaryActions:", error);
@@ -523,14 +523,14 @@ async function cleanTags({ tags = [], memoryId, userId }) {
         try {
           if (tag.type === "people") {
             await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
-              id: tag._id,
-              memoryId,
+              id: tag._id.toString(),
+              memoryId: memoryId.toString(),
               operation: "remove"
             })
           } else if (tag.type === "club") {
             await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
-              id: tag._id,
-              memoryId,
+              id: tag._id.toString(),
+              memoryId: memoryId.toString(),
               operation: "remove"
             })
           }
@@ -679,8 +679,8 @@ const removeMemoryRequest = async (req, res) => {
     }
 
     await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", "universe", {
-      id: userId,
-      memoryId,
+      id: userId.toString(),
+      memoryId: memoryId.toString(),
       operation: "remove"
     })
 
@@ -719,8 +719,8 @@ const saveMemoryRequest = async (req, res) => {
     }
 
     await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", "universe", {
-      id: userId,
-      memoryId,
+      id: userId.toString(),
+      memoryId: memoryId.toString(),
       operation: "remove"
     })
 
@@ -853,13 +853,13 @@ const setMemoryPinned = async (req, res) => {
     if (isPinned) {
       await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", "universe", {
         id: userId.toString(),
-        memoryId,
+        memoryId: memoryId.toString(),
         operation: "add"
       })
     } else {
       await sendKafkaMessage("UPDATE_USER_PINNED_MEMORY", "universe", {
         id: userId.toString(),
-        memoryId,
+        memoryId: memoryId.toString(),
         operation: "remove"
       })
     }
