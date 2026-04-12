@@ -649,8 +649,13 @@ const clusterSemanticNodes = async (req, res) => {
 
 const getAllTerritories = async (req, res) => {
   try {
+    const { uid } = req.query;
+
+    // When uid is provided, filter territories belonging to that universe
+    const filter = uid ? { uid } : {};
+
     const territories = await Territory.find(
-      {},
+      filter,
       {
         centroidEmbedding: 0,
         memberNodeIds: 0,
