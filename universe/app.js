@@ -1,6 +1,6 @@
 require("dotenv").config();
-// require("./config/kafka_producer");
-// require("./config/kafka_listener");
+require("./config/kafka_producer");
+require("./config/kafka_listener");
 require("./config/snapshotCron");
 
 
@@ -64,9 +64,13 @@ const recentSearchesRouter = require("./routes/recentSearchesRouter");
 const chapterLeaderRouter = require("./routes/chapterLeaderRoutes");
 const productRouter = require("./routes/productRouter");
 const orderRouter = require("./routes/orderRouter");
+const layoutRouter = require("./routes/layoutRouter");
+const seatLock = require("./sockets/seatLock");
 
 const sessionRouter = require("./routes/sessionRouter");
 const communityMetaRouter = require("./routes/communityMetaRouter");
+const accessCodeRouter = require("./routes/accessRouter");
+
 app.set("trust proxy", 1);
 app.use(cors(
   {
@@ -136,10 +140,12 @@ app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
 app.use("/universe/api/v1/product", authenticate, productRouter)
 app.use("/universe/api/v1/order", authenticate, orderRouter)
 app.use("/universe/api/v1/push", authenticate, pushRouter);
+app.use("/universe/api/v1/layout", authenticate, layoutRouter);
 
 // admin routes
 app.use("/universe/api/v1/session", authenticate, checkAdmin, sessionRouter);
 app.use("/universe/api/v1/community-metadata", authenticate,checkAdmin, communityMetaRouter);
+app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
   res.status(404).json({ error: "Something went wrong!" });
@@ -214,6 +220,7 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
     io.on("connection", (socket) => {
       console.log("A user connected!");
+      seatLock(io, socket);
       socket.on("disconnect", () => {
         console.log("A user disconnected!");
       });

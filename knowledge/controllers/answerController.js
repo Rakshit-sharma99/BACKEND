@@ -165,6 +165,43 @@ async function updateUserKnowledge(
           confidence: 1,
         });
       }
+
+      // ── Populate first-class identity fields from specific categories ──
+      const identityFieldMap = {
+        preferred_name: "preferredName",
+        pronouns: "pronouns",
+        timezone: "timezone",
+        role: "role",
+      };
+
+      if (identityFieldMap[questionCategory]) {
+        profile[identityFieldMap[questionCategory]] = value.trim();
+      }
+
+      // ── Populate Starman Persona fields from specific categories ──
+      const personaFieldMap = {
+        starman_name: "name",
+        starman_creature: "creature",
+        starman_vibe: "vibe",
+        starman_emoji: "emoji",
+        starman_formality: "formalityLevel",
+        starman_humor: "humorLevel",
+        starman_verbosity: "verbosityLevel",
+      };
+
+      if (personaFieldMap[questionCategory]) {
+        const field = personaFieldMap[questionCategory];
+        // For numeric persona fields, parse the value
+        if (["formalityLevel", "humorLevel", "verbosityLevel"].includes(field)) {
+          const numVal = parseInt(value, 10);
+          if (!isNaN(numVal) && numVal >= 1 && numVal <= 5) {
+            profile.starmanPersona[field] = numVal;
+          }
+        } else {
+          profile.starmanPersona[field] = value.trim();
+        }
+        profile.markModified("starmanPersona");
+      }
     }
 
     // Update streak

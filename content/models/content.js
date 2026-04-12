@@ -158,6 +158,20 @@ const contentSchema = new mongoose.Schema({
     type: String,
   },
   universeMetaData: universeMetaDataSchema,
+  externalSourceMetaData: {
+    type: new mongoose.Schema(
+      {
+        entityId: { type: String },           // WhatsApp JID / Discord channel ID
+        entityName: { type: String },         // "CS301 Class Group"
+        platform: { type: String, enum: ["whatsapp", "discord", "telegram"] },
+        category: { type: String, enum: ["deadlines", "announcements", "resources", "decisions", "summaries"] },
+        originalText: { type: String },       // Raw text before LLM rewrite
+        relayScore: { type: Number },         // 0.0–1.0 relevance score
+        relayedBy: { type: String },          // "starman-bot"
+      },
+      { _id: false }
+    ),
+  },
   timeStamp: {
     type: Date,
     default: Date.now,

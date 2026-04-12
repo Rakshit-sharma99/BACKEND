@@ -66,7 +66,7 @@ const createCard = async (req, res) => {
       uid: req.user.uid,
       universeMetaData,
       title,
-      entityTag
+      entityTag,
     });
 
     await sendKafkaMessage("ADD_CARD", "universe", {
@@ -80,7 +80,7 @@ const createCard = async (req, res) => {
 
     return res
       .status(StatusCodes.OK)
-      .json({ message: "Card created successfully", cardId: card._id });
+      .json({ message: "Card created successfully", cardId: card._id, card });
   } catch (error) {
     console.error("❌ Error creating card:", error);
     return res
@@ -173,7 +173,7 @@ const likeACard = async (req, res) => {
           creatorId: card.creator.toString(),
           userInfo,
           cardInfo: card,
-        }
+        },
       );
     }
 
@@ -237,7 +237,7 @@ const getLikedCards = async (req, res) => {
     if (key === "detail") {
       const cardIds = user.likedCards.slice(
         (batchNumber - 1) * batchSizeFound,
-        batchNumber * batchSizeFound
+        batchNumber * batchSizeFound,
       );
 
       let cards = await Card.find({ _id: { $in: cardIds } }, { vector: 0 });
@@ -314,9 +314,8 @@ const getCardsOfUser = async (req, res) => {
 
     const cardIds = user.cards;
     const clubIds = user.clubs.map((club) => club.clubId.toString()) || [];
-    const communityIds = user.communitiesPartOf.map((c) =>
-      c.communityId.toString()
-    ) || [];
+    const communityIds =
+      user.communitiesPartOf.map((c) => c.communityId.toString()) || [];
 
     const badgeIds = user.badges;
 
@@ -361,8 +360,8 @@ const getCardsFromTag = async (req, res) => {
     // Normalize to array of regex patterns
     const tagsArray = Array.isArray(tag)
       ? tag
-        .filter((t) => typeof t === "string" && t.trim())
-        .map((t) => new RegExp(t.trim(), "i"))
+          .filter((t) => typeof t === "string" && t.trim())
+          .map((t) => new RegExp(t.trim(), "i"))
       : [new RegExp(tag.trim(), "i")];
 
     if (tagsArray.length === 0) {
@@ -416,7 +415,7 @@ const getYourInterests = async (req, res) => {
 
     const cardData = await Card.find(
       { _id: { $in: cards } },
-      { vector: 0 }
+      { vector: 0 },
     ).lean();
 
     return res.status(StatusCodes.OK).json({
@@ -475,14 +474,14 @@ const fetchRightSequence = async (events) => {
     const clubs = await fetchMultipleClubsData({
       ids: clubIds,
       fields: ["_id", "rating"],
-    })
+    });
 
     // Create lookup for club ratings
     const clubRatings = {};
     clubs.forEach((club) => {
       if (
         ["657b9303f18136e2f692398c", "657b97a8f18136e2f69239ab"].includes(
-          club._id.toString()
+          club._id.toString(),
         )
       ) {
         clubRatings[club._id.toString()] = 0;
@@ -538,7 +537,7 @@ const indexedReturn = async (req, res) => {
 
     // Fetch related tags for each lemmatized tag
     const relatedTagsArrays = await Promise.all(
-      lemmatizedTags.map((tag) => fetchRelatedTags(tag))
+      lemmatizedTags.map((tag) => fetchRelatedTags(tag)),
     );
 
     // Flatten all arrays and remove duplicates
@@ -558,7 +557,7 @@ const indexedReturn = async (req, res) => {
     });
     const clubIdsPartOf = user.clubs.map((club) => club.clubId);
     const commIdspartOf = user.communitiesPartOf.map(
-      (comm) => comm.communityId
+      (comm) => comm.communityId,
     );
 
     // Parallel execution of asynchronous operations
@@ -685,7 +684,11 @@ const indexedReturn = async (req, res) => {
         mode: "past",
         size: remaining,
       });
-      finalEvents = finalEvents = [...new Map([...events, ...pastEvents].map(e => [e._id.toString(), e])).values()];
+      finalEvents = finalEvents = [
+        ...new Map(
+          [...events, ...pastEvents].map((e) => [e._id.toString(), e]),
+        ).values(),
+      ];
     }
 
     // Respond with all data
@@ -861,12 +864,13 @@ const getSearchedCards = async (req, res) => {
     ]);
 
     return res.status(StatusCodes.OK).json({ success: true, data: cards });
-
   } catch (err) {
     console.log("Error fetching searched cards:", err);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, msg: "Something went wrong!" })
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, msg: "Something went wrong!" });
   }
-}
+};
 
 const insertNewFields = async (req, res) => {
   try {
@@ -885,7 +889,7 @@ const insertNewFields = async (req, res) => {
               name: "Lovely Professional University",
               callSign: "LPU",
               lat: 31.25361,
-              lng: 75.70361
+              lng: 75.70361,
             },
           },
         },
@@ -910,11 +914,11 @@ const getCardForLanding = async (req, res) => {
     const userId = req.user.id;
     const { uid, universeId } = req.query;
     const limit = 4;
-    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const resolvedUniverseId = universeId || uid || "multiverse";
     const universeFilter =
-      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
+      resolvedUniverseId !== "multiverse" ? { uid: resolvedUniverseId } : {};
 
-    console.log("called get cards for landing")
+    console.log("called get cards for landing");
 
     const user = await fetchNativeUserData({
       id: userId,
@@ -923,7 +927,9 @@ const getCardForLanding = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(StatusCodes.NOT_FOUND).json({ error: "User not found." });
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
     }
 
     const interestTags = user.interests || [];
@@ -932,22 +938,22 @@ const getCardForLanding = async (req, res) => {
     const suggestedCards =
       interestTags.length > 0
         ? await Card.aggregate([
-          {
-            $match: {
-              tags: { $in: interestTags },
-              $expr: {
-                $gt: [
-                  { $size: { $split: [{ $ifNull: ["$value", ""] }, " "] } },
-                  10,
-                ],
+            {
+              $match: {
+                tags: { $in: interestTags },
+                $expr: {
+                  $gt: [
+                    { $size: { $split: [{ $ifNull: ["$value", ""] }, " "] } },
+                    10,
+                  ],
+                },
+                ...universeFilter,
               },
-              ...universeFilter,
             },
-          },
-          { $sort: { createdAt: -1 } },
-          { $limit: limit },
-          { $project: { vector: 0 } },
-        ])
+            { $sort: { createdAt: -1 } },
+            { $limit: limit },
+            { $project: { vector: 0 } },
+          ])
         : [];
 
     let finalCards = [...suggestedCards];
@@ -1015,7 +1021,9 @@ const editCard = async (req, res) => {
 
     if (value !== undefined) {
       if (typeof value !== "string") {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Card value must be a string." });
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Card value must be a string." });
       }
       card.value = value;
       isModified = true;
@@ -1023,7 +1031,9 @@ const editCard = async (req, res) => {
 
     if (title !== undefined) {
       if (typeof title !== "string") {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Title must be a string." });
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Title must be a string." });
       }
       card.title = title;
       isModified = true;
@@ -1031,7 +1041,9 @@ const editCard = async (req, res) => {
 
     if (tags !== undefined) {
       if (!Array.isArray(tags)) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Tags should be an array." });
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Tags should be an array." });
       }
       card.tags = lemmatize(tags);
       isModified = true;
@@ -1039,7 +1051,9 @@ const editCard = async (req, res) => {
 
     if (entityTag !== undefined) {
       if (!Array.isArray(entityTag)) {
-        return res.status(StatusCodes.BAD_REQUEST).json({ error: "Entity tag should be an array." });
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ error: "Entity tag should be an array." });
       }
       card.entityTag = entityTag;
       isModified = true;
@@ -1079,5 +1093,5 @@ module.exports = {
   indexedReturn,
   getSearchedCards,
   insertNewFields,
-  getCardForLanding
+  getCardForLanding,
 };

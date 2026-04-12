@@ -10,6 +10,10 @@
 
 const ExternalContext = require("../models/externalContext");
 const { distillMessages, batchDistill } = require("./distillationHelper");
+const axios = require("axios");
+
+const CONTENT_URL =
+  process.env.CONTENT_URL || "http://content:5000/content/api/v1";
 
 // ── POST /external/link ──
 
@@ -150,13 +154,23 @@ async function initializeEntity(entity, historicalMessages, userId) {
       }
     }
 
+    // Compute sync range timestamps
+    if (historicalMessages.length > 0) {
+      const timestamps = historicalMessages
+        .map((m) => m.timestamp)
+        .filter((t) => t > 0);
+      if (timestamps.length > 0) {
+        entity.oldestMessageAt = Math.min(...timestamps);
+        entity.newestMessageAt = Math.max(...timestamps);
+      }
+      entity.messagesCursor =
+        historicalMessages[historicalMessages.length - 1].timestamp;
+    }
+
     // Mark as synced
     entity.status = "synced";
     entity.lastSyncedAt = new Date();
-    entity.messagesCursor =
-      historicalMessages.length > 0
-        ? historicalMessages[historicalMessages.length - 1].timestamp
-        : 0;
+    entity.syncDepthDays = 7;
 
     await entity.save();
     console.log(
@@ -214,13 +228,21 @@ const ingestMessages = async (req, res) => {
       entity.hotContext.entries = entity.hotContext.entries.slice(-maxEntries);
     }
 
-    // Update cursor
+    // Update cursor and sync range
     if (messages.length > 0) {
-      const newestTimestamp = Math.max(
-        ...messages.map((m) => m.timestamp || 0),
-      );
-      if (newestTimestamp > entity.messagesCursor) {
-        entity.messagesCursor = newestTimestamp;
+      const timestamps = messages.map((m) => m.timestamp || 0).filter((t) => t > 0);
+      if (timestamps.length > 0) {
+        const newestTimestamp = Math.max(...timestamps);
+        const oldestTimestamp = Math.min(...timestamps);
+        if (newestTimestamp > entity.messagesCursor) {
+          entity.messagesCursor = newestTimestamp;
+        }
+        if (newestTimestamp > (entity.newestMessageAt || 0)) {
+          entity.newestMessageAt = newestTimestamp;
+        }
+        if (entity.oldestMessageAt === 0 || oldestTimestamp < entity.oldestMessageAt) {
+          entity.oldestMessageAt = oldestTimestamp;
+        }
       }
     }
 
@@ -503,7 +525,7 @@ const getUserContexts = async (req, res) => {
 
     const entities = await ExternalContext.find({ linkedBy: targetUser })
       .select(
-        "entityId entityName platform status lastSyncedAt hotContext.entries longTermContext",
+        "entityId entityName platform status lastSyncedAt oldestMessageAt newestMessageAt syncDepthDays hotContext.entries longTermContext relayedContentIds",
       )
       .lean();
 
@@ -522,9 +544,13 @@ const getUserContexts = async (req, res) => {
         platform: e.platform,
         status: e.status,
         lastSyncedAt: e.lastSyncedAt,
+        oldestMessageAt: e.oldestMessageAt || 0,
+        newestMessageAt: e.newestMessageAt || 0,
+        syncDepthDays: e.syncDepthDays || 7,
         hotEntryCount: e.hotContext?.entries?.length || 0,
         longTermEntryCount,
         totalEntries: (e.hotContext?.entries?.length || 0) + longTermEntryCount,
+        relayedPostCount: e.relayedContentIds?.length || 0,
       };
     });
 
@@ -651,6 +677,379 @@ const deleteContext = async (req, res) => {
   }
 };
 
+// ── POST /external/user-contexts/batch-delete ──
+
+/**
+ * Delete a user's access to multiple external contexts.
+ * Similar to deleteContext, removes the user from linkedBy,
+ * and deletes documents entirely if no one else links them.
+ *
+ * Body: { ids: ["id1", "id2"] }
+ * Query: { userId }
+ */
+const batchDeleteContexts = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    const { userId } = req.query;
+    const targetUser = userId || req.user?.id;
+
+    if (!Array.isArray(ids) || ids.length === 0 || !targetUser) {
+      return res.status(400).json({ error: "ids array and userId are required" });
+    }
+
+    const contextDocs = await ExternalContext.find({
+      _id: { $in: ids },
+      linkedBy: targetUser,
+    });
+
+    if (contextDocs.length === 0) {
+      return res.status(404).json({ error: "No matching contexts found or access denied" });
+    }
+
+    let permanentlyDeleted = 0;
+    let unlinked = 0;
+
+    for (const contextDoc of contextDocs) {
+      contextDoc.linkedBy = contextDoc.linkedBy.filter(
+        (uid) => String(uid) !== String(targetUser)
+      );
+
+      if (contextDoc.linkedBy.length === 0) {
+        await ExternalContext.deleteOne({ _id: contextDoc._id });
+        permanentlyDeleted++;
+      } else {
+        await contextDoc.save();
+        unlinked++;
+      }
+    }
+
+    return res.status(200).json({ 
+      success: true, 
+      message: `Successfully processed batch delete`,
+      permanentlyDeleted,
+      unlinked
+    });
+  } catch (err) {
+    console.error("[ExternalContext] batchDeleteContexts error:", err);
+    return res.status(500).json({ error: "Could not batch delete contexts." });
+  }
+};
+
+// ── POST /external/deep-sync ──
+
+/**
+ * Merge deeper historical messages into an existing entity.
+ * Used when the user wants to sync 15 or 30 days of history
+ * instead of the default 7 days.
+ *
+ * Body: { uid, entityId, userId, syncDepthDays, historicalMessages[] }
+ */
+const deepSync = async (req, res) => {
+  try {
+    const { uid, entityId, userId, syncDepthDays, historicalMessages } =
+      req.body;
+
+    if (!uid || !entityId || !userId || !syncDepthDays) {
+      return res.status(400).json({
+        error: "uid, entityId, userId, and syncDepthDays are required",
+      });
+    }
+
+    if (![15, 30].includes(syncDepthDays)) {
+      return res.status(400).json({
+        error: "syncDepthDays must be 15 or 30",
+      });
+    }
+
+    const entity = await ExternalContext.findOne({ uid, entityId });
+    if (!entity) {
+      return res.status(404).json({ error: "Entity not found." });
+    }
+
+    if (!historicalMessages || historicalMessages.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No new messages to sync.",
+        ingested: 0,
+      });
+    }
+
+    // Respond immediately so frontend can show progress
+    res.status(200).json({
+      success: true,
+      message: `Deep sync started for ${syncDepthDays} days (${historicalMessages.length} messages).`,
+      ingested: historicalMessages.length,
+    });
+
+    // ── Background: merge deeper history ──
+    deepSyncEntity(entity, historicalMessages, userId, syncDepthDays).catch(
+      (err) =>
+        console.error(
+          `[ExternalContext] Deep sync failed for ${entityId}:`,
+          err.message,
+        ),
+    );
+  } catch (err) {
+    console.error("[ExternalContext] deepSync error:", err);
+    return res.status(500).json({ error: "Could not deep sync." });
+  }
+};
+
+/**
+ * Background deep sync: merge historical messages and re-distill.
+ */
+async function deepSyncEntity(entity, historicalMessages, userId, syncDepthDays) {
+  try {
+    console.log(
+      `🔄 [ExternalContext] Deep syncing "${entity.entityName}" — ${historicalMessages.length} messages (${syncDepthDays} days)`,
+    );
+
+    // Build a Set of existing hot entry signatures for dedup
+    const existingSignatures = new Set(
+      entity.hotContext.entries.map(
+        (e) => `${e.timestamp}_${e.sender}_${(e.text || "").slice(0, 50)}`,
+      ),
+    );
+
+    // Filter to new-only messages
+    const newMessages = historicalMessages.filter((m) => {
+      const sig = `${m.timestamp}_${m.sender || "Unknown"}_${(m.text || "").slice(0, 50)}`;
+      return !existingSignatures.has(sig);
+    });
+
+    console.log(
+      `🔄 [ExternalContext] ${newMessages.length} new messages after dedup (${historicalMessages.length - newMessages.length} duplicates skipped)`,
+    );
+
+    if (newMessages.length === 0) {
+      entity.syncDepthDays = syncDepthDays;
+      entity.lastSyncedAt = new Date();
+      await entity.save();
+      return;
+    }
+
+    // Add new entries to hot context
+    const newEntries = newMessages.map((m) => ({
+      text: m.text,
+      sender: m.sender || "Unknown",
+      timestamp: m.timestamp,
+      category: "general",
+      contributorId: userId,
+    }));
+
+    entity.hotContext.entries.push(...newEntries);
+
+    // Sort by timestamp and enforce cap
+    entity.hotContext.entries.sort((a, b) => a.timestamp - b.timestamp);
+    const maxEntries = entity.hotContext.maxEntries || 500;
+    if (entity.hotContext.entries.length > maxEntries) {
+      entity.hotContext.entries = entity.hotContext.entries.slice(-maxEntries);
+    }
+
+    // Update sync range
+    const allTimestamps = historicalMessages
+      .map((m) => m.timestamp)
+      .filter((t) => t > 0);
+    if (allTimestamps.length > 0) {
+      const oldest = Math.min(...allTimestamps);
+      const newest = Math.max(...allTimestamps);
+      if (entity.oldestMessageAt === 0 || oldest < entity.oldestMessageAt) {
+        entity.oldestMessageAt = oldest;
+      }
+      if (newest > (entity.newestMessageAt || 0)) {
+        entity.newestMessageAt = newest;
+      }
+    }
+
+    entity.syncDepthDays = syncDepthDays;
+    entity.lastSyncedAt = new Date();
+
+    // Distill new messages into long-term context
+    const textMessages = newMessages.filter(
+      (m) => m.text && m.text.trim().length > 0,
+    );
+
+    if (textMessages.length > 0) {
+      const distilled = await batchDistill(
+        textMessages,
+        entity.entityName,
+        100,
+      );
+
+      const now = new Date();
+      for (const category of Object.keys(distilled)) {
+        if (
+          Array.isArray(distilled[category]) &&
+          distilled[category].length > 0 &&
+          Array.isArray(entity.longTermContext[category])
+        ) {
+          const formatted = distilled[category].map((entry) => ({
+            text: entry.text,
+            date: entry.date || null,
+            url: entry.url || null,
+            source: entity.entityName,
+            addedAt: now,
+            contributorId: userId,
+          }));
+          entity.longTermContext[category].push(...formatted);
+        }
+      }
+    }
+
+    await entity.save();
+    console.log(
+      `✅ [ExternalContext] Deep sync complete for "${entity.entityName}" — ${newMessages.length} new messages merged`,
+    );
+  } catch (err) {
+    console.error(
+      `[ExternalContext] Deep sync error for "${entity.entityName}":`,
+      err.message,
+    );
+  }
+}
+
+// ── POST /external/save-relayed-content ──
+
+/**
+ * Save a relayed content ID to an entity's context file.
+ * Called by Starman after successfully posting relay content.
+ *
+ * Body: { uid, entityId, contentId }
+ */
+const saveRelayedContentId = async (req, res) => {
+  try {
+    const { uid, entityId, contentId } = req.body;
+
+    if (!uid || !entityId || !contentId) {
+      return res
+        .status(400)
+        .json({ error: "uid, entityId, and contentId are required" });
+    }
+
+    const result = await ExternalContext.findOneAndUpdate(
+      { uid, entityId },
+      { $addToSet: { relayedContentIds: contentId } },
+      { new: true },
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: "Entity not found." });
+    }
+
+    console.log(
+      `📌 [ExternalContext] Saved relayed contentId ${contentId} for entity "${result.entityName}"`,
+    );
+
+    return res.status(200).json({
+      success: true,
+      contentId,
+      relayedContentIds: result.relayedContentIds,
+    });
+  } catch (err) {
+    console.error("[ExternalContext] saveRelayedContentId error:", err);
+    return res
+      .status(500)
+      .json({ error: "Could not save relayed content ID." });
+  }
+};
+
+// ── GET /external/user-contexts/:id/relayed-contents ──
+
+/**
+ * Get paginated content posts that were relayed from this entity.
+ * Looks up the entity's relayedContentIds, slices a page, then fetches
+ * full post documents from the Content Service.
+ *
+ * Params: { id }
+ * Query:  { page? (default 1), limit? (default 10) }
+ */
+const getRelayedContents = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+
+    if (!id) {
+      return res.status(400).json({ error: "Context id is required" });
+    }
+
+    const entity = await ExternalContext.findById(id)
+      .select("relayedContentIds entityName")
+      .lean();
+
+    if (!entity) {
+      return res.status(404).json({ error: "Context not found." });
+    }
+
+    const allIds = entity.relayedContentIds || [];
+    const total = allIds.length;
+
+    if (total === 0) {
+      return res.status(200).json({
+        data: [],
+        total: 0,
+        page,
+        hasMore: false,
+        entityName: entity.entityName,
+      });
+    }
+
+    // Paginate — most recent first (reverse order since IDs are appended chronologically)
+    const reversed = [...allIds].reverse();
+    const start = (page - 1) * limit;
+    const pageIds = reversed.slice(start, start + limit);
+
+    if (pageIds.length === 0) {
+      return res.status(200).json({
+        data: [],
+        total,
+        page,
+        hasMore: false,
+        entityName: entity.entityName,
+      });
+    }
+
+    // Fetch full post documents from Content Service
+    let contents = [];
+    try {
+      const userId = req.user?.id || null;
+      const contentRes = await axios.post(
+        `${CONTENT_URL}/getMultipleContents`,
+        {
+          ids: pageIds,
+          userId,
+        },
+        {
+          headers: req.headers.authorization
+            ? { Authorization: req.headers.authorization }
+            : {},
+          timeout: 10000,
+        },
+      );
+      contents = Array.isArray(contentRes.data) ? contentRes.data : [];
+    } catch (contentErr) {
+      console.error(
+        `[ExternalContext] Failed to fetch content from Content Service:`,
+        contentErr.message,
+      );
+      // Return empty rather than failing — the IDs exist but content may have been deleted
+    }
+
+    return res.status(200).json({
+      data: contents,
+      total,
+      page,
+      hasMore: start + limit < total,
+      entityName: entity.entityName,
+    });
+  } catch (err) {
+    console.error("[ExternalContext] getRelayedContents error:", err);
+    return res
+      .status(500)
+      .json({ error: "Could not get relayed contents." });
+  }
+};
+
 module.exports = {
   linkEntity,
   ingestMessages,
@@ -660,4 +1059,8 @@ module.exports = {
   getUserContexts,
   getContextEntries,
   deleteContext,
+  batchDeleteContexts,
+  deepSync,
+  saveRelayedContentId,
+  getRelayedContents,
 };

@@ -71,6 +71,7 @@ const QuestionSchema = new mongoose.Schema(
     skipRate: { type: Number, default: 0 }, // % of users who skipped
     avgEngagement: { type: Number, default: 0.5 }, // 0-1 engagement score
     lastAskedAt: { type: Date },
+    priority: { type: Number, default: 0 }, // Higher = asked first (identity questions use 90–100)
 
     // Targeting
     targetSegment: targetSegmentSchema,

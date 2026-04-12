@@ -46,15 +46,19 @@ const CouponSchema = new mongoose.Schema(
       type: Boolean,
       default: true, // can deactivate without deleting
     },
-     uid: {
-    type: String,
-  },
-  universeMetaData: {
-    name: String,
-    location: String,
-    logo: String,
-    callSign: String,
-  }
+    isPublic: {
+      type: Boolean,
+      default: true,
+    },
+    uid: {
+      type: String,
+    },
+    universeMetaData: {
+      name: String,
+      location: String,
+      logo: String,
+      callSign: String,
+    }
   },
   { timestamps: true }
 );

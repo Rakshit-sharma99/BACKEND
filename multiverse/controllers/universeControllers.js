@@ -497,5 +497,5 @@ module.exports = {
   getPopularUniverses,
   getAllowedDomains,
   getEnrichedUniverseData,
-  getUniverseByCallSign
+  getUniverseByCallSign,
 };

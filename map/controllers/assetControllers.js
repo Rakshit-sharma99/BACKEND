@@ -777,6 +777,79 @@ const getMultipleAssets = async (req, res) => {
   }
 };
 
+
+/**
+ * Returns one representative asset per tag category.
+ * For each tag, returns: tag, subTag, and one lottie URL (preferring lottie type,
+ * falling back to any type). Also flags whether the category has payload-capable assets.
+ * Used by the profile suggestion prompts.
+ */
+const getAssetCategories = async (req, res) => {
+  try {
+    const categories = await Asset.aggregate([
+      // Only include assets that have a tag
+      { $match: { tag: { $ne: null } } },
+      {
+        $group: {
+          _id: "$tag",
+          subTag: { $first: "$subTag" },
+          // Collect all URLs grouped by type so we can prefer lottie
+          assets: {
+            $push: {
+              url: "$url",
+              type: "$type",
+              name: "$name",
+              payloadConfig: "$payloadConfig",
+            },
+          },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const result = categories.map((cat) => {
+      // Prefer a lottie asset for the preview; fall back to any asset
+      const lottieAsset = cat.assets.find((a) => a.type === "lottie");
+      const representative = lottieAsset || cat.assets[0];
+
+      // Check if any asset in this category has a payload config
+      const hasPayload = cat.assets.some(
+        (a) => a.payloadConfig && a.payloadConfig.requiresPayload === true,
+      );
+
+      // Collect all allowed payload types across assets in this category
+      const payloadTypes = [
+        ...new Set(
+          cat.assets.flatMap(
+            (a) => a.payloadConfig?.allowedPayloadTypes || [],
+          ),
+        ),
+      ].filter((t) => t && t !== "none");
+
+      return {
+        tag: cat._id,
+        subTag: cat.subTag || "",
+        lottieUrl: representative?.url || null,
+        lottieType: representative?.type || null,
+        hasPayload,
+        payloadTypes,
+      };
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("Error fetching asset categories:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching asset categories.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createAsset,
   editAsset,
@@ -784,6 +857,7 @@ module.exports = {
   getAssetById,
   getMultipleAssets,
   getAllAssetsByType,
+  getAssetCategories,
   searchSongs,
   getSongRecommendations,
   searchBooks,

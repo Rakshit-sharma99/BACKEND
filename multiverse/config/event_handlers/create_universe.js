@@ -3,21 +3,23 @@ const { sendKafkaMessage } = require("../utils/sendKafkaMessage")
 const create_universe = async (messageValue) => {
     try {
         const data = JSON.parse(messageValue);
-
         const existing = await Universe.findOne({ callSign: data.callSign });
         if (existing) {
             console.log("Universe with this callSign already exists");
             return;
         }
 
-        const universe = await Universe.create(data);
+        const universe = await Universe.create({
+            ...data,
+            members: data.members ?? 1,
+        });
 
         await sendKafkaMessage(
             "UNIVERSE_CREATED",
             "universe",
             {
                 chapterLeaderId: data.chapterLeaderId,
-                universeId: universe._id,
+                universeId: universe._id.toString(),
                 universeMetaData : {
                     name : universe.name,
                     logo : universe.logo,

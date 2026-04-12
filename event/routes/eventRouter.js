@@ -16,6 +16,7 @@ const {
   getFaq,
   changeStatusJob,
   getTickets,
+  canBuyTicket,
   generateTicketListPdf,
   getReviews,
   checkTicketAvailability,
@@ -25,6 +26,7 @@ const {
   getEvents,
   checkEventStatus,
   getEventById,
+  setEventLayout,
   editEventDetails,
   searchEvents,
   mailEventStats,
@@ -54,8 +56,12 @@ const {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
-  getLiveEvents
+  slugifyAllEvents,
 } = require("../controllers/eventControllers");
+
+const eventFunnelRoutes = require("./eventfunnelRoutes");
+
+router.use("/funnel", eventFunnelRoutes);
 
 router.post("/createEvent", createEvent);
 router.get("/getAllEvents", getAllEvents);
@@ -80,6 +86,7 @@ router.get("/getAllTicketsBought", getAllTicketsBought);
 router.get("/getEvents", getEvents);
 router.get("/checkEventStatus", checkEventStatus);
 router.get("/getEventById", getEventById);
+router.post("/setEventLayout", setEventLayout);
 router.post("/editEventDetails", editEventDetails);
 router.get("/searchEvents", searchEvents);
 router.get("/mailEventStats", mailEventStats);
@@ -109,5 +116,7 @@ router.get("/getSearchedEvents", getSearchedEvents);
 router.post("/insertNewFields", insertNewFields);
 router.post("/getFeaturedEvents", getFeaturedEvents);
 router.get("/getLandingEvent", getFeaturedEventsForFeed);
-router.get("/getLiveEvents", getLiveEvents);
+router.get("/slugifyAllEvents", slugifyAllEvents);
+router.post("/canBuyTicket", canBuyTicket);
+
 module.exports = router;

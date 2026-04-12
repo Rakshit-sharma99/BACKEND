@@ -167,6 +167,23 @@ function getTenantQR(userId) {
 }
 
 /**
+ * Request a pairing code for phone-number-based linking.
+ * @param {string} userId
+ * @param {string} phoneNumber — Full international number without '+'
+ * @returns {string} 8-character pairing code
+ */
+async function requestTenantPairingCode(userId, phoneNumber) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+
+  if (!tenant || !tenant.session) {
+    throw new Error("No active session — connect first");
+  }
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.requestPairingCode(phoneNumber);
+}
+
+/**
  * Get WhatsApp groups for a user's session.
  */
 async function getTenantGroups(userId) {
@@ -210,8 +227,14 @@ function getTenantContextManager(userId) {
 
 /**
  * Cleanup idle tenant sessions to conserve memory.
+ * Set IDLE_TIMEOUT_MS=0 to disable (sessions persist until explicit logout).
  */
 function cleanupIdleTenants() {
+  // If idle timeout is 0 or not set, sessions persist forever
+  if (!IDLE_TIMEOUT_MS || IDLE_TIMEOUT_MS <= 0) {
+    return;
+  }
+
   const now = Date.now();
 
   for (const [userId, tenant] of tenants.entries()) {
@@ -266,6 +289,43 @@ function getTenantHistoricalMessages(userId, communityId, limit = 500) {
   
   tenant.lastActivity = Date.now();
   return tenant.session.getHistoricalMessages(communityId, limit);
+}
+
+/**
+ * Actively fetch historical messages for a community from the user's WhatsApp phone.
+ * This triggers a HISTORY_SYNC_ON_DEMAND request and waits for messages to arrive.
+ *
+ * @param {string} anchorMsgId - Real Baileys message key ID of the oldest known message
+ * @param {number} anchorTs    - Timestamp (ms) of that message
+ */
+async function fetchTenantGroupMessages(userId, communityId, count = 500, anchorMsgId = null, anchorTs = null) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return [];
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.fetchGroupMessages(communityId, count, anchorMsgId, anchorTs);
+}
+
+/**
+ * Force a fresh history sync for a user by reconnecting Baileys.
+ * Clears "already synced" markers so the phone re-delivers all history.
+ */
+async function requestTenantHistoryResync(userId, targetJid = null) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return 0;
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.requestHistoryResync(targetJid);
+}
+
+/**
+ * Wait for a user's Baileys history sync to complete.
+ * Resolves immediately if already done, otherwise waits up to 60s.
+ */
+async function waitForTenantHistorySync(userId) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+  if (!tenant || !tenant.session) return;
+  return tenant.session.waitForHistorySync();
 }
 
 /**
@@ -344,11 +404,15 @@ module.exports = {
   disconnectTenant,
   getTenantStatus,
   getTenantQR,
+  requestTenantPairingCode,
   getTenantGroups,
   getTenantChannels,
   getTenantDB,
   getTenantContextManager,
   getActiveTenantCount,
   getTenantHistoricalMessages,
+  fetchTenantGroupMessages,
+  requestTenantHistoryResync,
+  waitForTenantHistorySync,
   restoreAllTenants,
 };

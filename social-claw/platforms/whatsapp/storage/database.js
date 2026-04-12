@@ -100,6 +100,20 @@ function createDatabase(userId) {
     LIMIT @limit
   `);
 
+  const getMessagesByCommunityRange = db.prepare(`
+    SELECT * FROM messages
+    WHERE community_id = @communityId AND timestamp >= @fromTimestamp
+    ORDER BY timestamp ASC
+    LIMIT @limit
+  `);
+
+  const getOldestMsgForCommunity = db.prepare(`
+    SELECT id, timestamp FROM messages
+    WHERE community_id = @communityId
+    ORDER BY timestamp ASC
+    LIMIT 1
+  `);
+
   const getOldMessages = db.prepare(`
     SELECT * FROM messages
     WHERE timestamp < @cutoff
@@ -201,6 +215,14 @@ function createDatabase(userId) {
 
     getMessagesForCommunity(communityId, limit = 50) {
       return getMessagesByCommunity.all({ communityId, limit });
+    },
+
+    getMessagesForCommunityInRange(communityId, fromTimestamp, limit = 5000) {
+      return getMessagesByCommunityRange.all({ communityId, fromTimestamp, limit });
+    },
+
+    getOldestMessageForCommunity(communityId) {
+      return getOldestMsgForCommunity.get({ communityId }) || null;
     },
 
     getMessagesOlderThan(cutoffTimestamp) {

@@ -1,7 +1,18 @@
 const { StatusCodes } = require('http-status-codes');
 const Razorpay = require('razorpay');
-const { fetchEventData, fetchCouponById } = require('./interServiceCalls');
+const {
+  fetchEventData,
+  fetchCouponById,
+  verifyTicketPurchaseAccess,
+} = require('./interServiceCalls');
 const Award = require("../models/award");
+const Layout = require("../models/layout");
+const {
+  verifySeatLocks,
+  lockSeats,
+  unLockSeats,
+  extractAvailableSeatsFromLayout,
+} = require("../utils/seatUtils");
 
 //for stripe
 const generatePaymentIntent = async (req, res) => {
@@ -64,24 +75,221 @@ function buildDiscountedBreakdown({
   };
 }
 
-async function getTicketPricingBreakdown({
+function buildTicketAccessMap(ticketAccess = [], fallbackType = null, privateCode = null) {
+  const accessMap = {};
+
+  if (Array.isArray(ticketAccess)) {
+    ticketAccess.forEach((entry) => {
+      const type = String(entry?.type || "").trim();
+      if (!type) {
+        return;
+      }
+
+      accessMap[type] = String(entry?.privateCode || "").trim();
+    });
+  }
+
+  if (fallbackType && privateCode && !accessMap[fallbackType]) {
+    accessMap[fallbackType] = String(privateCode).trim();
+  }
+
+  return accessMap;
+}
+
+async function validateTicketPurchaseAccess({
   eventId,
-  type,
-  couponId,
+  types = [],
   userId,
+  uid,
+  privateCode,
+  ticketAccess,
+}) {
+  const uniqueTypes = [...new Set((types || []).filter(Boolean))];
+  const accessMap = buildTicketAccessMap(
+    ticketAccess,
+    uniqueTypes.length === 1 ? uniqueTypes[0] : null,
+    privateCode,
+  );
+
+  for (const ticketType of uniqueTypes) {
+    const result = await verifyTicketPurchaseAccess({
+      eventId,
+      ticketType,
+      privateCode: accessMap[ticketType],
+      uid,
+      userId,
+    });
+
+    if (!result?.canBuy) {
+      return {
+        success: false,
+        error: result?.message || `You are not allowed to buy ${ticketType}.`,
+      };
+    }
+  }
+
+  return { success: true, error: null };
+}
+
+async function checkAmountValidityAndAvailability({
+  eventId,
+  types,
+  couponId,
+  amount,
+  userId,
+  seats,
+  uid,
+  privateCode,
+  ticketAccess,
 }) {
   try {
+    const accessCheck = await validateTicketPurchaseAccess({
+      eventId,
+      types,
+      userId,
+      uid,
+      privateCode,
+      ticketAccess,
+    });
+
+    if (!accessCheck.success) {
+      return {
+        success: false,
+        error: accessCheck.error,
+        breakdown: null,
+      };
+    }
+
     const eventData = await fetchEventData({
       id: eventId,
-      fields: ["ticketTypes", "platformFeeEnabled", "platformFee", "belongsTo"],
+      fields: [
+        "ticketTypes",
+        "platformFeeEnabled",
+        "platformFee",
+        "belongsTo",
+        "status",
+        "seatsBooked",
+        "layoutId",
+      ],
     });
-    if (!eventData) return null;
 
-    const selectedTicket = eventData.ticketTypes.find((t) => t.type === type);
-    if (!selectedTicket) return null;
+    if (!eventData) {
+      return { success: false, error: "Event not found", breakdown: null };
+    }
 
-    const baseAmount = Number(selectedTicket.price);
-    if (isNaN(baseAmount)) return null;
+    if (eventData.status !== "featured") {
+      return {
+        success: false,
+        error: "Event is expired or coming soon!",
+        breakdown: null,
+      };
+    }
+
+    const seatIds = seats?.flatMap((seatGroup) => seatGroup.seatIds || []) || [];
+
+    if (seatIds.length > 6) {
+      return {
+        success: false,
+        error: "You can book maximum 6 seats at a time",
+        breakdown: null,
+      };
+    }
+
+    const layout = eventData.layoutId
+      ? await Layout.findById(eventData.layoutId)
+      : null;
+
+    if (seatIds.length > 0) {
+      const canBookSeats = await verifySeatLocks(seatIds, eventId, userId);
+      if (!canBookSeats) {
+        return {
+          success: false,
+          error: "Seats are not available or not locked by you",
+          breakdown: null,
+        };
+      }
+    }
+
+    if (layout && Array.isArray(seats) && seats.length > 0) {
+      for (const ticketGroup of seats) {
+        const matchedType = eventData.ticketTypes?.find(
+          (ticketType) =>
+            ticketType.type === ticketGroup.type ||
+            ticketType._id?.toString() === ticketGroup.type?.toString(),
+        );
+
+        const validSeatsForType = extractAvailableSeatsFromLayout(
+          layout,
+          [],
+          new Set(),
+          matchedType?._id?.toString(),
+        );
+
+        const validSeatIdsForType = new Set(
+          validSeatsForType.map((seat) => seat.seatId),
+        );
+
+        const wrongSeats = (ticketGroup.seatIds || []).filter(
+          (seatId) => !validSeatIdsForType.has(seatId),
+        );
+
+        if (wrongSeats.length > 0) {
+          return {
+            success: false,
+            error: `Seats ${wrongSeats.join(", ")} do not belong to ticket type "${ticketGroup.type}".`,
+            breakdown: null,
+          };
+        }
+      }
+    }
+
+    const bookedSeatsSet = new Set(eventData.seatsBooked || []);
+    let ticketSubtotal = 0;
+
+    for (const type of types) {
+      const selectedTicket = eventData.ticketTypes.find(
+        (ticketType) =>
+          ticketType.type === type ||
+          ticketType._id?.toString() === type?.toString(),
+      );
+
+      if (!selectedTicket) {
+        return {
+          success: false,
+          error: `Ticket type "${type}" not found`,
+          breakdown: null,
+        };
+      }
+
+      const selectedSeats =
+        seats?.find(
+          (seatGroup) =>
+            seatGroup.type === type ||
+            seatGroup.type?.toString() === selectedTicket._id?.toString(),
+        )?.seatIds || [];
+
+      for (const seatId of selectedSeats) {
+        if (bookedSeatsSet.has(seatId)) {
+          return {
+            success: false,
+            error: `Seat ${seatId} is already booked`,
+            breakdown: null,
+          };
+        }
+      }
+
+      ticketSubtotal += selectedSeats.length > 0
+        ? selectedSeats.length * (Number(selectedTicket.price) || 0)
+        : Number(selectedTicket.price) || 0;
+    }
+
+    if (isNaN(ticketSubtotal)) {
+      return {
+        success: false,
+        error: "Amount mismatch",
+        breakdown: null,
+      };
+    }
 
     let coupon = null;
     if (couponId) {
@@ -93,13 +301,13 @@ async function getTicketPricingBreakdown({
       : 0;
 
     const breakdown = buildDiscountedBreakdown({
-      ticketPrice: baseAmount,
+      ticketPrice: ticketSubtotal,
       feePercent,
       coupon,
     });
 
-    return {
-      baseAmountRupees: roundCurrency(baseAmount),
+    const pricing = {
+      baseAmountRupees: roundCurrency(ticketSubtotal),
       grossChargeRupees: breakdown.grossChargeRupees,
       finalChargeRupees: breakdown.finalChargeRupees,
       platformFeeRupees: breakdown.platformFeeRupees,
@@ -112,32 +320,20 @@ async function getTicketPricingBreakdown({
       clubId: eventData?.belongsTo?.id || null,
       belongsToType: eventData?.belongsTo?.type || null,
     };
+
+    return {
+      success: pricing.finalChargeRupees === Number(amount),
+      error: null,
+      breakdown: pricing,
+    };
   } catch (error) {
-    console.error("getTicketPricingBreakdown error:", error);
-    return null;
+    console.error("checkAmountValidityAndAvailability error:", error);
+    return {
+      success: false,
+      error: "Internal error during amount validation",
+      breakdown: null,
+    };
   }
-}
-
-async function checkAmountValidity({
-  eventId,
-  type,
-  couponId,
-  amount,
-  userId,
-}) {
-  const breakdown = await getTicketPricingBreakdown({
-    eventId,
-    type,
-    couponId,
-    userId,
-  });
-
-  if (!breakdown) return { isValid: false, breakdown: null };
-
-  return {
-    isValid: breakdown.finalChargeRupees === Number(amount),
-    breakdown,
-  };
 }
 
 /**
@@ -170,7 +366,24 @@ const createOrder = async (req, res) => {
   });
 
   try {
-    const { amount, productName, description, notes, couponId, uid, universeMetaData } = req.body;
+    const {
+      amount,
+      productName,
+      description,
+      notes,
+      couponId,
+      seats,
+      uid,
+      universeMetaData,
+      privateCode,
+      ticketAccess,
+    } = req.body;
+
+    const safeUserId = req.user.id;
+
+    if (notes && !notes.userId) {
+      notes.userId = safeUserId;
+    }
 
     if (!notes || !notes.eventId || !notes.userId || !notes.amtPaid) {
       console.log(1);
@@ -185,26 +398,43 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ success: false, msg: "Invalid amount" });
     }
 
-    const { isValid, breakdown } = await checkAmountValidity({
+    const ticketTypes = notes.types || (notes.type ? [notes.type] : []);
+
+    const { success, breakdown, error } = await checkAmountValidityAndAvailability({
       amount: amountNum,
       eventId: notes.eventId,
-      type: notes.type,
+      types: ticketTypes,
       userId: notes.userId,
       couponId,
+      seats,
+      uid: uid || req.user.uid,
+      privateCode,
+      ticketAccess,
     });
 
-    console.log("valid", isValid);
+    console.log("valid", success);
 
-    if (!isValid || !breakdown) {
+    if (!success || !breakdown) {
       console.log(3);
-      return res.status(400).json({ success: false, msg: "Amount mismatch" });
+      return res.status(400).json({
+        success: false,
+        message: error || "Amount mismatch",
+      });
     }
+
+    let seatIdsToLock = [];
+    if (Array.isArray(seats)) {
+      seatIdsToLock = seats.flatMap((seatGroup) => seatGroup.seatIds || []);
+    }
+
+    await lockSeats(seatIdsToLock, notes.eventId, notes.userId);
 
     // Build safe notes
     const safeNotes = {
       eventId: notes.eventId,
       userId: notes.userId,
       amtPaid: notes.amtPaid,
+      types: ticketTypes,
       type: notes.type,
       extraFieldsData: notes.extraFieldsData,
       clubId: breakdown.clubId,
@@ -216,6 +446,8 @@ const createOrder = async (req, res) => {
       feePercent: breakdown.feePercent,
       uid,
       universeMetaData,
+      privateCode,
+      ticketAccess,
       ...(couponId && { couponId }), // include only if present
 
     };
@@ -229,6 +461,7 @@ const createOrder = async (req, res) => {
 
     razorpayInstance.orders.create(options, (err, order) => {
       if (err) {
+        unLockSeats(seatIdsToLock, notes.eventId, notes.userId);
         console.error("Razorpay order error:", err);
         return res
           .status(500)

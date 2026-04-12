@@ -50,10 +50,17 @@ module.exports = {
   top_clubs: async (block, userId) => {
     const clubs = await Club.aggregate([
       {
+        $match: {
+          members: { $ne: userId },
+          adminId: { $ne: userId },
+          "team.id": { $ne: userId }
+        }
+      },
+      {
         $sort: { rating: -1 },
       },
       {
-        $limit: 12,
+        $limit: 6,
       },
       {
         $project: {
@@ -150,10 +157,16 @@ module.exports = {
   top_communities: async (block, userId) => {
     const communities = await Community.aggregate([
       {
+        $match: {
+          members: { $ne: mongoose.Types.ObjectId(userId) },
+          creatorId: { $ne: mongoose.Types.ObjectId(userId) }
+        }
+      },
+      {
         $sort: { rating: -1 },
       },
       {
-        $limit: 12,
+        $limit: 6,
       },
       {
         $project: {

@@ -48,7 +48,7 @@ const assetSchema = new mongoose.Schema(
       allowedPayloadTypes: [
         {
           type: String,
-          enum: ["audio", "text", "drawing", "video", "book", "movie", "none"],
+          enum: ["audio", "book", "movie", "none"],
         },
       ],
     },

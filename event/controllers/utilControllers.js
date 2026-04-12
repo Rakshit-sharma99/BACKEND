@@ -1300,7 +1300,7 @@ const fetchAvailableCoupon = async (query) => {
 
 const fetchTicketFieldsByQuery = async (query) => {
   try {
-    const { searchBy, fields, single } = payload;
+    const { searchBy, fields, single } = query;
 
     if (
       !searchBy ||
@@ -1330,6 +1330,122 @@ const fetchTicketFieldsByQuery = async (query) => {
   }
 };
 
+const fetchClubFieldsById = async (query) => {
+  try {
+    if (
+      !query.id ||
+      !Array.isArray(query.fields) ||
+      query.fields.length === 0
+    ) {
+      return null;
+    }
+
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://universe:5050/universe/api/v1/club/getClubFieldsById",
+      query,
+      config
+    );
+
+    return response.data.data || null;
+  } catch (error) {
+    console.error(
+      "fetchClubFieldsById error:",
+      error.response?.data || error.message,
+    );
+  }
+}
+// ─── Channel Inter-Service Helpers ─────────────────────────────────────
+
+/**
+ * Add channel entry to a single user's channels array
+ */
+const updateUserChannels = async ({ userId, channelId, role, rooms, callSign }) => {
+  try {
+    const config = generateServiceToken();
+    const service = services[callSign] || services["universe"];
+
+    const response = await axios.post(
+      `http://${service}/${callSign}/api/v1/user/addChannelToUser`,
+      { userId, channelId, role, rooms },
+      config
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("updateUserChannels error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+/**
+ * Bulk update channels for multiple users
+ * Can be used in two modes:
+ * 1. Simple mode: { userIds, channelId, role, rooms } — same channel for all users
+ * 2. Operations mode: { operations: [{ userId, action, channelId, role, rooms }] }
+ */
+const bulkUpdateUserChannels = async (payload) => {
+  try {
+    const config = generateServiceToken();
+    const callSign = payload.callSign || "universe";
+    const service = services[callSign] || services["universe"];
+
+    const response = await axios.post(
+      `http://${service}/${callSign}/api/v1/user/bulkUpdateUserChannels`,
+      payload,
+      config
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("bulkUpdateUserChannels error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+/**
+ * Get channel data for users from universe service
+ * Returns a map of userId -> channels array or specific channel data
+ */
+const getUserChannels = async ({ userIds, channelId, callSign }) => {
+  try {
+    const config = generateServiceToken();
+    const service = services[callSign || "universe"] || services["universe"];
+
+    const response = await axios.post(
+      `http://${service}/${callSign || "universe"}/api/v1/user/getUserChannels`,
+      { userIds, channelId },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("getUserChannels error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+/**
+ * Check if a user is part of a channel and return their role
+ */
+const checkUserChannelRole = async ({ userId, channelId, callSign }) => {
+  try {
+    const config = generateServiceToken();
+    const service = services[callSign || "universe"] || services["universe"];
+
+    const response = await axios.post(
+      `http://${service}/${callSign || "universe"}/api/v1/user/checkUserChannelRole`,
+      { userId, channelId },
+      config
+    );
+
+    return response.data.data;
+  } catch (error) {
+    console.error("checkUserChannelRole error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
 module.exports = {
   fetchItineraries,
   fetchNativeUserData,
@@ -1353,5 +1469,10 @@ module.exports = {
   reminder,
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
-  fetchTicketFieldsByQuery
+  fetchTicketFieldsByQuery,
+  fetchClubFieldsById,
+  updateUserChannels,
+  bulkUpdateUserChannels,
+  getUserChannels,
+  checkUserChannelRole,
 };

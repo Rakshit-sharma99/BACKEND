@@ -5,12 +5,15 @@
  * that creates an isolated Baileys session for a specific user.
  */
 
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-} = require("@whiskeysockets/baileys");
+// @whiskeysockets/baileys is ESM-only — use dynamic import() with a cache.
+let _baileys = null;
+async function getBaileys() {
+  if (!_baileys) {
+    _baileys = await import("@whiskeysockets/baileys");
+  }
+  return _baileys;
+}
+
 const pino = require("pino");
 const path = require("path");
 const fs = require("fs");
@@ -42,11 +45,21 @@ async function createSession(userId, messageCallback) {
   let destroyed = false;
 
   // ── History cache with constraints ──
-  const HISTORY_MAX_PER_GROUP = 500;   // Max messages cached per JID
-  const HISTORY_MAX_TOTAL = 5000;      // Max messages across all groups
+  const HISTORY_MAX_PER_GROUP = 3000;  // Max messages cached per JID (supports deep sync)
+  const HISTORY_MAX_TOTAL = 15000;     // Max messages across all groups
   const HISTORY_MAX_AGE_DAYS = 30;     // Only cache messages from last 30 days
   const historyCache = new Map();
   let totalCached = 0;
+
+  // ── Pending deep-sync resolvers: jid → [resolve, ...] ──
+  const pendingHistoryResolves = new Map();
+
+  // ── History sync completion tracking ──
+  let historySyncComplete = false;
+  let historySyncResolve = null;
+  let historySyncIdleTimer = null;
+  const HISTORY_SYNC_IDLE_MS = 5000; // mark complete after 5s of no new events
+  const historySyncPromise = new Promise((resolve) => { historySyncResolve = resolve; });
 
   // ── Channel (newsletter) cache ──
   // Stores discovered newsletter metadata: Map<jid, { id, name, participants, desc }>
@@ -66,6 +79,10 @@ async function createSession(userId, messageCallback) {
 
     connectionState = "connecting";
     currentQR = null;
+
+    const baileys = await getBaileys();
+    const makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket || baileys.default;
+    const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
 
     const { version } = await fetchLatestBaileysVersion();
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
@@ -126,10 +143,16 @@ async function createSession(userId, messageCallback) {
           if (reconnectTimer) clearTimeout(reconnectTimer);
           reconnectTimer = setTimeout(() => connect(), 3000);
         } else {
-          // Logged out — clear credentials
+          // Logged out — clear stale credentials and restart for fresh QR
+          console.log(`🔑 [${userId}] Clearing stale credentials and restarting for fresh QR...`);
           if (fs.existsSync(authDir)) {
             fs.rmSync(authDir, { recursive: true, force: true });
             fs.mkdirSync(authDir, { recursive: true });
+          }
+          // Restart connection so a new QR code is generated
+          if (!destroyed) {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => connect(), 2000);
           }
         }
       }
@@ -215,6 +238,25 @@ async function createSession(userId, messageCallback) {
       console.log(
         `📚 [${userId}] History sync: +${added} msgs (total: ${totalCached}, groups: ${historyCache.size}, channels: ${channelCache.size}, isLatest: ${isLatest})`
       );
+
+      // Wake up any pending deep-sync waiters for JIDs that received messages
+      for (const jid of historyCache.keys()) {
+        if (pendingHistoryResolves.has(jid)) {
+          const resolvers = pendingHistoryResolves.get(jid);
+          pendingHistoryResolves.delete(jid);
+          for (const resolve of resolvers) resolve();
+        }
+      }
+
+      // Reset the idle timer — mark sync complete after 5s of no new events
+      if (historySyncIdleTimer) clearTimeout(historySyncIdleTimer);
+      historySyncIdleTimer = setTimeout(() => {
+        if (!historySyncComplete) {
+          historySyncComplete = true;
+          console.log(`⏳ [${userId}] History sync idle — marking complete (total: ${totalCached} msgs, ${historyCache.size} groups)`);
+          if (historySyncResolve) historySyncResolve();
+        }
+      }, HISTORY_SYNC_IDLE_MS);
     });
 
     // ── Incoming messages ──
@@ -392,15 +434,328 @@ async function createSession(userId, messageCallback) {
     linkedPhoneInfo = null;
   }
 
+  /**
+   * Actively fetch historical messages for a specific group from the phone.
+   * Uses Baileys' HISTORY_SYNC_ON_DEMAND protocol to request messages,
+   * then waits for them to arrive via messaging-history.set.
+   *
+   * @param {string} jid          Community/group JID
+   * @param {number} count        Number of messages to request
+   * @param {string} anchorMsgId  Real Baileys message key ID of the oldest known message
+   * @param {number} anchorTs     Timestamp (ms) of the oldest known message
+   * @returns {Array} Cached messages for this JID after fetch
+   */
+  async function fetchGroupMessages(jid, count = 500, anchorMsgId = null, anchorTs = null) {
+    if (!sock || connectionState !== "open") {
+      console.warn(`[${userId}] fetchGroupMessages: not connected`);
+      return historyCache.get(jid) || [];
+    }
+
+    if (!anchorMsgId) {
+      console.warn(`[${userId}] fetchGroupMessages: no anchor message — cannot request on-demand history`);
+      return historyCache.get(jid) || [];
+    }
+
+    const oldestMsgKey = {
+      remoteJid: jid,
+      fromMe: false,
+      id: anchorMsgId,
+    };
+
+    const oldestTimestamp = anchorTs || (Date.now() - 30 * 86400 * 1000);
+
+    try {
+      console.log(`🔎 [${userId}] Requesting ${count} messages from phone for ${jid} (anchor: ${anchorMsgId})...`);
+      await sock.fetchMessageHistory(count, oldestMsgKey, oldestTimestamp);
+    } catch (err) {
+      console.error(`[${userId}] fetchMessageHistory failed for ${jid}:`, err.message);
+      return historyCache.get(jid) || [];
+    }
+
+    // Wait for messages to arrive via messaging-history.set (up to 15 seconds)
+    const beforeCount = (historyCache.get(jid) || []).length;
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 15000); // max wait
+
+      // Register a resolver so the history handler can wake us early
+      if (!pendingHistoryResolves.has(jid)) {
+        pendingHistoryResolves.set(jid, []);
+      }
+      pendingHistoryResolves.get(jid).push(() => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+
+    const afterCount = (historyCache.get(jid) || []).length;
+    console.log(
+      `📚 [${userId}] fetchGroupMessages(${jid}): before=${beforeCount}, after=${afterCount}, delta=+${afterCount - beforeCount}`
+    );
+
+    return historyCache.get(jid) || [];
+  }
+
+  /**
+   * Force a fresh history sync by clearing Baileys' "already synced" markers
+   * and reconnecting. This preserves auth (no QR re-scan needed) but forces
+   * the phone to re-deliver all historical messages.
+   *
+   * @param {string} targetJid  Optional JID to watch for in the history cache
+   * @returns {number} Number of messages received for targetJid (or total new messages)
+   */
+  async function requestHistoryResync(targetJid = null) {
+    if (!sock || connectionState !== "open") {
+      console.warn(`[${userId}] requestHistoryResync: not connected`);
+      return 0;
+    }
+
+    const beforeCount = targetJid ? (historyCache.get(targetJid) || []).length : totalCached;
+
+    // Clear processed history markers so Baileys re-requests full history
+    const { useMultiFileAuthState } = await getBaileys();
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+    if (state.creds.processedHistoryMessages) {
+      console.log(`🔄 [${userId}] Clearing ${state.creds.processedHistoryMessages.length} processed history markers...`);
+      state.creds.processedHistoryMessages = [];
+      await saveCreds();
+    }
+
+    // Tear down and reconnect (keeps auth, forces fresh history sync)
+    console.log(`🔄 [${userId}] Reconnecting for fresh history sync...`);
+    try { sock.end(); } catch (_) {}
+    sock = null;
+    connectionState = "disconnected";
+
+    await connect();
+
+    // Wait for history to arrive (up to 25 seconds)
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 25000);
+
+      if (targetJid) {
+        if (!pendingHistoryResolves.has(targetJid)) {
+          pendingHistoryResolves.set(targetJid, []);
+        }
+        pendingHistoryResolves.get(targetJid).push(() => {
+          clearTimeout(timer);
+          // Give a small extra window for additional batches
+          setTimeout(resolve, 3000);
+        });
+      }
+    });
+
+    const afterCount = targetJid ? (historyCache.get(targetJid) || []).length : totalCached;
+    console.log(
+      `📚 [${userId}] requestHistoryResync: before=${beforeCount}, after=${afterCount}, delta=+${afterCount - beforeCount}`
+    );
+
+    return afterCount - beforeCount;
+  }
+
+  /**
+   * Request a pairing code for phone-number-based linking.
+   *
+   * QR and pairing-code are mutually exclusive in Baileys — you cannot call
+   * requestPairingCode on a socket that already entered QR mode. So we tear
+   * down the current socket and create a fresh one specifically for pairing.
+   *
+   * @param {string} phoneNumber — Full international number (e.g. "919876543210")
+   * @returns {string} 8-character pairing code
+   */
+  async function requestPairingCode(phoneNumber) {
+    // Strip everything except digits
+    const cleaned = phoneNumber.replace(/[^\d]/g, "");
+    if (cleaned.length < 10) {
+      throw new Error("Invalid phone number — must include country code");
+    }
+
+    // Tear down any existing socket
+    if (sock) {
+      try { sock.end(); } catch (_) {}
+      sock = null;
+    }
+    // Clear any reconnect timer the old socket's close handler may have scheduled.
+    // sock.end() fires a close event whose handler schedules connect() in 3s —
+    // that stale timer would create a competing QR-mode socket mid-pairing.
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    connectionState = "connecting";
+    currentQR = null;
+
+    const baileys = await getBaileys();
+    const makeWASocket = baileys.makeWASocket || baileys.default?.makeWASocket || baileys.default;
+    const { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = baileys;
+
+    // Clear stale auth so Baileys starts a fresh un-registered session
+    if (fs.existsSync(authDir)) {
+      fs.rmSync(authDir, { recursive: true, force: true });
+      fs.mkdirSync(authDir, { recursive: true });
+    }
+
+    const { version } = await fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState(authDir);
+
+    const logger = pino({ level: "silent" });
+
+    sock = makeWASocket({
+      version,
+      auth: state,
+      logger,
+      printQRInTerminal: false,
+      browser: ["Macbease Starman", "Desktop", "20.0.04"],
+      syncFullHistory: true,
+    });
+
+    // Persist creds on this new socket
+    sock.ev.on("creds.update", saveCreds);
+
+    // Track whether the pairing code has been returned to the caller.
+    // During the handshake, Baileys may close/reopen the WS multiple times
+    // (status undefined). We must NOT reconnect via connect() during this
+    // window — doing so creates a QR-mode socket that conflicts with the
+    // pairing negotiation and triggers an immediate 401 loop.
+    let pairingCodeResolved = false;
+    let pairingSucceeded = false;
+
+    const code = await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error("Timed out waiting for WhatsApp server — try again"));
+      }, 30000);
+
+      sock.ev.on("connection.update", async (update) => {
+        if (destroyed) {
+          clearTimeout(timeout);
+          return reject(new Error("Session destroyed"));
+        }
+
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr && !pairingCodeResolved) {
+          // Server is ready — request pairing code instead of showing QR
+          try {
+            const pairingCode = await sock.requestPairingCode(cleaned);
+            clearTimeout(timeout);
+            pairingCodeResolved = true;
+            console.log(`📲 [${userId}] Pairing code generated for ${cleaned}: ${pairingCode}`);
+            resolve(pairingCode);
+          } catch (err) {
+            clearTimeout(timeout);
+            console.error(`[${userId}] Pairing code request failed:`, err.message);
+            reject(new Error("Could not generate pairing code — try again"));
+          }
+        }
+
+        if (connection === "open") {
+          pairingSucceeded = true;
+          connectionState = "open";
+          currentQR = null;
+          linkedPhoneInfo = sock.user || null;
+          console.log(`✅ [${userId}] WhatsApp connected via pairing code: ${linkedPhoneInfo?.id || "unknown"}`);
+
+          // Transition to the full session with all event listeners.
+          // The current socket has partial listeners; reconnecting via
+          // connect() wires up history sync, chats.set, etc.
+          console.log(`🔄 [${userId}] Transitioning pairing socket to full session...`);
+          if (reconnectTimer) clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(() => connect(), 1000);
+        }
+
+        if (connection === "close") {
+          const statusCode =
+            lastDisconnect?.error?.output?.statusCode ||
+            lastDisconnect?.error?.statusCode;
+
+          if (!pairingCodeResolved) {
+            // Pairing code hasn't been returned yet — this is a fatal failure
+            connectionState = "disconnected";
+            console.log(`❌ [${userId}] Connection closed before pairing code was generated (status: ${statusCode})`);
+            // Don't reconnect — let the promise timeout or the user retry
+          } else if (pairingSucceeded) {
+            // Already connected once — use normal reconnect logic
+            connectionState = "disconnected";
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(
+              `❌ [${userId}] Post-pairing connection closed (status: ${statusCode}). ${shouldReconnect ? "Reconnecting..." : "Logged out."}`,
+              lastDisconnect?.error || "No error attached"
+            );
+            if (shouldReconnect && !destroyed) {
+              if (reconnectTimer) clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(() => connect(), 3000);
+            }
+          } else {
+            // Pairing code was returned but user hasn't entered it yet.
+            // Interim WS closes (status undefined) are NORMAL during the
+            // Baileys pairing handshake. We MUST reconnect so a live socket
+            // exists to receive the "open" event when the user enters the code.
+            // connect() uses the EXISTING auth dir (creds saved by saveCreds)
+            // so the server can complete the pairing handshake.
+
+            if (statusCode === DisconnectReason.loggedOut) {
+              // 401 = pairing was rejected or timed out on the WA server side
+              connectionState = "disconnected";
+              console.log(`🔑 [${userId}] Pairing rejected (401). Clearing credentials for fresh start...`);
+              if (fs.existsSync(authDir)) {
+                fs.rmSync(authDir, { recursive: true, force: true });
+                fs.mkdirSync(authDir, { recursive: true });
+              }
+              if (!destroyed) {
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(() => connect(), 2000);
+              }
+            } else if (!destroyed) {
+              // Non-fatal close — reconnect to keep the session alive
+              console.log(
+                `⏳ [${userId}] Interim connection close during pairing (status: ${statusCode}) — reconnecting to await code entry...`
+              );
+              connectionState = "pairing";
+              if (reconnectTimer) clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(() => connect(), 2000);
+            }
+          }
+        }
+      });
+
+      // Wire up message listeners on the new socket too
+      sock.ev.on("messages.upsert", ({ messages, type }) => {
+        if (type !== "notify") return;
+        const incoming = messages.filter(
+          (m) => !m.key.fromMe && m.message && !m.key.remoteJid.endsWith("@s.whatsapp.net"),
+        );
+        if (incoming.length > 0 && messageCallback) {
+          messageCallback(incoming);
+        }
+      });
+    });
+
+    return code;
+  }
+
   return {
     connect,
     getGroups,
     getChannels,
     getStatus,
     getQR,
+    requestPairingCode,
     logout,
     destroy,
     getHistoricalMessages,
+    fetchGroupMessages,
+    requestHistoryResync,
+    /**
+     * Wait for Baileys history sync to complete.
+     * Resolves immediately if already done, otherwise waits up to 60s.
+     */
+    async waitForHistorySync() {
+      if (historySyncComplete) return;
+      // Race between the sync promise and a 60s safety timeout
+      await Promise.race([
+        historySyncPromise,
+        new Promise((r) => setTimeout(r, 60000)),
+      ]);
+    },
     get userId() {
       return userId;
     },
