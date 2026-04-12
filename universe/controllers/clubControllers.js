@@ -651,10 +651,7 @@ const removeAdmin = async (req, res) => {
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
     // Handle authorization cases
-    if (
-      isAuthorized === "Fully-authorized" ||
-      (isAuthorized === "Authorized" && userId === req.user.id)
-    ) {
+    if (isAuthorized === "Fully-authorized" || userId === req.user.id) {
       const club = await Club.findById(clubId);
       if (!club) {
         return res
@@ -903,7 +900,9 @@ const removeEvent = async (req, res) => {
             return eventPoint; // Keep the event
           }
           // Delete event from event service via Kafka
-          await sendKafkaMessage("DELETE_EVENT", "event", { eventId: eventPoint.eventId });
+          await sendKafkaMessage("DELETE_EVENT", "event", {
+            eventId: eventPoint.eventId,
+          });
           return null; // Remove event
         }
         return eventPoint;
@@ -1053,16 +1052,15 @@ const removeContent = async (req, res) => {
     if (!["admin", "user"].includes(req.user.role)) {
       return res
         .status(StatusCodes.FORBIDDEN)
-        .send("You are not authorized to access this route of removing a content.");
+        .send(
+          "You are not authorized to access this route of removing a content.",
+        );
     }
 
     // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
-    if (
-      isAuthorized !== "Fully-authorized" &&
-      isAuthorized !== "Authorized"
-    ) {
+    if (isAuthorized !== "Fully-authorized" && isAuthorized !== "Authorized") {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to remove a content.");
@@ -1077,18 +1075,14 @@ const removeContent = async (req, res) => {
           videos: { contentId: contentId },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedClub) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
-    return res
-      .status(StatusCodes.OK)
-      .send("Successfully removed content!");
+    return res.status(StatusCodes.OK).send("Successfully removed content!");
   } catch (error) {
     console.error("removeContent error:", error);
 
@@ -1115,17 +1109,14 @@ const postGallery = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "You are not authorized to access this route of posting in gallery."
+          "You are not authorized to access this route of posting in gallery.",
         );
     }
 
     // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
-    if (
-      isAuthorized !== "Fully-authorized" &&
-      isAuthorized !== "Authorized"
-    ) {
+    if (isAuthorized !== "Fully-authorized" && isAuthorized !== "Authorized") {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to post in gallery!");
@@ -1145,18 +1136,14 @@ const postGallery = async (req, res) => {
       {
         $push: { gallery: data },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedClub) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
-    return res
-      .status(StatusCodes.OK)
-      .send("Successfully posted in gallery!");
+    return res.status(StatusCodes.OK).send("Successfully posted in gallery!");
   } catch (error) {
     console.error("postGallery error:", error);
 
@@ -1183,17 +1170,14 @@ const removeGallery = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "You are not authorized to access this route of removing from gallery."
+          "You are not authorized to access this route of removing from gallery.",
         );
     }
 
     // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
-    if (
-      isAuthorized !== "Fully-authorized" &&
-      isAuthorized !== "Authorized"
-    ) {
+    if (isAuthorized !== "Fully-authorized" && isAuthorized !== "Authorized") {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to remove from gallery.");
@@ -1207,13 +1191,11 @@ const removeGallery = async (req, res) => {
           gallery: { id: id },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedClub) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     return res
@@ -1316,10 +1298,7 @@ const deleteNotifications = async (req, res) => {
     // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
-    if (
-      isAuthorized !== "Fully-authorized" &&
-      isAuthorized !== "Authorized"
-    ) {
+    if (isAuthorized !== "Fully-authorized" && isAuthorized !== "Authorized") {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send("You have to be admin to delete notification.");
@@ -1333,13 +1312,11 @@ const deleteNotifications = async (req, res) => {
           notifications: { uid: uid },
         },
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedClub) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     return res
@@ -1371,7 +1348,7 @@ const editProfile = async (req, res) => {
       return res
         .status(StatusCodes.FORBIDDEN)
         .send(
-          "You are not authorized to access this route of editing club's profile."
+          "You are not authorized to access this route of editing club's profile.",
         );
     }
 
@@ -1410,18 +1387,14 @@ const editProfile = async (req, res) => {
     const updatedClub = await Club.findByIdAndUpdate(
       clubId,
       { $set: updateData },
-      { new: true, runValidators: true }
+      { new: true, runValidators: true },
     );
 
     if (!updatedClub) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
-    return res
-      .status(StatusCodes.OK)
-      .send("Successfully updated!");
+    return res.status(StatusCodes.OK).send("Successfully updated!");
   } catch (error) {
     console.error("editProfile error:", error);
 
@@ -1589,9 +1562,7 @@ const getClubsByTag = async (req, res) => {
 
     // ✅ Validate input
     if (!tag || typeof tag !== "string") {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("Valid tag is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("Valid tag is required.");
     }
 
     // ✅ Escape regex to prevent injection/ReDoS
@@ -1601,7 +1572,7 @@ const getClubsByTag = async (req, res) => {
     // ✅ Fetch clubs
     const clubs = await Club.find(
       { tags: regex },
-      { secondaryImg: 1, name: 1, tags: 1, motto: 1 }
+      { secondaryImg: 1, name: 1, tags: 1, motto: 1 },
     ).lean();
 
     // ✅ Update lastActive asynchronously (non-blocking)
@@ -1641,9 +1612,7 @@ const getLikeStatus = async (req, res) => {
 
     // ✅ Validate input
     if (!contentId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("contentId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("contentId is required.");
     }
 
     // ✅ Role check
@@ -1660,17 +1629,13 @@ const getLikeStatus = async (req, res) => {
     });
 
     if (!content) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Content not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
     }
 
     const likes = content.likes || [];
 
     // ✅ Safe comparison (ObjectId support)
-    const liked = likes.some(
-      (id) => id.toString() === userId
-    );
+    const liked = likes.some((id) => id.toString() === userId);
 
     return res.status(StatusCodes.OK).json({ liked });
   } catch (error) {
@@ -1690,9 +1655,7 @@ const getLatestContent = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check
@@ -1710,9 +1673,7 @@ const getLatestContent = async (req, res) => {
     }).lean();
 
     if (!entity) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("User/Admin not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("User/Admin not found.");
     }
 
     const lastActive = new Date(entity.lastActive || 0);
@@ -1723,14 +1684,12 @@ const getLatestContent = async (req, res) => {
     }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     // ✅ Filter efficiently (still array-based, but cleaner)
     const latestContent = (club.content || []).filter(
-      (item) => new Date(item.timeStamp) > lastActive
+      (item) => new Date(item.timeStamp) > lastActive,
     );
 
     return res.status(StatusCodes.OK).json(latestContent);
@@ -1939,9 +1898,7 @@ const getClubContent = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check
@@ -1952,15 +1909,10 @@ const getClubContent = async (req, res) => {
     }
 
     // ✅ Fetch club content
-    const club = await Club.findById(
-      clubId,
-      { content: 1, _id: 0 }
-    ).lean();
+    const club = await Club.findById(clubId, { content: 1, _id: 0 }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     return res.status(StatusCodes.OK).json(club);
@@ -1980,9 +1932,7 @@ const getClubGallery = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     const page = parseInt(batch);
@@ -2002,20 +1952,15 @@ const getClubGallery = async (req, res) => {
     }
 
     // ✅ Fetch paginated slice directly
-    const club = await Club.findById(
-      clubId,
-      {
-        gallery: {
-          $slice: [(page - 1) * limit, limit],
-        },
-        _id: 0,
-      }
-    ).lean();
+    const club = await Club.findById(clubId, {
+      gallery: {
+        $slice: [(page - 1) * limit, limit],
+      },
+      _id: 0,
+    }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     let data = club.gallery || [];
@@ -2026,7 +1971,7 @@ const getClubGallery = async (req, res) => {
 
       const users = await User.find(
         { _id: { $in: userIds } },
-        { name: 1, image: 1, pushToken: 1 }
+        { name: 1, image: 1, pushToken: 1 },
       ).lean();
 
       const userMap = {};
@@ -2057,9 +2002,7 @@ const getClubVideos = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check
@@ -2072,15 +2015,13 @@ const getClubVideos = async (req, res) => {
     const maxLimit = Math.min(parseInt(limit) || 12, 50);
 
     // ✅ Fetch only required videos
-    const club = await Club.findById(
-      clubId,
-      { videos: { $slice: -maxLimit }, _id: 0 }
-    ).lean();
+    const club = await Club.findById(clubId, {
+      videos: { $slice: -maxLimit },
+      _id: 0,
+    }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     const videos = (club.videos || []).slice().reverse();
@@ -2098,7 +2039,7 @@ const getClubVideos = async (req, res) => {
     // ✅ Fetch all users in ONE query
     const users = await User.find(
       { _id: { $in: userIds } },
-      { image: 1, name: 1, pushToken: 1 }
+      { image: 1, name: 1, pushToken: 1 },
     ).lean();
 
     const userMap = {};
@@ -2107,18 +2048,20 @@ const getClubVideos = async (req, res) => {
     });
 
     // ✅ Merge data
-    const finalData = contents.map((data) => {
-      if (!data) return null;
+    const finalData = contents
+      .map((data) => {
+        if (!data) return null;
 
-      const user = userMap[data.idOfSender?.toString()] || {};
+        const user = userMap[data.idOfSender?.toString()] || {};
 
-      return {
-        ...data,
-        userName: user.name || null,
-        userPic: user.image || null,
-        userPushToken: user.pushToken || null,
-      };
-    }).filter(Boolean);
+        return {
+          ...data,
+          userName: user.name || null,
+          userPic: user.image || null,
+          userPushToken: user.pushToken || null,
+        };
+      })
+      .filter(Boolean);
 
     return res.status(StatusCodes.OK).json(finalData);
   } catch (error) {
@@ -2138,9 +2081,7 @@ const isAdmin = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check (optional but recommended)
@@ -2151,23 +2092,16 @@ const isAdmin = async (req, res) => {
     }
 
     // ✅ Fetch club
-    const club = await Club.findById(
-      clubId,
-      { adminId: 1, _id: 0 }
-    ).lean();
+    const club = await Club.findById(clubId, { adminId: 1, _id: 0 }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     const adminList = club.adminId || [];
 
     // ✅ Safe ObjectId comparison
-    const result = adminList.some(
-      (id) => id.toString() === userId
-    );
+    const result = adminList.some((id) => id.toString() === userId);
 
     return res.status(StatusCodes.OK).json(result);
   } catch (error) {
@@ -2187,9 +2121,7 @@ const isMember = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check (optional but recommended)
@@ -2200,23 +2132,16 @@ const isMember = async (req, res) => {
     }
 
     // ✅ Fetch club
-    const club = await Club.findById(
-      clubId,
-      { members: 1, _id: 0 }
-    ).lean();
+    const club = await Club.findById(clubId, { members: 1, _id: 0 }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     const members = club.members || [];
 
     // ✅ Safe ObjectId comparison
-    const result = members.some(
-      (id) => id.toString() === userId
-    );
+    const result = members.some((id) => id.toString() === userId);
 
     return res.status(StatusCodes.OK).json(result);
   } catch (error) {
@@ -2258,9 +2183,7 @@ const isMainAdmin = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check (optional but recommended)
@@ -2271,10 +2194,7 @@ const isMainAdmin = async (req, res) => {
     }
 
     // ✅ Authorization check
-    const isAuthorized = await checkAuthorization(
-      clubId,
-      req.user.id
-    );
+    const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
     const isMainAdmin = isAuthorized === "Fully-authorized";
 
@@ -2295,9 +2215,7 @@ const getCreatorId = async (req, res) => {
 
     // ✅ Validate input
     if (!clubId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("clubId is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("clubId is required.");
     }
 
     // ✅ Role check (optional but recommended)
@@ -2308,15 +2226,10 @@ const getCreatorId = async (req, res) => {
     }
 
     // ✅ Fetch club
-    const club = await Club.findById(
-      clubId,
-      { mainAdmin: 1, _id: 0 }
-    ).lean();
+    const club = await Club.findById(clubId, { mainAdmin: 1, _id: 0 }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Club not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
 
     return res.status(StatusCodes.OK).json(club);
@@ -2486,9 +2399,7 @@ const getClub = async (req, res) => {
 
     // ✅ Validate input
     if (!id) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("Club id is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("Club id is required.");
     }
 
     // ✅ Role check
@@ -2499,15 +2410,10 @@ const getClub = async (req, res) => {
     }
 
     // ✅ Fetch club
-    const club = await Club.findById(
-      id,
-      { name: 1, secondaryImg: 1 }
-    ).lean();
+    const club = await Club.findById(id, { name: 1, secondaryImg: 1 }).lean();
 
     if (!club) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Could not find the club.");
+      return res.status(StatusCodes.NOT_FOUND).send("Could not find the club.");
     }
 
     return res.status(StatusCodes.OK).json(club);
@@ -3671,10 +3577,10 @@ const getProposalsFromIds = async (req, res) => {
         const fpData = dataMap.get(fp.id);
         return fpData
           ? {
-            ...fp,
-            endorsedBy: fpData.endorsedBy,
-            expiration: fpData.expiration,
-          }
+              ...fp,
+              endorsedBy: fpData.endorsedBy,
+              expiration: fpData.expiration,
+            }
           : null;
       })
       .filter(Boolean); // Remove null values
@@ -3869,9 +3775,9 @@ const getRandomClubs = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-        acc[field.trim()] = 1;
-        return acc;
-      }, {})
+          acc[field.trim()] = 1;
+          return acc;
+        }, {})
       : {};
 
     const clubs = await Club.aggregate([
@@ -4543,8 +4449,8 @@ const getClubsRecommendation = async (req, res) => {
 
     const excludedIds = Array.isArray(nIds)
       ? nIds
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(id))
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id))
       : [];
 
     const pipeline = [];
