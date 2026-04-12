@@ -42,6 +42,7 @@ module.exports = { io, redis };
 
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");
+const checkAdmin = require("./middlewares/checkadmin");
 const userAuthRouter = require("./routes/userAuthRouter");
 const userRouter = require("./routes/userRouter");
 const frontendRouter = require("./routes/frontendRouter");
@@ -67,6 +68,7 @@ const layoutRouter = require("./routes/layoutRouter");
 const seatLock = require("./sockets/seatLock");
 
 const sessionRouter = require("./routes/sessionRouter");
+const communityMetaRouter = require("./routes/communityMetaRouter");
 const accessCodeRouter = require("./routes/accessRouter");
 
 app.set("trust proxy", 1);
@@ -141,7 +143,8 @@ app.use("/universe/api/v1/push", authenticate, pushRouter);
 app.use("/universe/api/v1/layout", authenticate, layoutRouter);
 
 // admin routes
-app.use("/universe/api/v1/session", authenticate, sessionRouter);
+app.use("/universe/api/v1/session", authenticate, checkAdmin, sessionRouter);
+app.use("/universe/api/v1/community-metadata", authenticate,checkAdmin, communityMetaRouter);
 app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
