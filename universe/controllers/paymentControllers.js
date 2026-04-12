@@ -3,10 +3,10 @@ const Razorpay = require('razorpay');
 const {
   fetchEventData,
   fetchCouponById,
-  verifyTicketPurchaseAccess,
 } = require('./interServiceCalls');
 const Award = require("../models/award");
 const Layout = require("../models/layout");
+const User = require("../models/user");
 const {
   verifySeatLocks,
   lockSeats,
@@ -31,6 +31,10 @@ function roundCurrency(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function ceilCurrency(value) {
+  return Math.max(0, Math.ceil(Number(value || 0)));
+}
+
 function buildDiscountedBreakdown({
   ticketPrice,
   feePercent,
@@ -53,7 +57,7 @@ function buildDiscountedBreakdown({
     }
   }
 
-  finalCharge = Math.max(0, finalCharge);
+  const finalChargeRupees = ceilCurrency(finalCharge);
 
   if (grossCharge === 0) {
     return {
@@ -64,71 +68,23 @@ function buildDiscountedBreakdown({
     };
   }
 
-  const netPlatformFee = roundCurrency((platformFee / grossCharge) * finalCharge);
-  const clubNetCredit = roundCurrency(finalCharge - netPlatformFee);
-
-  return {
-    grossChargeRupees: grossCharge,
-    platformFeeRupees: netPlatformFee,
-    clubNetCreditRupees: clubNetCredit,
-    finalChargeRupees: finalCharge,
-  };
-}
-
-function buildTicketAccessMap(ticketAccess = [], fallbackType = null, privateCode = null) {
-  const accessMap = {};
-
-  if (Array.isArray(ticketAccess)) {
-    ticketAccess.forEach((entry) => {
-      const type = String(entry?.type || "").trim();
-      if (!type) {
-        return;
-      }
-
-      accessMap[type] = String(entry?.privateCode || "").trim();
-    });
-  }
-
-  if (fallbackType && privateCode && !accessMap[fallbackType]) {
-    accessMap[fallbackType] = String(privateCode).trim();
-  }
-
-  return accessMap;
-}
-
-async function validateTicketPurchaseAccess({
-  eventId,
-  types = [],
-  userId,
-  uid,
-  privateCode,
-  ticketAccess,
-}) {
-  const uniqueTypes = [...new Set((types || []).filter(Boolean))];
-  const accessMap = buildTicketAccessMap(
-    ticketAccess,
-    uniqueTypes.length === 1 ? uniqueTypes[0] : null,
-    privateCode,
+  const grossChargeRupees = ceilCurrency(grossCharge);
+  const proportionalPlatformFee = (platformFee / grossCharge) * finalChargeRupees;
+  const platformFeeRupees = Math.min(
+    finalChargeRupees,
+    ceilCurrency(proportionalPlatformFee),
+  );
+  const clubNetCreditRupees = Math.max(
+    0,
+    finalChargeRupees - platformFeeRupees,
   );
 
-  for (const ticketType of uniqueTypes) {
-    const result = await verifyTicketPurchaseAccess({
-      eventId,
-      ticketType,
-      privateCode: accessMap[ticketType],
-      uid,
-      userId,
-    });
-
-    if (!result?.canBuy) {
-      return {
-        success: false,
-        error: result?.message || `You are not allowed to buy ${ticketType}.`,
-      };
-    }
-  }
-
-  return { success: true, error: null };
+  return {
+    grossChargeRupees,
+    platformFeeRupees,
+    clubNetCreditRupees,
+    finalChargeRupees,
+  };
 }
 
 async function checkAmountValidityAndAvailability({
@@ -138,28 +94,8 @@ async function checkAmountValidityAndAvailability({
   amount,
   userId,
   seats,
-  uid,
-  privateCode,
-  ticketAccess,
 }) {
   try {
-    const accessCheck = await validateTicketPurchaseAccess({
-      eventId,
-      types,
-      userId,
-      uid,
-      privateCode,
-      ticketAccess,
-    });
-
-    if (!accessCheck.success) {
-      return {
-        success: false,
-        error: accessCheck.error,
-        breakdown: null,
-      };
-    }
-
     const eventData = await fetchEventData({
       id: eventId,
       fields: [
@@ -407,9 +343,6 @@ const createOrder = async (req, res) => {
       userId: notes.userId,
       couponId,
       seats,
-      uid: uid || req.user.uid,
-      privateCode,
-      ticketAccess,
     });
 
     console.log("valid", success);
@@ -429,22 +362,27 @@ const createOrder = async (req, res) => {
 
     await lockSeats(seatIdsToLock, notes.eventId, notes.userId);
 
+    let safeUid = uid || req.user.uid || null;
+    if (!safeUid && notes.userId) {
+      const user = await User.findById(notes.userId).select("uid").lean();
+      safeUid = user?.uid || null;
+    }
+    const finalAmountRupees = breakdown.finalChargeRupees;
+
     // Build safe notes
     const safeNotes = {
       eventId: notes.eventId,
       userId: notes.userId,
-      amtPaid: notes.amtPaid,
+      amtPaid: finalAmountRupees,
       types: ticketTypes,
       type: notes.type,
       extraFieldsData: notes.extraFieldsData,
-      clubId: breakdown.clubId,
-      belongsToType: breakdown.belongsToType,
       grossChargePaise: breakdown.grossChargePaise,
       chargedAmountPaise: breakdown.chargedAmountPaise,
       platformFeePaise: breakdown.platformFeePaise,
       clubNetCreditPaise: breakdown.clubNetCreditPaise,
       feePercent: breakdown.feePercent,
-      uid,
+      uid: safeUid,
       universeMetaData,
       privateCode,
       ticketAccess,
@@ -453,15 +391,15 @@ const createOrder = async (req, res) => {
     };
 
     const options = {
-      amount: Math.round(amountNum * 100), // convert to paise
+      amount: breakdown.chargedAmountPaise, // convert to paise
       currency: "INR",
       receipt: `rcpt_${Date.now()}`,
       notes: safeNotes,
     };
 
-    razorpayInstance.orders.create(options, (err, order) => {
+    razorpayInstance.orders.create(options, async (err, order) => {
       if (err) {
-        unLockSeats(seatIdsToLock, notes.eventId, notes.userId);
+        await unLockSeats(seatIdsToLock, notes.eventId, notes.userId);
         console.error("Razorpay order error:", err);
         return res
           .status(500)
@@ -472,7 +410,7 @@ const createOrder = async (req, res) => {
         success: true,
         msg: "Order Created",
         order_id: order.id,
-        amount: amountNum,
+        amount: finalAmountRupees,
         product_name: productName,
         description,
       });
@@ -554,4 +492,7 @@ const createAwardsOrder = async (req, res) => {
   }
 };
 
-module.exports = { generatePaymentIntent, createOrder,createAwardsOrder };
+module.exports = { generatePaymentIntent, createOrder, createAwardsOrder };
+
+
+

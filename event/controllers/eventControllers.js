@@ -1451,12 +1451,9 @@ const checkTicketAvailability = async (req, res) => {
       ticketIds: event.bookedBy || [],
     });
 
-    console.log("ticket counts", ticketCounts)
-
-    ticketCounts.forEach(({ _id, count }) => {
-      const type = _id.trim();
-      if (ticketTypesSales.hasOwnProperty(type)) {
-        ticketTypesSales[type] = count;
+    ticketCounts.forEach(({ type, count }) => {
+      if (type != null && ticketTypesSales.hasOwnProperty(type.trim())) {
+        ticketTypesSales[type.trim()] = count;
       }
     });
 
