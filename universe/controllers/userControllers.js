@@ -57,28 +57,31 @@ const searchUserByName = async (req, res) => {
 const getUserBio = async (req, res) => {
   console.log("user bio");
   try {
-    const user = await User.findById(req.user.id, {
-      course: 1,
-      role: 1,
-      interests: 1,
-      clubs: 1,
-      communitiesCreated: 1,
-      communitiesPartOf: 1,
-      giftsSend: 1,
-      name: 1,
-      image: 1,
-      chatRooms: 1,
-      email: 1,
-      unreadNotice: 1,
-      level: 1,
-      passoutYear: 1,
-      field: 1,
-      incompleteProfile: 1,
-      notifications: 1,
-      shortCuts: 1,
-      incompleteFields: 1,
-      universeMetaData: 1,
-    });
+    const [user, bookmarksCount] = await Promise.all([
+      User.findById(req.user.id, {
+        course: 1,
+        role: 1,
+        interests: 1,
+        clubs: 1,
+        communitiesCreated: 1,
+        communitiesPartOf: 1,
+        giftsSend: 1,
+        name: 1,
+        image: 1,
+        chatRooms: 1,
+        email: 1,
+        unreadNotice: 1,
+        level: 1,
+        passoutYear: 1,
+        field: 1,
+        incompleteProfile: 1,
+        notifications: 1,
+        shortCuts: 1,
+        incompleteFields: 1,
+        universeMetaData: 1,
+      }),
+      Bookmark.countDocuments({ userId: req.user.id }),
+    ]);
     if (!user) {
       return res
         .status(StatusCodes.NOT_FOUND)
@@ -106,6 +109,8 @@ const getUserBio = async (req, res) => {
       universeMetaData,
     } = user;
 
+    console.log("bookmarksCount", bookmarksCount);
+
     return res.status(StatusCodes.OK).json({
       course,
       role,
@@ -126,6 +131,7 @@ const getUserBio = async (req, res) => {
       shortCuts,
       incompleteFields,
       universeMetaData,
+      bookmarksCount,
     });
   } catch (err) {
     console.error(err);
@@ -623,7 +629,7 @@ const getBasicUserBio = async (req, res) => {
     } else {
       tunerIds = [];
     }
-    const [communities, clubs, tunerGraphics, memoriesCount] =
+    const [communities, clubs, tunerGraphics, memoriesCount, bookmarksCount] =
       await Promise.all([
         Community.find(
           { _id: { $in: communityIds } },
@@ -638,6 +644,7 @@ const getBasicUserBio = async (req, res) => {
           { name: 1, image: 1, pushToken: 1 },
         ).lean(),
         getMemoryCount(id),
+        Bookmark.countDocuments({ userId: id }),
       ]);
     const outcome = {
       course: user.course,
@@ -672,6 +679,7 @@ const getBasicUserBio = async (req, res) => {
       gender: user.gender,
       emailVerified: user.emailVerified,
       cards: user.cards,
+      bookmarksCount,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
@@ -2120,7 +2128,7 @@ const addUniverseMetaDataToShortcuts = async (req, res) => {
       },
       {
         strict: false,
-      }
+      },
     );
 
     return res.json({
@@ -3100,7 +3108,6 @@ const getAssetSuggestions = async (req, res) => {
   }
 };
 
-
 // ─── Channel Internal Endpoints (called by event service) ──────────────
 
 /**
@@ -3135,7 +3142,7 @@ const addChannelToUser = async (req, res) => {
     // Check if channel already exists for user
     const existingUser = await User.findOne(
       { _id: userId, "channels.channelId": channelId },
-      { _id: 1 }
+      { _id: 1 },
     );
 
     if (existingUser) {
@@ -3143,10 +3150,12 @@ const addChannelToUser = async (req, res) => {
       if (rooms && rooms.length > 0) {
         await User.updateOne(
           { _id: userId, "channels.channelId": channelId },
-          { $addToSet: { "channels.$.rooms": { $each: rooms } } }
+          { $addToSet: { "channels.$.rooms": { $each: rooms } } },
         );
       }
-      return res.status(StatusCodes.OK).json({ success: true, message: "Channel updated" });
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Channel updated" });
     }
 
     await User.updateOne(
@@ -3159,7 +3168,7 @@ const addChannelToUser = async (req, res) => {
             rooms: rooms || [],
           },
         },
-      }
+      },
     );
 
     return res.status(StatusCodes.OK).json({ success: true });
@@ -3278,12 +3287,12 @@ const getUserChannels = async (req, res) => {
       // Optimized: use $elemMatch projection to fetch only the relevant channel entry
       users = await User.find(
         { _id: { $in: userIds } },
-        { channels: { $elemMatch: { channelId } } }
+        { channels: { $elemMatch: { channelId } } },
       ).lean();
     } else {
       users = await User.find(
         { _id: { $in: userIds } },
-        { channels: 1 }
+        { channels: 1 },
       ).lean();
     }
 
@@ -3329,7 +3338,7 @@ const checkUserChannelRole = async (req, res) => {
         _id: userId,
         "channels.channelId": channelId,
       },
-      { "channels.$": 1 }
+      { "channels.$": 1 },
     ).lean();
 
     if (!user || !user.channels || user.channels.length === 0) {
@@ -3355,7 +3364,9 @@ const getRecommendedProfiles = async (req, res) => {
     const user = await User.findById(req.user.id);
 
     if (!user) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "User not found" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "User not found" });
     }
 
     const users = await User.aggregate([
@@ -3365,9 +3376,9 @@ const getRecommendedProfiles = async (req, res) => {
           profession: "Student",
           $or: [
             { course: user.course },
-            { interests: { $in: user.interests } }
-          ]
-        }
+            { interests: { $in: user.interests } },
+          ],
+        },
       },
       { $sample: { size: 5 } }, // RANDOM 5 USERS
       {
@@ -3375,19 +3386,21 @@ const getRecommendedProfiles = async (req, res) => {
           name: 1,
           image: 1,
           course: 1,
-          field: 1
-        }
-      }
+          field: 1,
+        },
+      },
     ]);
 
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Fetched users successfully",
-      recommendedProfiles: users
+      recommendedProfiles: users,
     });
   } catch (error) {
     console.error(error);
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Server error" });
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Server error" });
   }
 };
 
@@ -3463,5 +3476,5 @@ module.exports = {
   bulkUpdateUserChannels,
   getUserChannels,
   checkUserChannelRole,
-  getRecommendedProfiles
+  getRecommendedProfiles,
 };
