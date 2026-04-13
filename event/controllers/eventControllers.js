@@ -162,36 +162,36 @@ async function ticketBuyResolver({
     return mainAdmin === safeUserId
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to the club owner.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to the club owner.",
+      };
   }
 
   if (accessLevel === "club_admin" || accessLevel === "club_admins") {
     return adminIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to club admins.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to club admins.",
+      };
   }
 
   if (accessLevel === "club_core") {
     return teamIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to the club core team.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to the club core team.",
+      };
   }
 
   if (accessLevel === "club_members") {
     return memberIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to club members.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to club members.",
+      };
   }
 
   return {
@@ -1496,10 +1496,9 @@ const checkTicketAvailability = async (req, res) => {
 
     console.log("ticket counts", ticketCounts);
 
-    ticketCounts.forEach(({ _id, count }) => {
-      const type = _id.trim();
-      if (ticketTypesSales.hasOwnProperty(type)) {
-        ticketTypesSales[type] = count;
+    ticketCounts.forEach(({ type, count }) => {
+      if (type !== null && ticketTypesSales.hasOwnProperty(type.trim())) {
+        ticketTypesSales[type.trim()] = count;
       }
     });
 
@@ -2214,9 +2213,8 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${
-            field.type
-          }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3680,27 +3678,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-            {
-              $match: {
-                status: "featured",
-                eventDate: { $gte: now },
-                tags: { $in: interestTags },
-                ...universeFilter,
-              },
+          {
+            $match: {
+              status: "featured",
+              eventDate: { $gte: now },
+              tags: { $in: interestTags },
+              ...universeFilter,
             },
-            { $limit: limit },
-            {
-              $project: {
-                bookedBy: 0,
-                amtPaid: 0,
-                amtPaidTo: 0,
-                ticketSellingDays: 0,
-                cumulativeRevenue: 0,
-                courseAnalytics: 0,
-                faq: 0,
-              },
+          },
+          { $limit: limit },
+          {
+            $project: {
+              bookedBy: 0,
+              amtPaid: 0,
+              amtPaidTo: 0,
+              ticketSellingDays: 0,
+              cumulativeRevenue: 0,
+              courseAnalytics: 0,
+              faq: 0,
             },
-          ])
+          },
+        ])
         : [];
 
     let finalEvents = [...suggestedEvents];
