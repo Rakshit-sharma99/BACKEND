@@ -97,9 +97,15 @@ async function ticketBuyResolver({
 
   if (accessLevel === "private_code") {
     const allowedCodes = privateCodes
-      .map((code) => String(code || "").trim().toUpperCase())
+      .map((code) =>
+        String(code || "")
+          .trim()
+          .toUpperCase(),
+      )
       .filter(Boolean);
-    const submittedCode = String(userPrivateCode || "").trim().toUpperCase();
+    const submittedCode = String(userPrivateCode || "")
+      .trim()
+      .toUpperCase();
 
     if (!submittedCode || !allowedCodes.includes(submittedCode)) {
       return {
@@ -148,42 +154,44 @@ async function ticketBuyResolver({
   const mainAdmin = club.mainAdmin?.toString();
   const adminIds = new Set((club.adminId || []).map((id) => id?.toString()));
   const memberIds = new Set((club.members || []).map((id) => id?.toString()));
-  const teamIds = new Set((club.team || []).map((entry) => entry?.id?.toString()));
+  const teamIds = new Set(
+    (club.team || []).map((entry) => entry?.id?.toString()),
+  );
 
   if (accessLevel === "club_full") {
     return mainAdmin === safeUserId
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to the club owner.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to the club owner.",
+        };
   }
 
   if (accessLevel === "club_admin" || accessLevel === "club_admins") {
     return adminIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to club admins.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to club admins.",
+        };
   }
 
   if (accessLevel === "club_core") {
     return teamIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to the club core team.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to the club core team.",
+        };
   }
 
   if (accessLevel === "club_members") {
     return memberIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to club members.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to club members.",
+        };
   }
 
   return {
@@ -194,8 +202,13 @@ async function ticketBuyResolver({
 
 const canBuyTicket = async (req, res) => {
   try {
-    const { eventId, ticketType, privateCode, uid, userId: internalUserId } =
-      req.body;
+    const {
+      eventId,
+      ticketType,
+      privateCode,
+      uid,
+      userId: internalUserId,
+    } = req.body;
 
     if (!eventId || !ticketType) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -301,7 +314,10 @@ const createEvent = async (req, res) => {
 
     // Auto-trigger channel creation (fire-and-forget — don't block the response)
     createChannelForEvent(event._id).catch((channelErr) =>
-      console.error("Auto channel creation failed (non-blocking):", channelErr.message)
+      console.error(
+        "Auto channel creation failed (non-blocking):",
+        channelErr.message,
+      ),
     );
 
     return res.status(StatusCodes.CREATED).json({ event });
@@ -532,17 +548,13 @@ const changeEventStatus = async (req, res) => {
 
     // Send Kafka message only if status is 'featured'
     if (status === "featured") {
-      await sendKafkaMessage(
-        "FEATURED_SECONDARY_ACTION",
-        "universe",
-        {
-          clubId: event.belongsTo.id,
-          eventId: id,
-          eventName: event.name,
-          eventPoster: event.url,
-          eventManagerMail: event.eventManagerMail,
-        },
-      );
+      await sendKafkaMessage("FEATURED_SECONDARY_ACTION", "universe", {
+        clubId: event.belongsTo.id,
+        eventId: id,
+        eventName: event.name,
+        eventPoster: event.url,
+        eventManagerMail: event.eventManagerMail,
+      });
     }
 
     return res
@@ -597,6 +609,9 @@ const deleteEvent = async (req, res) => {
 const getTicketsBought = async (req, res) => {
   try {
     const userId = req.query.userId || req.user.id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+
     const user_query = {
       id: userId,
       fields: ["ticketsBought"],
@@ -604,14 +619,37 @@ const getTicketsBought = async (req, res) => {
     };
     const user = await fetchNativeUserData(user_query);
 
-    if (!user || !user.ticketsBought.length) {
+    if (!user || !user.ticketsBought || !user.ticketsBought.length) {
       return res.status(StatusCodes.OK).json({ arr: [], length: 0 });
     }
 
-    const tickets = await fetchTicketsByIds({ ticketIds: user.ticketsBought });
+    const allTicketIds = user.ticketsBought;
+    // Reverse them first to show latest tickets first, matching previous behaviour
+    const reversedTicketIds = [...allTicketIds];
+
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedTicketIds = reversedTicketIds.slice(startIndex, endIndex);
+
+    if (paginatedTicketIds.length === 0) {
+      return res
+        .status(StatusCodes.OK)
+        .json({ arr: [], length: allTicketIds.length });
+    }
+
+    const tickets = await fetchTicketsByIds({ ticketIds: paginatedTicketIds });
 
     if (!Array.isArray(tickets) || tickets.length === 0) {
-      return res.status(StatusCodes.OK).json({ arr: [], length: 0 });
+      return res
+        .status(StatusCodes.OK)
+        .json({ arr: [], length: allTicketIds.length });
+    }
+
+    const ticketMap = {};
+    for (const ticket of tickets) {
+      if (ticket && ticket._id) {
+        ticketMap[ticket._id.toString()] = ticket;
+      }
     }
 
     const eventIds = tickets.map((ticket) => ticket.eventId);
@@ -628,12 +666,17 @@ const getTicketsBought = async (req, res) => {
 
     const eventMap = {};
     for (const event of events) {
-      eventMap[event._id] = event;
+      if (event && event._id) {
+        eventMap[event._id.toString()] = event;
+      }
     }
 
-    const arr = tickets
-      .map((ticket) => {
-        const actualEvent = eventMap[ticket.eventId];
+    const arr = paginatedTicketIds
+      .map((ticketId) => {
+        const ticket = ticketMap[ticketId?.toString()];
+        if (!ticket) return null;
+
+        const actualEvent = eventMap[ticket.eventId?.toString()];
         if (!actualEvent) return null;
 
         return {
@@ -647,7 +690,7 @@ const getTicketsBought = async (req, res) => {
 
     return res
       .status(StatusCodes.OK)
-      .json({ arr: arr.reverse(), length: arr.length });
+      .json({ arr, length: allTicketIds.length });
   } catch (error) {
     console.error("Error in getTicketsBought:", error);
     return res
@@ -1451,9 +1494,12 @@ const checkTicketAvailability = async (req, res) => {
       ticketIds: event.bookedBy || [],
     });
 
-    ticketCounts.forEach(({ type, count }) => {
-      if (type != null && ticketTypesSales.hasOwnProperty(type.trim())) {
-        ticketTypesSales[type.trim()] = count;
+    console.log("ticket counts", ticketCounts);
+
+    ticketCounts.forEach(({ _id, count }) => {
+      const type = _id.trim();
+      if (ticketTypesSales.hasOwnProperty(type)) {
+        ticketTypesSales[type] = count;
       }
     });
 
@@ -1927,9 +1973,14 @@ const setEventLayout = async (req, res) => {
 const editEventDetails = async (req, res) => {
   try {
     const { eventId, clubId } = req.query;
-    const { url, description, ticketTypes, place,
+    const {
+      url,
+      description,
+      ticketTypes,
+      place,
       eventManagerMail,
-      eventManagerPhone, } = req.body;
+      eventManagerPhone,
+    } = req.body;
 
     if (
       !mongoose.Types.ObjectId.isValid(eventId) ||
@@ -1964,18 +2015,25 @@ const editEventDetails = async (req, res) => {
         ...(eventManagerMail !== undefined && { eventManagerMail }),
         ...(eventManagerPhone !== undefined && { eventManagerPhone }),
       },
-      { new: true }
+      { new: true },
     );
 
     if (!updatedEvent) {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    await sendKafkaMessage(
-      "EDIT_EVENT",
-      "universe",
-      { clubId, eventId, newData: { url, description, ticketTypes, place, eventManagerMail, eventManagerPhone } },
-    );
+    await sendKafkaMessage("EDIT_EVENT", "universe", {
+      clubId,
+      eventId,
+      newData: {
+        url,
+        description,
+        ticketTypes,
+        place,
+        eventManagerMail,
+        eventManagerPhone,
+      },
+    });
 
     res
       .status(200)
@@ -2156,8 +2214,9 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${field.type
-            }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${
+            field.type
+          }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3598,9 +3657,9 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const userId = req.user.id;
     const { uid, universeId } = req.query;
     const limit = 4;
-    const resolvedUniverseId = universeId || uid || 'multiverse';
+    const resolvedUniverseId = universeId || uid || "multiverse";
     const universeFilter =
-      resolvedUniverseId !== 'multiverse' ? { uid: resolvedUniverseId } : {};
+      resolvedUniverseId !== "multiverse" ? { uid: resolvedUniverseId } : {};
 
     const user = await fetchNativeUserData({
       id: userId,
@@ -3621,27 +3680,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-          {
-            $match: {
-              status: "featured",
-              eventDate: { $gte: now },
-              tags: { $in: interestTags },
-              ...universeFilter,
+            {
+              $match: {
+                status: "featured",
+                eventDate: { $gte: now },
+                tags: { $in: interestTags },
+                ...universeFilter,
+              },
             },
-          },
-          { $limit: limit },
-          {
-            $project: {
-              bookedBy: 0,
-              amtPaid: 0,
-              amtPaidTo: 0,
-              ticketSellingDays: 0,
-              cumulativeRevenue: 0,
-              courseAnalytics: 0,
-              faq: 0,
+            { $limit: limit },
+            {
+              $project: {
+                bookedBy: 0,
+                amtPaid: 0,
+                amtPaidTo: 0,
+                ticketSellingDays: 0,
+                cumulativeRevenue: 0,
+                courseAnalytics: 0,
+                faq: 0,
+              },
             },
-          },
-        ])
+          ])
         : [];
 
     let finalEvents = [...suggestedEvents];
@@ -3721,10 +3780,7 @@ const slugifyAllEvents = async (req, res) => {
           counter++;
         }
 
-        await Event.updateOne(
-          { _id: event._id },
-          { $set: { slug } }
-        );
+        await Event.updateOne({ _id: event._id }, { $set: { slug } });
 
         updatedCount++;
       }
@@ -3743,7 +3799,6 @@ const slugifyAllEvents = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   createEvent,
@@ -3800,5 +3855,5 @@ module.exports = {
   getFeaturedEvents,
   getFeaturedEventsForFeed,
   slugifyAllEvents,
-  canBuyTicket
+  canBuyTicket,
 };
