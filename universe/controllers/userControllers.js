@@ -2658,6 +2658,7 @@ const editUserAsset = async (req, res) => {
 
     if (assets && Array.isArray(assets)) {
       if (assets.length === 0) {
+        console.log("xf");
         return res
           .status(StatusCodes.BAD_REQUEST)
           .json({ error: "Assets array cannot be empty." });
@@ -2679,6 +2680,7 @@ const editUserAsset = async (req, res) => {
       });
 
       if (Object.keys(setQuery).length === 0) {
+        console.log("No valid updates provided in assets array.");
         return res
           .status(StatusCodes.BAD_REQUEST)
           .json({ error: "No valid updates provided in assets array." });
@@ -2691,6 +2693,7 @@ const editUserAsset = async (req, res) => {
       );
 
       if (!updatedUser) {
+        console.log("xfdssdsdsd");
         return res
           .status(StatusCodes.NOT_FOUND)
           .json({ error: "User not found." });

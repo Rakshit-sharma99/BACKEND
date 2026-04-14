@@ -17,6 +17,7 @@ const {
   bulkUpdateTags,
   getMultipleAssets,
   getAssetCategories,
+  searchAssets,
 } = require("../controllers/assetControllers");
 
 router.post("/createAsset", createAsset);
@@ -24,6 +25,7 @@ router.put("/editAsset", editAsset);
 router.delete("/deleteAsset", deleteAsset);
 router.get("/getAssetById", getAssetById);
 router.get("/getAllAssetsByType", getAllAssetsByType);
+router.get("/searchAssets", searchAssets);
 router.put("/bulkUpdateTags", bulkUpdateTags);
 
 router.get("/searchSongs", searchSongs);

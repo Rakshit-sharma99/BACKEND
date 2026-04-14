@@ -261,7 +261,73 @@ const getAllAssetsByType = async (req, res) => {
 };
 
 /**
+ * Controller to search for assets by name or tag.
+ */
+const searchAssets = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Search query is required.",
+      });
+    }
+
+    const _search = new RegExp(query, "i");
+
+    const segregatedAssets = await Asset.aggregate([
+      {
+        $match: {
+          $or: [
+            { name: _search },
+            { tag: _search },
+            { subTag: _search },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: { type: "$type", tag: "$tag" },
+          assets: { $push: "$$ROOT" },
+        },
+      },
+    ]);
+
+    const formattedResult = {};
+
+    segregatedAssets.forEach((group) => {
+      const type = group._id.type;
+      const tag = group._id.tag;
+
+      if (!formattedResult[type]) {
+        formattedResult[type] = { untagged: [] };
+      }
+
+      if (tag) {
+        formattedResult[type][tag] = group.assets;
+      } else {
+        formattedResult[type].untagged.push(...group.assets);
+      }
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: formattedResult,
+    });
+  } catch (error) {
+    console.error("Error searching assets:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while searching assets.",
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Controller to search songs via iTunes API
+
  */
 const searchSongs = async (req, res) => {
   try {
@@ -866,4 +932,5 @@ module.exports = {
   getMovieRecommendations,
   getMovieDetails,
   bulkUpdateTags,
+  searchAssets,
 };
