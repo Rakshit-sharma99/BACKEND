@@ -4312,7 +4312,6 @@ module.exports = {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
-  getLiveEvents,
   requestCancellation,
   requestPostponement,
   requestEventLive,
