@@ -1503,7 +1503,7 @@ module.exports = {
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
   fetchEventAdminsByFields,
-  fetchMultipleTicketFieldsById
+  fetchMultipleTicketFieldsById,
   fetchClubFieldsById,
   updateUserChannels,
   bulkUpdateUserChannels,
