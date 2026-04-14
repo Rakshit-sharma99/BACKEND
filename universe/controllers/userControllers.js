@@ -2815,7 +2815,7 @@ const getUserAssets = async (req, res) => {
         if (fullAsset) {
           const { payload, ...rest } = vcAsset;
           const filteredPayload = payload?.customLabel
-            ? { customLabel: payload.customLabel }
+            ? { customLabel: payload.customLabel, cardId: payload?.cardId }
             : undefined;
 
           return {

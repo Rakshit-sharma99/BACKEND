@@ -187,7 +187,7 @@ const fetchEventData = async (query) => {
     );
     return eventData.data.data;
   } catch (error) {
-    console.log("Error fetching event data:", error);
+    console.error("Error fetching event data:", error.message);
   }
 };
 
@@ -279,7 +279,7 @@ const fetchPastEvents = async ({
 
     return response.data.data;
   } catch (error) {
-    console.log("Error fetching past events:", error);
+    console.error("Error fetching past events:", error.message);
     return [];
   }
 };
@@ -300,7 +300,7 @@ const fetchEventGallery = async (eventIds) => {
 
     return response.data.data;
   } catch (error) {
-    console.log("Error fetching event gallery:", error);
+    console.error("Error fetching event gallery:", error.message);
     return [];
   }
 };
@@ -317,7 +317,7 @@ const fetchCouponById = async (query) => {
     );
     return couponData.data.coupons;
   } catch (error) {
-    console.log(error);
+    console.error("Error fetching coupon by id:", error.message);
   }
 };
 
@@ -336,7 +336,7 @@ const fetchSearchedEvents = async (query) => {
 
     return response.data.data;
   } catch (error) {
-    console.log("Error fetching searched events:", error);
+    console.error("Error fetching searched events:", error.message);
     return [];
   }
 };
@@ -356,7 +356,7 @@ const fetchSearchedCards = async (query) => {
 
     return response.data.data;
   } catch (error) {
-    console.log("Error fetching searched cards:", error);
+    console.error("Error fetching searched cards:", error.message);
     return [];
   }
 };
@@ -376,7 +376,9 @@ const getMemoryCount = async (query) => {
 
     return res.data.data;
   } catch (err) {
-    console.log("Error getting memory count:", err);
+    if (err.code !== "ENOTFOUND") {
+      console.error("Error getting memory count:", err.message);
+    }
     return 0;
   }
 };
@@ -440,7 +442,7 @@ const fetchFeaturedEvent = async (query) => {
     );
     return eventData.data.data;
   } catch (error) {
-    console.log("Error fetching featured event data:", error);
+    console.error("Error fetching featured event data:", error.message);
   }
 };
 
