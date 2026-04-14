@@ -163,7 +163,6 @@ const fetchTicketTypesCount = async (query) => {
 };
 
 const fetchTicketFieldsById = async (query) => {
-  console.log("Hitt tickets")
   const url = `http://ticket:6000/ticket/api/v1/getTicketFieldsById`;
   try {
     if (!query.ticketId || !Array.isArray(query.fields)) {
@@ -264,10 +263,6 @@ const sendMail = async (
     region: process.env.AWS_REGION,
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    httpOptions: {
-      timeout: 5000,         // total request timeout
-      connectTimeout: 5000   // connection timeout
-    }
   });
 
   const ses = new AWS.SES();
