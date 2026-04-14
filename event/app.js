@@ -52,6 +52,7 @@ app.get("/event/api/v1/hello", (req, res) => {
 });
 
 app.use("/event/api/v1", authenticate, eventRouter);
+app.use("/event/api/v1/public", publicRouter);
 app.use("/event/api/v1/channel", authenticate, channelRouter);
 
 const port = process.env.PORT || 5060;
