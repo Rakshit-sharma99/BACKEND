@@ -251,10 +251,70 @@ const ticketsPerformance = async (req, res) => {
   }
 };
 
+const updateFunnel = async (req, res) => {
+  try {
+    const { eventId, ticketType, metric } = req.body;
 
+    if (!eventId || !metric) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "eventId and metric are required",
+      });
+    }
 
+    const event_metrics = ["impressions"];
+    const ticket_metrics = [
+      "ticketSelections",
+      "checkoutInitiated",
+      "ordersCompleted",
+    ];
+
+    const isTicketLevel = Boolean(ticketType);
+
+    if (
+      (!isTicketLevel && !event_metrics.includes(metric)) ||
+      (isTicketLevel && !ticket_metrics.includes(metric))
+    ) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "Metric not allowed at this level",
+      });
+    }
+
+    const now = new Date();
+
+    const istTime = new Date(now.getTime() + 330 * 60 * 1000);
+
+    const hour = istTime.getUTCHours();
+
+    const date = new Date(istTime);
+    date.setUTCHours(0, 0, 0, 0);
+
+    const bucketKey = isTicketLevel ? ticketType : "event";
+
+    await EventFunnel.updateOne(
+      { eventId, date },
+      {
+        $inc: {
+          [`buckets.${bucketKey}.hours.${hour}.${metric}`]: 1
+        }
+      },
+      { upsert: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Event funnel updated successfully",
+    });
+
+  } catch (err) {
+    console.error("Error", err);
+    return res.status(500).json({
+      message: "Something went wrong",
+    });
+  }
+};
 
 module.exports = {
   getEventTrends,
-  ticketsPerformance
+  ticketsPerformance,
+  updateFunnel
 }

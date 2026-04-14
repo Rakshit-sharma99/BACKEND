@@ -3,8 +3,8 @@ const {
     getEventById,
     getTopEvents,
     getTopPastEvents,
-    updateFunnel
 } = require("../controllers/eventControllers");
+const { updateFunnel } = require("../controllers/eventfunnelControllers");
 const router = express.Router();
 
 router.get("/getEventById", getEventById);
