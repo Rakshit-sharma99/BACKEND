@@ -23,7 +23,7 @@ const {
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
   fetchEventAdminsByFields,
-  fetchMultipleTicketFieldsById
+  fetchMultipleTicketFieldsById,
   fetchClubFieldsById,
 } = require("./utilControllers");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -3961,7 +3961,7 @@ const cancelEvent = async (req, res) => {
       });
     }
 
-   const event = await Event.findById(id);
+    const event = await Event.findById(id);
 
     if (!event) {
       return res
@@ -4071,7 +4071,7 @@ const requestEventLive = async (req, res) => {
         .status(StatusCodes.BAD_REQUEST)
         .json({ success: false, message: "Event is already live." });
     }
-    
+
     // send mail to admins
     try {
       const admins = await fetchEventAdminsByFields({
