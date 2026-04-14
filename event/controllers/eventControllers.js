@@ -4258,6 +4258,19 @@ const requestPostponement = async (req, res) => {
   }
 };
 
+const getLiveEvents = async (req, res) => {
+  try {
+    const count = await Event.countDocuments({
+      status : "featured"
+    });
+    return res.status(StatusCodes.OK).json({ count });
+  } catch (error) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
