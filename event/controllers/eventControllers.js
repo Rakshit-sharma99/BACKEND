@@ -743,7 +743,7 @@ const askQuestion = async (req, res) => {
       async () => {
         try {
           const intro = [
-            `A new question was submitted on the FAQ portal for "${event.name}":`,
+            `A new question was submitted on the FAQ portal for ${event.name}:`,
             `"${ques}"`,
             "Please review and respond at your earliest convenience.",
           ];
@@ -840,7 +840,7 @@ const answerTheQuestion = async (req, res) => {
           async () => {
             try {
               const intro = [
-                `Your question on the FAQ portal for "${event.name}" has been answered.`,
+                `Your question on the FAQ portal for ${event.name} has been answered.`,
                 `"${faqItem.ques}"`,
                 `Answer: "${ans}"`,
                 "We hope this resolves your query.",
@@ -3402,8 +3402,8 @@ const getLiveEvents = async (req, res) => {
 
 
 const requestCancellation = async (req, res) => {
+  const { id, reason, agreeToTerms } = req.body;
   try {
-    const { id, reason, agreeToTerms } = req.body;
     if (!id || !reason) {
       return res
         .status(StatusCodes.BAD_REQUEST)
@@ -3422,13 +3422,7 @@ const requestCancellation = async (req, res) => {
         .send("You must agree to the terms and conditions.");
     }
 
-    const event = await Event.findByIdAndUpdate(id, {
-      $set: {
-        "cancellation.requested": true,
-        "cancellation.requestedBy": req.user.id,
-        "cancellation.reason": reason
-      }
-    });
+    const event = await Event.findById(id);
 
     if (!event) {
       return res
@@ -3436,8 +3430,11 @@ const requestCancellation = async (req, res) => {
         .send("Event not found with provided ID.");
     }
 
+    event.cancellation.requested = true;
+    event.cancellation.requestedBy = req.user.id;
+    event.cancellation.reason = reason;
 
-
+    await event.save();
     //secondary actions
     try {
       const admins = await fetchEventAdminsByFields({
@@ -3509,7 +3506,6 @@ const processRefund = async (
   try {
 
     if (!razorpay_payment_id?.startsWith("pay_")) {
-      console.log("Invalid payment ID → skipping refund");
       return;
     }
 
@@ -3553,7 +3549,7 @@ const processRefund = async (
 };
 
 const cancelEvent = async (req, res) => {
-  const { id } = req.body;
+  const { eventId } = req.body;
 
   try {
     if (req.user.role !== 'admin') {
@@ -3563,17 +3559,16 @@ const cancelEvent = async (req, res) => {
       });
     }
 
-    const event = await Event.findByIdAndUpdate(id, {
-      $set: {
-        status: "cancelled"
-      }
-    });
+   const event = await Event.findById(id);
 
     if (!event) {
       return res
         .status(StatusCodes.NOT_FOUND)
         .send("Event not found with provided ID.");
     }
+
+    event.status = "cancelled";
+    await event.save();
 
     const tickets = await fetchMultipleTicketFieldsById(
       {
@@ -3600,13 +3595,13 @@ const cancelEvent = async (req, res) => {
     }
 
     try {
-      const intro = `We're sorry to let you know that "${event.name}" has been cancelled.
+      const intro = `We're sorry to let you know that ${event.name} has been cancelled.
 
-    We know you were looking forward to it, and we sincerely apologize for the change in plans.
+      We know you were looking forward to it, and we sincerely apologize for the change in plans.
 
-    If you have already made a payment, your refund has been initiated and will usually be credited back to your original payment method within 5-7 working days. In some cases, depending on your bank or payment provider, it may take a little longer.
+      If you have already made a payment, your refund has been initiated and will usually be credited back to your original payment method within 5-7 working days. In some cases, depending on your bank or payment provider, it may take a little longer.
 
-    You will receive a separate confirmation email once the refund has been successfully processed.`;
+      You will receive a separate confirmation email once the refund has been successfully processed.`;
 
       const outro = "Thank you for your understanding and patience.";
 
@@ -3641,12 +3636,12 @@ const cancelEvent = async (req, res) => {
     }
     return res
       .status(StatusCodes.OK)
-      .send("Event cancelled successfully.");
+      .json({ success: true, message: "Event cancelled successfully." });
   } catch (error) {
     console.error("Error cancelling event:", error);
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .send("Something went wrong");
+      .json({ success: false, message: "Something went wrong" });
   }
 }
 
@@ -3680,9 +3675,9 @@ const requestEventLive = async (req, res) => {
       const admins = await fetchEventAdminsByFields({
         fields: ["name", "email", "pushToken"]
       })
-      const subject = `Make "${event.name}" Live`;
+      const subject = `Make ${event.name} Live`;
 
-      const intro = `A request has been submitted to make the event "${event.name}" live on the platform.
+      const intro = `A request has been submitted to make the event ${event.name} live on the platform.
 
       Please review the event details and verify that all required information, content, ticket settings, and policies are in place before approving it. Until approval is granted, the event will remain hidden from students and will not be available for registration.
 
@@ -3719,7 +3714,7 @@ const requestEventLive = async (req, res) => {
     }
     return res
       .status(StatusCodes.OK)
-      .send("Event is now live.");
+      .json({ success: true, message: "Event is now live." });
   } catch (err) {
     console.error("Error requesting event to be live:", err);
     return res
@@ -3814,9 +3809,9 @@ const requestPostponement = async (req, res) => {
         fields: ["name", "email", "pushToken"],
       });
 
-      const subject = `Request to Postpone "${event.name}"`;
+      const subject = `Request to Postpone ${event.name}`;
 
-      const intro = `A request has been submitted to postpone the event "${event.name}". Please review it.`;
+      const intro = `A request has been submitted to postpone the event ${event.name}. Please review it.`;
       const outro = `Please approve or reject this request.`;
 
       const action = {

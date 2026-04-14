@@ -259,12 +259,6 @@ const sendMail = async (
       },
     },
   };
-  console.log(
-    "region", process.env.AWS_REGION,
-    "accessKey", process.env.AWS_ACCESS_KEY_ID,
-    "sceret", process.env.AWS_SECRET_ACCESS_KEY
-  )
-  const AWS = require("aws-sdk");
 
   AWS.config.update({
     region: process.env.AWS_REGION,
