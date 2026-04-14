@@ -57,28 +57,31 @@ const searchUserByName = async (req, res) => {
 const getUserBio = async (req, res) => {
   console.log("user bio");
   try {
-    const user = await User.findById(req.user.id, {
-      course: 1,
-      role: 1,
-      interests: 1,
-      clubs: 1,
-      communitiesCreated: 1,
-      communitiesPartOf: 1,
-      giftsSend: 1,
-      name: 1,
-      image: 1,
-      chatRooms: 1,
-      email: 1,
-      unreadNotice: 1,
-      level: 1,
-      passoutYear: 1,
-      field: 1,
-      incompleteProfile: 1,
-      notifications: 1,
-      shortCuts: 1,
-      incompleteFields: 1,
-      universeMetaData: 1,
-    });
+    const [user, bookmarksCount] = await Promise.all([
+      User.findById(req.user.id, {
+        course: 1,
+        role: 1,
+        interests: 1,
+        clubs: 1,
+        communitiesCreated: 1,
+        communitiesPartOf: 1,
+        giftsSend: 1,
+        name: 1,
+        image: 1,
+        chatRooms: 1,
+        email: 1,
+        unreadNotice: 1,
+        level: 1,
+        passoutYear: 1,
+        field: 1,
+        incompleteProfile: 1,
+        notifications: 1,
+        shortCuts: 1,
+        incompleteFields: 1,
+        universeMetaData: 1,
+      }),
+      Bookmark.countDocuments({ userId: req.user.id }),
+    ]);
     if (!user) {
       return res
         .status(StatusCodes.NOT_FOUND)
@@ -106,6 +109,8 @@ const getUserBio = async (req, res) => {
       universeMetaData,
     } = user;
 
+    console.log("bookmarksCount", bookmarksCount);
+
     return res.status(StatusCodes.OK).json({
       course,
       role,
@@ -126,6 +131,7 @@ const getUserBio = async (req, res) => {
       shortCuts,
       incompleteFields,
       universeMetaData,
+      bookmarksCount,
     });
   } catch (err) {
     console.error(err);
@@ -623,7 +629,7 @@ const getBasicUserBio = async (req, res) => {
     } else {
       tunerIds = [];
     }
-    const [communities, clubs, tunerGraphics, memoriesCount] =
+    const [communities, clubs, tunerGraphics, memoriesCount, bookmarksCount] =
       await Promise.all([
         Community.find(
           { _id: { $in: communityIds } },
@@ -638,6 +644,7 @@ const getBasicUserBio = async (req, res) => {
           { name: 1, image: 1, pushToken: 1 },
         ).lean(),
         getMemoryCount(id),
+        Bookmark.countDocuments({ userId: id }),
       ]);
     const outcome = {
       course: user.course,
@@ -672,6 +679,7 @@ const getBasicUserBio = async (req, res) => {
       gender: user.gender,
       emailVerified: user.emailVerified,
       cards: user.cards,
+      bookmarksCount,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
@@ -2112,15 +2120,14 @@ const DEFAULT_UNIVERSE = {
 const addUniverseMetaDataToShortcuts = async (req, res) => {
   try {
     const result = await User.updateMany(
-      { "shortCuts.universeMetaData": { $exists: false } },
+      { "shortCuts.0": { $exists: true } },
       {
         $set: {
-          "shortCuts.$[elem].universeMetaData": DEFAULT_UNIVERSE,
+          "shortCuts.$[].universeMetaData": DEFAULT_UNIVERSE,
         },
       },
       {
-        arrayFilters: [{ "elem.universeMetaData": { $exists: false } }],
-        strict: false, // 🔥 THIS LINE FIXES YOUR ERROR
+        strict: false,
       },
     );
 
@@ -2983,7 +2990,6 @@ const getAlumniByCompany = async (req, res) => {
   }
 };
 
-
 /**
  * Suggests 2–3 asset categories the user hasn't uploaded yet.
  * Prioritises categories whose assets have payloadConfig (audio/book/movie),
@@ -3039,7 +3045,9 @@ const getAssetSuggestions = async (req, res) => {
     const allCategories = await fetchAssetCategories();
 
     if (!allCategories || allCategories.length === 0) {
-      return res.status(StatusCodes.OK).json({ success: true, suggestions: [] });
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, suggestions: [] });
     }
 
     // 3. Split into payload vs non-payload categories the user hasn't used
@@ -3097,6 +3105,302 @@ const getAssetSuggestions = async (req, res) => {
       message: "An error occurred while fetching asset suggestions.",
       error: error.message,
     });
+  }
+};
+
+// ─── Channel Internal Endpoints (called by event service) ──────────────
+
+/**
+ * Guard: ensures only internal service-to-service calls can access these endpoints.
+ * The generateServiceToken() used by event/ticket services sets role = "internal".
+ */
+const requireServiceRole = (req, res) => {
+  if (req.user?.role !== "internal") {
+    res.status(403).json({ error: "Service-only endpoint" });
+    return false;
+  }
+  return true;
+};
+
+/**
+ * Add a channel entry to a single user
+ * POST /user/addChannelToUser
+ * Body: { userId, channelId, role, rooms }
+ */
+const addChannelToUser = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userId, channelId, role, rooms } = req.body;
+
+    if (!userId || !channelId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and channelId are required" });
+    }
+
+    // Check if channel already exists for user
+    const existingUser = await User.findOne(
+      { _id: userId, "channels.channelId": channelId },
+      { _id: 1 },
+    );
+
+    if (existingUser) {
+      // Channel already exists, add missing rooms
+      if (rooms && rooms.length > 0) {
+        await User.updateOne(
+          { _id: userId, "channels.channelId": channelId },
+          { $addToSet: { "channels.$.rooms": { $each: rooms } } },
+        );
+      }
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, message: "Channel updated" });
+    }
+
+    await User.updateOne(
+      { _id: userId },
+      {
+        $push: {
+          channels: {
+            channelId,
+            role: role || "member",
+            rooms: rooms || [],
+          },
+        },
+      },
+    );
+
+    return res.status(StatusCodes.OK).json({ success: true });
+  } catch (error) {
+    console.error("addChannelToUser error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Bulk update channels for multiple users
+ * POST /user/bulkUpdateUserChannels
+ * Body: { userIds, channelId, role, rooms } (simple mode)
+ *   OR  { operations: [{ userId, action, channelId, role, rooms }] } (operations mode)
+ */
+const bulkUpdateUserChannels = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userIds, channelId, role, rooms, operations } = req.body;
+
+    if (operations && Array.isArray(operations)) {
+      const bulkOps = operations.map((op) => {
+        if (op.action === "addRooms") {
+          return {
+            updateOne: {
+              filter: {
+                _id: op.userId,
+                "channels.channelId": op.channelId,
+              },
+              update: {
+                $addToSet: {
+                  "channels.$.rooms": { $each: op.rooms },
+                },
+              },
+            },
+          };
+        } else {
+          return {
+            updateOne: {
+              filter: {
+                _id: op.userId,
+                "channels.channelId": { $ne: op.channelId },
+              },
+              update: {
+                $push: {
+                  channels: {
+                    channelId: op.channelId,
+                    role: op.role || "member",
+                    rooms: op.rooms || [],
+                  },
+                },
+              },
+            },
+          };
+        }
+      });
+
+      if (bulkOps.length) {
+        await User.bulkWrite(bulkOps);
+      }
+    } else if (userIds && channelId) {
+      const bulkOps = userIds.map((uid) => ({
+        updateOne: {
+          filter: {
+            _id: uid,
+            "channels.channelId": { $ne: channelId },
+          },
+          update: {
+            $push: {
+              channels: {
+                channelId,
+                role: role || "member",
+                rooms: rooms || [],
+              },
+            },
+          },
+        },
+      }));
+
+      if (bulkOps.length) {
+        await User.bulkWrite(bulkOps);
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({ success: true });
+  } catch (error) {
+    console.error("bulkUpdateUserChannels error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Get channel data for users
+ * POST /user/getUserChannels
+ * Body: { userIds, channelId? }
+ */
+const getUserChannels = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userIds, channelId } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userIds must be a non-empty array" });
+    }
+
+    let users;
+    if (channelId) {
+      // Optimized: use $elemMatch projection to fetch only the relevant channel entry
+      users = await User.find(
+        { _id: { $in: userIds } },
+        { channels: { $elemMatch: { channelId } } },
+      ).lean();
+    } else {
+      users = await User.find(
+        { _id: { $in: userIds } },
+        { channels: 1 },
+      ).lean();
+    }
+
+    const result = {};
+    for (const user of users) {
+      const uid = user._id.toString();
+      if (channelId) {
+        const channelData = (user.channels || [])[0] || null;
+        result[uid] = channelData;
+      } else {
+        result[uid] = user.channels || [];
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({ data: result });
+  } catch (error) {
+    console.error("getUserChannels error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+/**
+ * Check if a user is part of a channel and return their role
+ * POST /user/checkUserChannelRole
+ * Body: { userId, channelId }
+ */
+const checkUserChannelRole = async (req, res) => {
+  try {
+    if (!requireServiceRole(req, res)) return;
+
+    const { userId, channelId } = req.body;
+
+    if (!userId || !channelId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "userId and channelId are required" });
+    }
+
+    const user = await User.findOne(
+      {
+        _id: userId,
+        "channels.channelId": channelId,
+      },
+      { "channels.$": 1 },
+    ).lean();
+
+    if (!user || !user.channels || user.channels.length === 0) {
+      return res.status(StatusCodes.OK).json({ data: null });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      data: {
+        role: user.channels[0].role,
+        rooms: user.channels[0].rooms,
+      },
+    });
+  } catch (error) {
+    console.error("checkUserChannelRole error:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Something went wrong" });
+  }
+};
+
+const getRecommendedProfiles = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "User not found" });
+    }
+
+    const users = await User.aggregate([
+      {
+        $match: {
+          _id: { $ne: user._id },
+          profession: "Student",
+          $or: [
+            { course: user.course },
+            { interests: { $in: user.interests } },
+          ],
+        },
+      },
+      { $sample: { size: 5 } }, // RANDOM 5 USERS
+      {
+        $project: {
+          name: 1,
+          image: 1,
+          course: 1,
+          field: 1,
+        },
+      },
+    ]);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched users successfully",
+      recommendedProfiles: users,
+    });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Server error" });
   }
 };
 
@@ -3168,4 +3472,9 @@ module.exports = {
   verifyProfessionalEmailOTP,
   searchUsersByFacet,
   getAlumniByCompany,
+  addChannelToUser,
+  bulkUpdateUserChannels,
+  getUserChannels,
+  checkUserChannelRole,
+  getRecommendedProfiles,
 };

@@ -41,7 +41,7 @@ const scheduleNotification2 = ({ pushToken, title, body, image, url }) => {
         },
         android: {
           notification: {
-            imageUrl: image,
+            ...(image && { imageUrl: image }),
           },
         },
         apns: {
@@ -55,9 +55,7 @@ const scheduleNotification2 = ({ pushToken, title, body, image, url }) => {
               "mutable-content": 1,
             },
           },
-          fcm_options: {
-            image: image,
-          },
+          ...(image && { fcm_options: { image: image } }),
         },
         data: {
           url: url,

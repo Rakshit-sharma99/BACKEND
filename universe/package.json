@@ -9,7 +9,7 @@
   "author": "Amartya Ayush",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1021.0",
+    "@aws-sdk/client-s3": "^3.1026.0",
     "@aws-sdk/client-secrets-manager": "^3.716.0",
     "@aws-sdk/s3-request-presigner": "^3.1021.0",
     "aws-sdk": "^2.1437.0",

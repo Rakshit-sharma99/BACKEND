@@ -364,6 +364,32 @@ const USER_ACTIVITY = {
   },
 };
 
+/**
+ * @typedef {Object} ADD_MEMBER_TO_CHANNEL_PAYLOAD
+ * @property {string} userId
+ * @property {string} ticketId
+ */
+
+const ADD_MEMBER_TO_CHANNEL = {
+  ADD_MEMBER_TO_CHANNEL: {
+    topicSuffix: "_add_member_to_channel",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+
+      if (typeof data.ticketId !== "string") {
+        throw new Error("'ticketId' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...ADD_TICKET_TO_USER_SCHEMA,
   ...ADD_TICKET_TO_EVENT_SCHEMA,
@@ -375,4 +401,5 @@ module.exports = {
   ...UPDATE_COUPON,
   ...CREDIT_TICKET_SALE,
   ...USER_ACTIVITY,
+  ...ADD_MEMBER_TO_CHANNEL,
 };

@@ -67,6 +67,11 @@ const {
   getUserAssetById,
   searchUsersByFacet,
   getAlumniByCompany,
+  addChannelToUser,
+  bulkUpdateUserChannels,
+  getUserChannels,
+  checkUserChannelRole,
+  getRecommendedProfiles
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -136,4 +141,11 @@ router.get("/getUserAssetById", getUserAssetById);
 router.get("/searchUsersByFacet", searchUsersByFacet);
 router.get("/getAlumniByCompany", getAlumniByCompany);
 
+// ─── Channel Internal Endpoints ────────────────────────────────────────
+router.post("/addChannelToUser", addChannelToUser);
+router.post("/bulkUpdateUserChannels", bulkUpdateUserChannels);
+router.post("/getUserChannels", getUserChannels);
+router.post("/checkUserChannelRole", checkUserChannelRole);
+
+router.get("/getRecommendedProfiles",getRecommendedProfiles);
 module.exports = router;

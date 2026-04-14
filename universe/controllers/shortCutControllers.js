@@ -4,6 +4,38 @@ const Community = require('../models/community');
 const Club = require('../models/club');
 const { default: mongoose } = require('mongoose');
 
+const normalizeUniverseMetaData = (universeMetaData, fallbackUid) => {
+  if (!universeMetaData || typeof universeMetaData !== 'object') {
+    return null;
+  }
+
+  const normalized = {};
+  ['uid', 'name', 'location', 'logo', 'callSign', 'logoKey', 'lat', 'lng'].forEach(
+    (key) => {
+      if (universeMetaData[key] !== undefined && universeMetaData[key] !== null) {
+        normalized[key] = universeMetaData[key];
+      }
+    }
+  );
+  const hasMetadata = Object.keys(normalized).some((key) => key !== 'uid');
+  if (hasMetadata && !normalized.uid && fallbackUid) {
+    normalized.uid = fallbackUid;
+  }
+
+  return hasMetadata ? normalized : null;
+};
+
+const withUniverseMetaData = (shortcutItem, universeMetaData) => {
+  if (!universeMetaData) {
+    return shortcutItem;
+  }
+
+  return {
+    ...shortcutItem,
+    universeMetaData,
+  };
+};
+
 //Controller 1
 const addToShortCut = async (req, res) => {
   const { type, id } = req.body;
@@ -28,12 +60,22 @@ const addToShortCut = async (req, res) => {
             .status(StatusCodes.BAD_REQUEST)
             .send('Incomplete data for adding community as a shortcut.');
         }
-        shortcutItem = { type, name, secondary, id, metaData: { posts: 0 } };
 
-        const community = await Community.findById(id, { pinnedBy: 1 });
+        const community = await Community.findById(id, {
+          pinnedBy: 1,
+          universeMetaData: 1,
+          uid: 1,
+        });
         if (!community) {
           return res.status(StatusCodes.NOT_FOUND).send('Community not found.');
         }
+        const universeMetaData =
+          normalizeUniverseMetaData(req.body.universeMetaData, community.uid) ||
+          normalizeUniverseMetaData(community.universeMetaData, community.uid);
+        shortcutItem = withUniverseMetaData(
+          { type, name, secondary, id, metaData: { posts: 0 } },
+          universeMetaData
+        );
         community.pinnedBy.push(mongoose.Types.ObjectId(req.user.id));
         await community.save();
         break;
@@ -46,17 +88,27 @@ const addToShortCut = async (req, res) => {
             .status(StatusCodes.BAD_REQUEST)
             .send('Incomplete data for adding club as a shortcut.');
         }
-        shortcutItem = {
-          type,
-          name,
-          secondaryImg,
-          id,
-          metaData: { posts: 0, notifications: 0, messages: 0 },
-        };
-        const club = await Club.findById(id, { pinnedBy: 1 });
+        const club = await Club.findById(id, {
+          pinnedBy: 1,
+          universeMetaData: 1,
+          uid: 1,
+        });
         if (!club) {
           return res.status(StatusCodes.NOT_FOUND).send('Club not found.');
         }
+        const universeMetaData =
+          normalizeUniverseMetaData(req.body.universeMetaData, club.uid) ||
+          normalizeUniverseMetaData(club.universeMetaData, club.uid);
+        shortcutItem = withUniverseMetaData(
+          {
+            type,
+            name,
+            secondaryImg,
+            id,
+            metaData: { posts: 0, notifications: 0, messages: 0 },
+          },
+          universeMetaData
+        );
         club.pinnedBy.push(mongoose.Types.ObjectId(req.user.id));
         await club.save();
         break;
@@ -69,18 +121,31 @@ const addToShortCut = async (req, res) => {
             .status(StatusCodes.BAD_REQUEST)
             .send('Incomplete data for adding person as a shortcut.');
         }
-        shortcutItem = {
-          type,
-          name,
-          img,
-          id,
-          userPushToken,
-          metaData: { messages: 0 },
-        };
-        const concernedUser = await User.findById(id, { pinnedBy: 1 });
+        const concernedUser = await User.findById(id, {
+          pinnedBy: 1,
+          universeMetaData: 1,
+          uid: 1,
+        });
         if (!concernedUser) {
           return res.status(StatusCodes.NOT_FOUND).send('User not found.');
         }
+        const universeMetaData =
+          normalizeUniverseMetaData(req.body.universeMetaData, concernedUser.uid) ||
+          normalizeUniverseMetaData(
+            concernedUser.universeMetaData,
+            concernedUser.uid
+          );
+        shortcutItem = withUniverseMetaData(
+          {
+            type,
+            name,
+            img,
+            id,
+            userPushToken,
+            metaData: { messages: 0 },
+          },
+          universeMetaData
+        );
         concernedUser.pinnedBy.push(mongoose.Types.ObjectId(req.user.id));
         await concernedUser.save();
         break;

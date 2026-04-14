@@ -64,4 +64,23 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { getStatus, getQR, connect, logout };
+/**
+ * POST /whatsapp/pairing-code
+ * Body: { phoneNumber: "919876543210" }
+ * Returns: { code: "ABCDEFGH" }
+ */
+const requestPairingCode = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).json({ error: "phoneNumber is required" });
+    }
+    const code = await registry.requestTenantPairingCode(userId, phoneNumber);
+    res.json({ code });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+module.exports = { getStatus, getQR, connect, logout, requestPairingCode };

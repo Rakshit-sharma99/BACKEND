@@ -23,6 +23,9 @@ const {
   featured_secondary_action,
 } = require("./clubEvent_event_handlers/featured_secondary_action");
 const {
+  update_club_itineraries,
+} = require("./clubEvent_event_handlers/update_club_itineraries");
+const {
   like_content_secondary_action,
 } = require("./like_content_secondary_action");
 const { create_offer } = require("./offer_event_handlers/create_offer");
@@ -85,6 +88,7 @@ const handlers = {
   [`${prefix}_project_chat_message`]: project_chat_message,
   [`${prefix}_allot_chatroom`]: allot_chatroom,
   [`${prefix}_featured_secondary_action`]: featured_secondary_action,
+  [`${prefix}_update_club_itineraries`]: update_club_itineraries,
   [`${prefix}_update_club`]: badgeHandlers.updateClub,
   [`${prefix}_update_community`]: badgeHandlers.updateCommunity,
   [`${prefix}_update_user`]: badgeHandlers.updateUser,

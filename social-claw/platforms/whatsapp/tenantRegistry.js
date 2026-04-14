@@ -167,6 +167,23 @@ function getTenantQR(userId) {
 }
 
 /**
+ * Request a pairing code for phone-number-based linking.
+ * @param {string} userId
+ * @param {string} phoneNumber — Full international number without '+'
+ * @returns {string} 8-character pairing code
+ */
+async function requestTenantPairingCode(userId, phoneNumber) {
+  const tenant = tenants.has(userId) ? tenants.get(userId) : null;
+
+  if (!tenant || !tenant.session) {
+    throw new Error("No active session — connect first");
+  }
+
+  tenant.lastActivity = Date.now();
+  return tenant.session.requestPairingCode(phoneNumber);
+}
+
+/**
  * Get WhatsApp groups for a user's session.
  */
 async function getTenantGroups(userId) {
@@ -387,6 +404,7 @@ module.exports = {
   disconnectTenant,
   getTenantStatus,
   getTenantQR,
+  requestTenantPairingCode,
   getTenantGroups,
   getTenantChannels,
   getTenantDB,
