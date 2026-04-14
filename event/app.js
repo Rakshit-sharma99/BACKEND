@@ -13,6 +13,7 @@ const server = http.createServer(app);
 
 const eventRouter = require("./routes/eventRouter");
 const channelRouter = require("./routes/channelRouter");
+const publicRouter = require("./routes/publicRouter")
 
 const connectDB = require("./db/connect");
 const authenticate = require("./middlewares/authentication");

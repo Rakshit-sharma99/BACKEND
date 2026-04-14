@@ -4260,13 +4260,13 @@ const requestPostponement = async (req, res) => {
 
 const getLiveEvents = async (req, res) => {
   try {
-    if(req.user.role !== "admin"){
+    if (req.user.role !== "admin") {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         msg: "Unauthorized",
       });
     }
     const count = await Event.countDocuments({
-      status : "featured"
+      status: "featured"
     });
     return res.status(StatusCodes.OK).json({ count });
   } catch (error) {
@@ -4383,5 +4383,6 @@ module.exports = {
   cancelEvent,
   slugifyAllEvents,
   canBuyTicket,
-  getTopEvents
+  getTopEvents,
+  getLiveEvents
 };
