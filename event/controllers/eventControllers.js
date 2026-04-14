@@ -4276,6 +4276,53 @@ const getLiveEvents = async (req, res) => {
   }
 };
 
+const getTopEvents = async (req, res) => {
+  try {
+    const events = await Event.aggregate([
+      { $match: { eventDate: { $gte: new Date() } } },
+      {
+        $addFields: {
+          isFeatured: { $cond: [{ $eq: ["$status", "featured"] }, 1, 0] },
+        },
+      },
+      {
+        $sort: {
+          isFeatured: -1, // featured first
+          eventDate: 1, // then earliest date
+        },
+      },
+      { $limit: 13 },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          url: 1,
+          description: 1,
+          place: 1,
+          startTime: 1,
+          endTime: 1,
+          eventDate: 1,
+          eventEndDate: 1,
+          status: 1,
+          belongsTo: 1,
+          isPromoted: 1,
+          promotionLevel: 1,
+        },
+      },
+    ]);
+
+    const sequencedEvents = await fetchRightSequence(events);
+    return res.status(StatusCodes.OK).json(sequencedEvents);
+  } catch (err) {
+    console.log("Error fetching top events:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -4336,4 +4383,5 @@ module.exports = {
   cancelEvent,
   slugifyAllEvents,
   canBuyTicket,
+  getTopEvents
 };

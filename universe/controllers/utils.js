@@ -57,14 +57,14 @@ const sendMail = async (
       intro: intro,
       action: action
         ? {
-            instructions:
-              action.instructions || "Click the button below to proceed:",
-            button: {
-              color: action.color || "#1ea1ed",
-              text: action.text || "View Details",
-              link: action.url,
-            },
-          }
+          instructions:
+            action.instructions || "Click the button below to proceed:",
+          button: {
+            color: action.color || "#1ea1ed",
+            text: action.text || "View Details",
+            link: action.url,
+          },
+        }
         : undefined,
       outro: outro,
     },
@@ -281,13 +281,13 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
   try {
     const targetAdmins = role
       ? await Admin.find(
-          { role },
-          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-        )
+        { role },
+        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+      )
       : await Admin.aggregate([
-          { $match: { _id: { $in: ids } } },
-          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-        ]);
+        { $match: { _id: { $in: ids } } },
+        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+      ]);
     const targetPushTokens = targetAdmins
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -301,10 +301,10 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-            notificationPayload.pushToken,
-            notificationPayload.title,
-            notificationPayload.body,
-          );
+          notificationPayload.pushToken,
+          notificationPayload.title,
+          notificationPayload.body,
+        );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -358,13 +358,13 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
     }
     const targetUsers = role
       ? await User.find(
-          { role },
-          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-        )
+        { role },
+        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+      )
       : await User.aggregate([
-          { $match: { _id: { $in: processedIds } } },
-          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-        ]);
+        { $match: { _id: { $in: processedIds } } },
+        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+      ]);
     const targetPushTokens = targetUsers
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -378,10 +378,10 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-            notificationPayload.pushToken,
-            notificationPayload.title,
-            notificationPayload.body,
-          );
+          notificationPayload.pushToken,
+          notificationPayload.title,
+          notificationPayload.body,
+        );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -1047,10 +1047,10 @@ const secondaryInvitationActions = async ({
             notificationPayload.url
               ? scheduleNotification2(notificationData)
               : scheduleNotification(
-                  [target.pushToken],
-                  notificationData.title,
-                  notificationData.body,
-                );
+                [target.pushToken],
+                notificationData.title,
+                notificationData.body,
+              );
           } else {
             // Function to dispatch notification to admin
           }
@@ -1334,8 +1334,7 @@ const sendOnboardingMail = async (user) => {
   } catch (error) {
     console.log(error);
   }
-};
-
+}
 async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   uid = uid?.toString();
   console.log(
@@ -1556,7 +1555,7 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       const count = await Event.aggregate([
         {
           $match: {
-            uid: { $eq : uid}
+            uid: { $eq: uid }
           }
         },
         {
@@ -1732,8 +1731,8 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
           $project: {
             totalContribution: {
               $add: [
-               {$size: { $ifNull: ["$clubContributions", []] }},
-               {$size : { $ifNull: ["$communityContribution", []] }}
+                { $size: { $ifNull: ["$clubContributions", []] } },
+                { $size: { $ifNull: ["$communityContribution", []] } }
               ]
             }
           }

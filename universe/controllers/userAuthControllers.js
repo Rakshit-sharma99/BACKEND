@@ -2,6 +2,7 @@ const { StatusCodes } = require("http-status-codes");
 const { validationResult } = require("express-validator");
 const User = require("../models/user");
 const Session = require("../models/session");
+const UnregisteredDevices = require("../models/unregisteredDevices");
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -27,6 +28,7 @@ const {
   CopyObjectCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
 const s3v3 = new S3Client({
   region: process.env.S3_AWS_REGION,
   credentials: {
@@ -41,6 +43,7 @@ const s3v3Videos = new S3Client({
     secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY,
   },
 });
+const { redis } = require("../../app");
 const securePassword = async (password) => {
   try {
     const hash = await bcrypt.hash(password, 10);
@@ -1132,7 +1135,7 @@ const copyObject = async (req, res) => {
       new CopyObjectCommand({
         Bucket: bucket,
         Key: destinationKey,
-        CopySource: `${bucket}/${sourceKey}`,
+        CopySource: encodeURIComponent(`${bucket}/${sourceKey}`),
         MetadataDirective: "COPY",
       }),
     );
@@ -1148,6 +1151,444 @@ const copyObject = async (req, res) => {
       success: false,
       message: "Something went wrong",
     });
+  }
+};
+
+function getAppleSigningKey(kid) {
+  return new Promise((resolve, reject) => {
+    apple_client.getSigningKey(kid, (err, key) => {
+      if (err) return reject(err);
+      const signingKey = key.getPublicKey();
+      resolve(signingKey);
+    });
+  });
+}
+
+async function verifyAppleToken(identityToken) {
+  const decodedHeader = jwt.decode(identityToken, { complete: true });
+
+  if (!decodedHeader) {
+    throw new Error("Invalid identity token");
+  }
+
+  const kid = decodedHeader.header.kid;
+  const alg = decodedHeader.header.alg;
+
+  const signingKey = await getAppleSigningKey(kid);
+
+  // Verify the JWT
+  const payload = jwt.verify(identityToken, signingKey, {
+    algorithms: [alg],
+    issuer: "https://appleid.apple.com",
+  });
+
+  return {
+    userId: payload.sub,
+    email: payload.email || null,
+    emailVerified: payload.email_verified,
+    isPrivateRelay: payload.is_private_email,
+  };
+}
+
+const appleRegister = async (req, res) => {
+  const { idToken } = req.body;
+  try {
+    const payload = await verifyAppleToken(idToken);
+    const { email } = payload;
+    const password = generateGibberishPassword();
+
+    // Check if the user already exists
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // User does not exist so share email of user to frontend for further signup process
+      return res
+        .status(StatusCodes.OK)
+        .json({ message: "User does not exists.", email, password });
+    }
+
+    return res.status(StatusCodes.OK).json({ msg: "User already exists." });
+  } catch (error) {
+    console.error("Error during Apple Sign-In:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ msg: "Something went wrong." });
+  }
+};
+
+const appleLogin = async (req, res) => {
+  const { idToken } = req.body;
+  const platform = req.body.platform || "app";
+  try {
+    const payload = await verifyAppleToken(idToken);
+    const { email } = payload;
+    // Check if the user already exists
+    let user = await User.findOne(
+      { email },
+      {
+        deactivated: 1,
+        deactivationDate: 1,
+        name: 1,
+        image: 1,
+        role: 1,
+        reg: 1,
+        profession: 1,
+      }
+    );
+
+    if (!user) {
+      // User does not exist so share email of user to frontend for further signup process
+      return res.status(StatusCodes.OK).json({ msg: "User does not exists." });
+    }
+
+    const result = await loginUtil(user, platform);
+    if (result === "User does not exist.") {
+      res.status(StatusCodes.OK).json({ msg: "User does not exists." });
+      return;
+    }
+    return res.status(StatusCodes.OK).json(result);
+  } catch (error) {
+    console.error("Error during Apple Sign-In:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ msg: "Something went wrong." });
+  }
+};
+
+const sendOtpEmailForSignup = async (req, res) => {
+  try {
+    const { userEmail, name } = req.query;
+
+    if (!userEmail || !name) {
+      return res.status(400).json({ message: "Email and name are required" });
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(userEmail)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is invalid"
+      })
+    }
+    // Check if an OTP was sent in the last 60 seconds
+    const isCached = await redis.get(`otp:${userEmail}`);
+    // const isCached = false;
+    if (isCached) {
+      return res
+        .status(429)
+        .json({ message: "Please wait before requesting another OTP." });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    // Email content
+    const intro = [
+      "Greetings from Macbease.",
+      "To verify your email, please enter the following OTP.",
+      `The OTP is ${otp}`,
+    ];
+
+    const outro =
+      "If you did not expect any response from Macbease, then no further action is required. Feel free to contact us at support@macbease.com.";
+
+    const subject = "Email Verification";
+
+    // Send email via AWS SES
+    const { ses, params } = await sendMail(
+      name,
+      intro,
+      outro,
+      subject,
+      userEmail
+    );
+
+    await ses.sendEmail(params).promise(); // Use promise instead of callback
+
+    // Store email in Redis with a 60-second expiry
+    await redis.set(`otp:${userEmail}`, otp, "EX", 60);
+
+    return res.status(200).json({
+      msg: "Email sent successfully."
+    });
+  } catch (error) {
+    console.error("Email verification error:", error);
+    return res.status(500).json({ message: "Something went wrong." });
+  }
+};
+
+const verifyOtpEmailForSignup = async (req, res) => {
+  try {
+    const { userEmail, otp } = req.body
+
+    if (!userEmail || !otp) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email and Otp is required"
+      })
+    }
+
+    let serverOTP = await redis.get(`otp:${userEmail}`)
+
+    if (!serverOTP) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "OTP is invalid or expired"
+      })
+    }
+
+    if (String(otp) !== String(serverOTP)) {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "OTP is invalid"
+      })
+    }
+    await redis.del(userEmail)
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "OTP is verifed successfully!"
+    })
+  } catch (e) {
+    console.log(e.message)
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong"
+    })
+  }
+}
+
+const copyImage = async (req, res) => {
+  try {
+    const { sourceKey, destinationKey } = req.body;
+
+    if (!sourceKey || !destinationKey) {
+      return res.status(400).json({
+        success: false,
+        message: "Both sourceKey and destinationKey are required",
+      });
+    }
+
+    await s3v3.send(
+      new CopyObjectCommand({
+        Bucket: process.env.S3_BUCKET,
+        Key: destinationKey,
+        CopySource: encodeURIComponent(`${process.env.S3_BUCKET}/${sourceKey}`),
+        MetadataDirective: "COPY",
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `File copied successfully from ${sourceKey} to ${destinationKey}`,
+    });
+  } catch (error) {
+    console.error("S3 Copy Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error copying file",
+      error: error.message,
+    });
+  }
+};
+
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    user.passwordResetToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    user.passwordResetTokenExpire = Date.now() + 10 * 60 * 1000;
+
+    await user.save();
+
+    const resetUrl = `https://app.macbease.com/reset-password/${token}`;
+
+    const intro = [
+      "You have received this email because a password reset request for your account was received.",
+      resetUrl,
+    ];
+
+    const outro =
+      "If you did not request this, please ignore this email.";
+
+    const subject = "Password Recovery";
+    const destination = [user.email];
+    const name = user.name || "User";
+
+    const { ses, params } = await sendMail(
+      name,
+      intro,
+      outro,
+      subject,
+      destination
+    );
+
+    ses.sendEmail(params, async (err) => {
+      if (err) {
+        user.passwordResetToken = undefined;
+        user.passwordResetTokenExpire = undefined;
+        await user.save();
+        console.log(err)
+        return res
+          .status(StatusCodes.INTERNAL_SERVER_ERROR)
+          .json({ success: false, message: "Email failed" });
+      }
+
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Password reset email sent",
+      });
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { password, token } = req.body;
+
+    if (!password) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Password is required" });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetTokenExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid or expired token" });
+    }
+
+    const hashedPassword = await securePassword(password)
+    user.password = hashedPassword;
+    user.passwordResetToken = undefined;
+    user.passwordResetTokenExpire = undefined;
+
+    await user.save();
+
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Password reset successful",
+    });
+  } catch (err) {
+    console.log(err)
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
+  }
+};
+
+const webPushToken = async (req, res) => {
+  try {
+    const { userId, webPushToken } = req.query;
+
+    await UnregisteredDevices.deleteOne({ fcmToken: webPushToken });
+
+    if (userId) {
+      const user = await User.findById(userId);
+
+      if (!user) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      user.webPushToken = webPushToken;
+      await user.save();
+
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Saved user PushToken successfully",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Saved token successfully!",
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const storeUnregisteredDevices = async (req, res) => {
+  const { fcmToken } = req.body;
+  try {
+    if (!fcmToken) return res.status(400).json({ error: "FCM token missing" });
+
+    await UnregisteredDevices.updateOne(
+      { fcmToken },
+      { $setOnInsert: { fcmToken, createdAt: new Date() } },
+      { upsert: true }
+    );
+
+    return res.status(200).json({ message: "Anonymous token stored" });
+  } catch (err) {
+    console.log("Error registering new devices:", err);
+    return res.status(500).json({ error: "Something went wrong!" });
+  }
+};
+
+const nameAndMailExistence = async (req, res) => {
+  try {
+    const { userName, email } = req.body;
+
+    if (!userName && !email) {
+      return res
+        .status(400)
+        .json({ message: "Username or email is required." });
+    }
+
+    const [nameExists, emailExists] = await Promise.all([
+      userName ? User.findOne({ name: userName }, { _id: 1 }) : null,
+      email ? User.findOne({ email: email }, { _id: 1 }) : null,
+    ]);
+
+    return res.status(200).json({
+      nameExists: !!nameExists,
+      emailExists: !!emailExists,
+    });
+  } catch (error) {
+    console.error("Name and mail existence error:", error);
+    return res.status(500).json({ message: "Something went wrong." });
   }
 };
 
@@ -1172,4 +1613,14 @@ module.exports = {
   suggestUsername,
   getUploadUrl,
   copyObject,
+  appleRegister,
+  appleLogin,
+  sendOtpEmailForSignup,
+  verifyOtpEmailForSignup,
+  copyImage,
+  forgotPassword,
+  resetPassword,
+  webPushToken,
+  storeUnregisteredDevices,
+  nameAndMailExistence
 };

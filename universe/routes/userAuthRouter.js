@@ -29,7 +29,17 @@ const {
   getAppConfig,
   suggestUsername,
   getUploadUrl,
-  copyObject
+  copyObject,
+  appleRegister,
+  appleLogin,
+  sendOtpEmailForSignup,
+  verifyOtpEmailForSignup,
+  copyImage,
+  forgotPassword,
+  resetPassword,
+  webPushToken,
+  storeUnregisteredDevices,
+  nameAndMailExistence
 } = require("../controllers/userAuthControllers");
 const {
   registerUserValidator,
@@ -57,4 +67,16 @@ router.get("/getAppConfig", getAppConfig);
 router.get("/suggestUsername", suggestUsername);
 router.post("/getUploadUrl", getUploadUrl);
 router.post("/copyObject", copyObject);
+router.get("/getAppConfig", getAppConfig);
+router.post("/register/apple", appleRegister);
+router.post("/login/apple", appleLogin);
+router.get("/sendOtpEmailForSignup", sendOtpEmailForSignup);
+router.post("/verifyOtpEmailForSignup", verifyOtpEmailForSignup);
+router.post("/copyImage", authLimiter, copyImage);
+router.post('/forgotPassword', forgotPassword)
+router.post('/resetPassword', resetPassword);
+router.get("/webPushToken", webPushToken)
+router.post("/storeUnregisteredDevices", storeUnregisteredDevices);
+router.post("/nameAndMailExistence", nameAndMailExistence);
+
 module.exports = router;
