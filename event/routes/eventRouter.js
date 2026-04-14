@@ -61,6 +61,7 @@ const {
   requestEventLive,
   cancelEvent,
   slugifyAllEvents,
+  getLiveEvents
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
@@ -126,5 +127,5 @@ router.get("/requestEventLive", requestEventLive)
 router.post("/requestPostponement", requestPostponement)
 router.get("/slugifyAllEvents", slugifyAllEvents);
 router.post("/canBuyTicket", canBuyTicket);
-
+router.get("/getLiveEvents", getLiveEvents);
 module.exports = router;

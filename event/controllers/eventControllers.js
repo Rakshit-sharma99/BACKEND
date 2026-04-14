@@ -4260,6 +4260,11 @@ const requestPostponement = async (req, res) => {
 
 const getLiveEvents = async (req, res) => {
   try {
+    if(req.user.role !== "admin"){
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        msg: "Unauthorized",
+      });
+    }
     const count = await Event.countDocuments({
       status : "featured"
     });
