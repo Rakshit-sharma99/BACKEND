@@ -20,7 +20,8 @@ const {
   checkIncompleteTickets,
   fetchPaymentDetails,
   searchMyTickets,
-  addMetaDataToTickets
+  addMetaDataToTickets,
+  getMultipleTicketFieldsByIds
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -42,5 +43,5 @@ router.get("/checkIncompleteTickets", checkIncompleteTickets);
 router.get("/fetchPaymentDetails", fetchPaymentDetails);
 router.get("/searchMyTickets", searchMyTickets);
 router.post("/addMetaDataToTickets", addMetaDataToTickets);
-
+router.post("/getMultipleTicketFieldsByIds",getMultipleTicketFieldsByIds)
 module.exports = router;

@@ -56,6 +56,11 @@ const {
   insertNewFields,
   getFeaturedEvents,
   getFeaturedEventsForFeed,
+  getLiveEvents,
+  requestCancellation,
+  requestPostponement,
+  requestEventLive,
+  cancelEvent,
   slugifyAllEvents,
 } = require("../controllers/eventControllers");
 
@@ -116,6 +121,11 @@ router.get("/getSearchedEvents", getSearchedEvents);
 router.post("/insertNewFields", insertNewFields);
 router.post("/getFeaturedEvents", getFeaturedEvents);
 router.get("/getLandingEvent", getFeaturedEventsForFeed);
+router.get("/getLiveEvents", getLiveEvents);
+router.post("/requestCancellation",requestCancellation);
+router.post("/cancelEvent",cancelEvent)
+router.get("/requestEventLive",requestEventLive)
+router.post("/requestPostponement",requestPostponement)
 router.get("/slugifyAllEvents", slugifyAllEvents);
 router.post("/canBuyTicket", canBuyTicket);
 

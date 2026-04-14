@@ -460,7 +460,6 @@ const loginUser = async (req, res) => {
     console.log("login attempted");
 
     const { email, password, platform = "app" } = req.body;
-
     const user = await User.findOne(
       { email },
       {

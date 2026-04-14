@@ -1330,6 +1330,38 @@ const fetchTicketFieldsByQuery = async (query) => {
   }
 };
 
+const fetchEventAdminsByFields = async (query) => {
+  try {
+    const { fields } = query;
+    const config = generateServiceToken();
+    const admins = await axios.post(
+      `http://universe:5050/universe/api/v1/admin/fetchEventAdminsByFields`,
+      {
+        fields,
+      },
+      config
+    );
+    return admins.data;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
+const fetchMultipleTicketFieldsById = async (query) => {
+  const url = `http://ticket:6000/ticket/api/v1/getMultipleTicketFieldsByIds`;
+  try {
+    if (!Array.isArray(query.ticketIds) || query.ticketIds.length === 0) {
+      return [];
+    }
+    const config = generateServiceToken();
+    const ticketData = await axios.post(url, query, config);
+    return ticketData.data.tickets || [];
+  } catch (error) {
+    console.error(`❌ Error in fetchMultipleTicketsByIds (${url}):`, error.message);
+    return [];
+  }
+}
 const fetchClubFieldsById = async (query) => {
   try {
     if (
@@ -1470,6 +1502,8 @@ module.exports = {
   generateTicketExcelAndUpload,
   fetchAvailableCoupon,
   fetchTicketFieldsByQuery,
+  fetchEventAdminsByFields,
+  fetchMultipleTicketFieldsById
   fetchClubFieldsById,
   updateUserChannels,
   bulkUpdateUserChannels,
