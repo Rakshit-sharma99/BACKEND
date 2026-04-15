@@ -135,7 +135,6 @@ const createCommunity = async (req, res) => {
       scope,
     });
 
-
     const shortCut = {
       type: "community",
       id: community._id,
@@ -186,7 +185,10 @@ const createCommunity = async (req, res) => {
           delta: 1,
         });
       } catch (kafkaErr) {
-        console.error("Failed to emit community stats update:", kafkaErr.message);
+        console.error(
+          "Failed to emit community stats update:",
+          kafkaErr.message,
+        );
       }
     }
 
@@ -231,9 +233,7 @@ const deleteCommunity = async (req, res) => {
     const deletedCommunity = await Community.findByIdAndDelete(id).lean();
 
     if (!deletedCommunity) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Community not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Community not found.");
     }
 
     return res.status(StatusCodes.OK).json({
@@ -943,10 +943,12 @@ const rating = async (req, res) => {
 const getAllCommunities = async (req, res) => {
   try {
     const batch = parseInt(req.query.batch) || 1; // default to first batch
-    const batchSize = parseInt(req.query.batchSize) || 200; // default batch size
+    const batchSize = parseInt(req.query.batchSize) || 12; // default batch size
+    const uid = req.query.uid?.toString().trim();
     const skipCount = (batch - 1) * batchSize;
 
     const community = await Community.aggregate([
+      ...(uid ? [{ $match: { uid } }] : []),
       {
         $match: {
           $or: [
@@ -1068,9 +1070,7 @@ const getCommunityByTag = async (req, res) => {
 
     // ✅ Validate input
     if (!tag || typeof tag !== "string") {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("Valid tag is required.");
+      return res.status(StatusCodes.BAD_REQUEST).send("Valid tag is required.");
     }
 
     // ✅ Escape regex (prevent injection/ReDoS)
@@ -1086,7 +1086,7 @@ const getCommunityByTag = async (req, res) => {
         tag: 1,
         activeMembers: 1,
         label: 1,
-      }
+      },
     ).lean();
 
     // ✅ Non-blocking lastActive update
@@ -1138,21 +1138,18 @@ const isMember = async (req, res) => {
 
     const Model = req.user.role === "user" ? User : Admin;
 
-    const entity = await Model.findById(
-      userId,
-      { communitiesPartOf: 1 }
-    ).lean();
+    const entity = await Model.findById(userId, {
+      communitiesPartOf: 1,
+    }).lean();
 
     if (!entity) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("User/Admin not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("User/Admin not found.");
     }
 
     const communities = entity.communitiesPartOf || [];
 
     const isMember = communities.some(
-      (item) => item.communityId?.toString() === communityId
+      (item) => item.communityId?.toString() === communityId,
     );
 
     if (isMember) {
@@ -1187,9 +1184,7 @@ const getContentOfACommunity = async (req, res) => {
     }).lean();
 
     if (!community) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Community not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Community not found.");
     }
 
     const contents = community.content || [];
@@ -1283,28 +1278,23 @@ const getLatestContent = async (req, res) => {
     }).lean();
 
     if (!entity) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("User/Admin not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("User/Admin not found.");
     }
 
     const lastActive = new Date(entity.lastActive || 0);
 
-    const community = await Community.findById(
-      communityId,
-      { content: 1 }
-    ).lean();
+    const community = await Community.findById(communityId, {
+      content: 1,
+    }).lean();
 
     if (!community) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Community not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Community not found.");
     }
 
     const contents = community.content || [];
 
     const arr = contents.filter(
-      (item) => new Date(item.timeStamp) > lastActive
+      (item) => new Date(item.timeStamp) > lastActive,
     );
 
     return res.status(StatusCodes.OK).json(arr);
@@ -1848,7 +1838,7 @@ const secondaryActionsForPost = async (
             lastPosted.getMonth(),
             lastPosted.getDate(),
           )) /
-        _MS_PER_DAY,
+          _MS_PER_DAY,
       );
 
       if (diff < 0) {
@@ -1994,13 +1984,7 @@ const editCommunityProfile = async (req, res) => {
         .send("communityId and valid data object are required.");
     }
 
-    const allowedFields = [
-      "title",
-      "cover",
-      "secondaryCover",
-      "tag",
-      "label",
-    ];
+    const allowedFields = ["title", "cover", "secondaryCover", "tag", "label"];
 
     const updateData = {};
     for (const key of allowedFields) {
@@ -2018,13 +2002,11 @@ const editCommunityProfile = async (req, res) => {
     const updatedCommunity = await Community.findByIdAndUpdate(
       communityId,
       { $set: updateData },
-      { runValidators: true }
+      { runValidators: true },
     );
 
     if (!updatedCommunity) {
-      return res
-        .status(StatusCodes.NOT_FOUND)
-        .send("Community not found.");
+      return res.status(StatusCodes.NOT_FOUND).send("Community not found.");
     }
 
     return res.status(StatusCodes.OK).send("Successfully updated!");
@@ -2859,8 +2841,9 @@ const setEntryRules = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: `Passout year must be between 1900 and ${new Date().getFullYear() + 6
-          }.`,
+        message: `Passout year must be between 1900 and ${
+          new Date().getFullYear() + 6
+        }.`,
       });
     }
 
@@ -3497,9 +3480,9 @@ const getRandomCommunities = async (req, res) => {
     // Parse and construct the projection query param (e.g., ?projection=content,title)
     const projectionFields = req.query.projection
       ? req.query.projection.split(",").reduce((acc, field) => {
-        acc[field.trim()] = 1;
-        return acc;
-      }, {})
+          acc[field.trim()] = 1;
+          return acc;
+        }, {})
       : {};
 
     const communities = await Community.aggregate([
@@ -3639,7 +3622,7 @@ const getAllCommunity = async (req, res) => {
       projection = isArrayProjection ? fields.join(" ") : fields;
     }
 
-    // ✅ Fetch clubs
+    // ✅ Fetch communities
     const communities = projection
       ? await Community.find().select(projection)
       : await Community.find();
@@ -3703,8 +3686,8 @@ const getCommunitiesRecommendation = async (req, res) => {
 
     const excludedIds = Array.isArray(nIds)
       ? nIds
-        .filter((id) => mongoose.Types.ObjectId.isValid(id))
-        .map((id) => new mongoose.Types.ObjectId(id))
+          .filter((id) => mongoose.Types.ObjectId.isValid(id))
+          .map((id) => new mongoose.Types.ObjectId(id))
       : [];
 
     const pipeline = [];
@@ -3829,30 +3812,30 @@ const getCommunitiesForFeed = async (req, res) => {
     const suggestedCommunities =
       interestTags.length > 0
         ? await Community.aggregate([
-          {
-            $match: {
-              _id: { $nin: joinedCommunityIds },
-              $or: [
-                { tag: { $in: interestTags } },
-                { label: { $in: interestTags } },
-                // Optional: { title: { $in: interestTags } } if titles match interests
-              ],
-              ...universeFilter,
-            }
-          },
-          { $sample: { size: limit } },
-          {
-            $project: {
-              secondaryCover: 1,
-              title: 1,
-              tag: 1,
-              activeMembers: 1,
-              label: 1,
-              uid: 1,
-              universeMetaData: 1,
-            }
-          }
-        ])
+            {
+              $match: {
+                _id: { $nin: joinedCommunityIds },
+                $or: [
+                  { tag: { $in: interestTags } },
+                  { label: { $in: interestTags } },
+                  // Optional: { title: { $in: interestTags } } if titles match interests
+                ],
+                ...universeFilter,
+              },
+            },
+            { $sample: { size: limit } },
+            {
+              $project: {
+                secondaryCover: 1,
+                title: 1,
+                tag: 1,
+                activeMembers: 1,
+                label: 1,
+                uid: 1,
+                universeMetaData: 1,
+              },
+            },
+          ])
         : [];
 
     let finalCommunities = [...suggestedCommunities];
@@ -4048,10 +4031,14 @@ const getMembersPerUniverse = async (req, res) => {
   try {
     const communityId = req.query.id;
     if (!communityId) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Community ID is required" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Community ID is required" });
     }
 
-    const community = await Community.findById(communityId, { members: 1 }).lean();
+    const community = await Community.findById(communityId, {
+      members: 1,
+    }).lean();
     if (!community || !community.members || community.members.length === 0) {
       return res.status(StatusCodes.OK).json({ universeMembership: [] });
     }
@@ -4059,13 +4046,18 @@ const getMembersPerUniverse = async (req, res) => {
     // Fetch all members with their universeMetaData
     const members = await User.find(
       { _id: { $in: community.members } },
-      { "universeMetaData.name": 1, "universeMetaData.logoKey": 1, "universeMetaData.callSign": 1 }
+      {
+        "universeMetaData.name": 1,
+        "universeMetaData.logoKey": 1,
+        "universeMetaData.callSign": 1,
+      },
     ).lean();
 
     // Group by universe name
     const universeMap = {};
     members.forEach((m) => {
-      const uniName = m.universeMetaData?.name || m.universeMetaData?.callSign || "Unknown";
+      const uniName =
+        m.universeMetaData?.name || m.universeMetaData?.callSign || "Unknown";
       const logoKey = m.universeMetaData?.logoKey || null;
       if (!universeMap[uniName]) {
         universeMap[uniName] = { name: uniName, count: 0, logoKey };
@@ -4073,7 +4065,9 @@ const getMembersPerUniverse = async (req, res) => {
       universeMap[uniName].count += 1;
     });
 
-    const universeData = Object.values(universeMap).sort((a, b) => b.count - a.count);
+    const universeData = Object.values(universeMap).sort(
+      (a, b) => b.count - a.count,
+    );
     const maxCount = universeData.length > 0 ? universeData[0].count : 1;
 
     const universeMembership = universeData.map((u) => ({
@@ -4086,10 +4080,11 @@ const getMembersPerUniverse = async (req, res) => {
     return res.status(StatusCodes.OK).json({ universeMembership });
   } catch (error) {
     console.error("Error fetching members per universe:", error);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong." });
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong." });
   }
 };
-
 
 module.exports = {
   createCommunity,
@@ -4160,5 +4155,5 @@ module.exports = {
   searchCommunitiesWithRegex,
   getCommunitiesForFeed,
   getCommunityGrowthStats,
-  getMembersPerUniverse
+  getMembersPerUniverse,
 };

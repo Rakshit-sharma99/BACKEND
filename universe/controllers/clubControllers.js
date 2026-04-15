@@ -2430,9 +2430,11 @@ const getClub = async (req, res) => {
 const getAllClub = async (req, res) => {
   try {
     const batch = parseInt(req.query.batch) || 1; // default to first batch
-    const batchSize = parseInt(req.query.batchSize) || 100; // default batch size
+    const batchSize = parseInt(req.query.batchSize) || 12; // default batch size
+    const uid = req.query.uid?.toString().trim();
     const skipCount = (batch - 1) * batchSize;
     const clubs = await Club.aggregate([
+      ...(uid ? [{ $match: { uid } }] : []),
       {
         $project: {
           secondaryImg: 1,
