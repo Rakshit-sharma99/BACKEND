@@ -9,8 +9,10 @@ services:
     env_file:
       - ./env/ipls/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped # Automatically restart
@@ -23,8 +25,10 @@ services:
     env_file:
       - ./env/universe/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -37,8 +41,10 @@ services:
     env_file:
       - ./env/multiverse/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -51,8 +57,10 @@ services:
     env_file:
       - ./env/content/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -65,8 +73,10 @@ services:
     env_file:
       - ./env/card/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -79,8 +89,10 @@ services:
     env_file:
       - ./env/event/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -93,8 +105,10 @@ services:
     env_file:
       - ./env/bag/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -107,8 +121,10 @@ services:
     env_file:
       - ./env/badge/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -121,8 +137,10 @@ services:
     env_file:
       - ./env/offer/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -135,8 +153,10 @@ services:
     env_file:
       - ./env/quest/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -149,8 +169,10 @@ services:
     env_file:
       - ./env/invitation/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -163,8 +185,10 @@ services:
     env_file:
       - ./env/itinerary/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -177,8 +201,10 @@ services:
     env_file:
       - ./env/joinLink/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -191,8 +217,10 @@ services:
     env_file:
       - ./env/tile/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -205,8 +233,10 @@ services:
     env_file:
       - ./env/org/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -219,8 +249,10 @@ services:
     env_file:
       - ./env/unsorted/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -233,8 +265,10 @@ services:
     env_file:
       - ./env/ticket/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -247,8 +281,10 @@ services:
     env_file:
       - ./env/refund/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -261,8 +297,10 @@ services:
     env_file:
       - ./env/blog/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -275,8 +313,10 @@ services:
     env_file:
       - ./env/coupon/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -289,8 +329,10 @@ services:
     env_file:
       - ./env/memory/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -303,8 +345,10 @@ services:
     env_file:
       - ./env/overlay/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -317,8 +361,10 @@ services:
     env_file:
       - ./env/map/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -331,8 +377,10 @@ services:
     env_file:
       - ./env/starman/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -345,8 +393,10 @@ services:
     env_file:
       - ./env/credit/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -359,8 +409,10 @@ services:
     env_file:
       - ./env/question/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -373,8 +425,10 @@ services:
     env_file:
       - ./env/knowledge/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -387,8 +441,10 @@ services:
     env_file:
       - ./env/sere/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -404,14 +460,17 @@ services:
       - social-claw-data:/app/data
       - social-claw-auth:/app/auth_info
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
 
   kafka:
     image: apache/kafka:latest
+    platform: linux/amd64
     container_name: multiverse-backend-kafka-1
     ports:
       - "9092:9092" # client connections
@@ -434,8 +493,8 @@ services:
       KAFKA_LOG_RETENTION_HOURS: "168"
       KAFKA_LOG_SEGMENT_BYTES: "1073741824"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
-      # Optional static cluster id (use any value or leave unset to let Kafka generate it)
-      KAFKA_CLUSTER_ID: "qwertyuiopasdfghjkl"
+      # Optional static cluster id (must be a valid 22-char base64 string for KRaft)
+      KAFKA_CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qk"
       # where to store data inside container
       KAFKA_LOG_DIRS: "/var/lib/kafka/data"
     volumes:
@@ -445,7 +504,8 @@ services:
         aliases:
           - kafka
     healthcheck:
-      test: [ "CMD", "bash", "-c", "nc -z localhost 9092 || exit 1" ]
+      test: [ "CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/9092'" ]
+      start_period: 30s
       interval: 10s
       timeout: 5s
       retries: 12
@@ -480,8 +540,10 @@ services:
     env_file:
       - ./env/quest1/.env
     depends_on:
-      - kafka
-      - redis
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped

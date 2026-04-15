@@ -1,24 +1,30 @@
 const { Kafka, logLevel } = require("kafkajs");
 
+const prefix = process.env.KAFKA_CLIENT_ID;
+
 const kafka = new Kafka({
   clientId: process.env.KAFKA_CLIENT_ID,
   brokers: ["kafka:9092"],
   logLevel: logLevel.INFO,
   retry: {
-    initialRetryTime: 3000, // Start with 3 seconds delay
-    retries: 10, // Try 10 times before failing
+    initialRetryTime: 3000,
+    retries: 10,
   },
 });
 
 const producer = kafka.producer();
 
 const connectProducer = async () => {
-  try {
-    await producer.connect();
-    console.log("✅ Kafka Producer connected (overlay)");
-  } catch (error) {
-    console.error("❌ Kafka connection failed (overlay)", error);
-    process.exit(1); // Restart the pod if Kafka is unavailable
+  console.log(`⏳ Connecting to Kafka Producer (${prefix})...`);
+  while (true) {
+    try {
+      await producer.connect();
+      console.log(`✅ Kafka Producer connected (${prefix})`);
+      break;
+    } catch (error) {
+      console.error(`❌ Kafka Producer connection failed (${prefix}), retrying in 5s...`, error);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
   }
 };
 

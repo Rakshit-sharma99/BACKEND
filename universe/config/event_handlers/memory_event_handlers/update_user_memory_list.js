@@ -5,21 +5,22 @@ const update_user_memory_list = async (messageValue) => {
   try {
     const data = JSON.parse(messageValue);
 
-    const {id,memoryId,operation} = data;
-    const memoryObjectId = new mongoose.Types.ObjectId(memoryId)
+    console.log("📩 update user memory list", data);
 
-    if(operation==="add"){
-        await User.findByIdAndUpdate(
-            id,
-            { $addToSet: { memoryRequests: memoryObjectId } },
-            { new: true }
-          );
+    const { id, memoryId, operation } = data;
+    const memoryObjectId = new mongoose.Types.ObjectId(memoryId);
+
+    if (operation === "add") {
+      await User.findByIdAndUpdate(
+        id,
+        { $addToSet: { memoryRequests: memoryObjectId } },
+        { new: true },
+      );
     }
     if (operation === "remove") {
-        await User.findByIdAndUpdate(
-            id,
-            { $pull: { memoryRequests: memoryObjectId } }
-        );
+      await User.findByIdAndUpdate(id, {
+        $pull: { memoryRequests: memoryObjectId },
+      });
     }
   } catch (error) {
     console.log(error);

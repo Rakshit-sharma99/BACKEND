@@ -1,5 +1,7 @@
 const { Kafka, logLevel } = require("kafkajs");
 
+const prefix = process.env.KAFKA_CLIENT_ID;
+
 const kafka = new Kafka({
   clientId: process.env.KAFKA_CLIENT_ID,
   brokers: ["kafka:9092"],
@@ -13,12 +15,16 @@ const kafka = new Kafka({
 const producer = kafka.producer();
 
 const connectProducer = async () => {
-  try {
-    await producer.connect();
-    console.log("✅ Kafka Producer connected (sere)");
-  } catch (error) {
-    console.error("❌ Kafka connection failed (sere)", error);
-    process.exit(1);
+  console.log(`⏳ Connecting to Kafka Producer (${prefix})...`);
+  while (true) {
+    try {
+      await producer.connect();
+      console.log(`✅ Kafka Producer connected (${prefix})`);
+      break;
+    } catch (error) {
+      console.error(`❌ Kafka Producer connection failed (${prefix}), retrying in 5s...`, error);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
   }
 };
 

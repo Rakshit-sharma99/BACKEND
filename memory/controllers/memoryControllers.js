@@ -26,15 +26,16 @@ async function handleTags({ tags, memoryId, userId, callSign }) {
     await Promise.all(
       validTags.map(async (tag) => {
         try {
+          const targetCallSign = tag.callSign || callSign || "universe";
           if (tag.type === "people") {
             validPeopleTags.push(tag._id.toString());
-            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
+            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", targetCallSign, {
               id: tag._id.toString(),
               memoryId: memoryId.toString(),
               operation: "add"
             })
           } else if (tag.type === "club") {
-            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
+            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", targetCallSign, {
               id: tag._id.toString(),
               memoryId: memoryId.toString(),
               operation: "add"
@@ -137,7 +138,8 @@ async function memoryCreationSecondaryActions({
     };
 
     // Push the notice into each tagged user's unreadNotice array
-    await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE", creatorMetaData.callSign, {
+    const targetCallSign = creatorMetaData.callSign || "universe";
+    await sendKafkaMessage("UPDATE_USER_MEMORY_NOTICE", targetCallSign, {
       notice,
       validPeopleTags: validPeopleTags.map(id => id.toString())
     })
@@ -521,14 +523,15 @@ async function cleanTags({ tags = [], memoryId, userId }) {
     await Promise.all(
       validTags.map(async (tag) => {
         try {
+          const targetCallSign = tag.callSign || "universe";
           if (tag.type === "people") {
-            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", tag.callSign, {
+            await sendKafkaMessage("UPDATE_USER_MEMORY_LIST", targetCallSign, {
               id: tag._id.toString(),
               memoryId: memoryId.toString(),
               operation: "remove"
             })
           } else if (tag.type === "club") {
-            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", tag.callSign, {
+            await sendKafkaMessage("UPDATE_CLUB_MEMORY_LIST", targetCallSign, {
               id: tag._id.toString(),
               memoryId: memoryId.toString(),
               operation: "remove"
