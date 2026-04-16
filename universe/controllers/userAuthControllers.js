@@ -1497,7 +1497,14 @@ const resetPassword = async (req, res) => {
     user.passwordResetToken = undefined;
     user.passwordResetTokenExpire = undefined;
 
+    user.refreshTokens = { app: null, web: null };
+
     await user.save();
+
+    const logoutTime = Math.floor(Date.now() / 1000);
+    if (redis) {
+      await redis.set(`logout:${user._id.toString()}`, logoutTime, "EX", 25 * 60);
+    }
 
     res.status(StatusCodes.CREATED).json({
       success: true,

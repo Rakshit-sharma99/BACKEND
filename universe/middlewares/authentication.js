@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { StatusCodes } = require("http-status-codes");
+const { redis } = require("../app");
 
 const auth = async (req, res, next) => {
   const cookieToken = req.cookies?.access_token || (req.cookies && req.cookies.access_token);
@@ -26,6 +27,16 @@ const auth = async (req, res, next) => {
       req.internalService = payload.service;
       return next();
     }
+
+    if (redis) {
+      const logoutTime = await redis.get(`logout:${payload.id}`);
+      if (logoutTime && payload.iat < parseInt(logoutTime)) {
+        return res
+          .status(StatusCodes.UNAUTHORIZED)
+          .send("Session expired due to password reset.");
+      }
+    }
+
     req.user = {
       role: payload.role,
       id: payload.id,
