@@ -21,7 +21,8 @@ const {
   fetchPaymentDetails,
   searchMyTickets,
   addMetaDataToTickets,
-  getMultipleTicketFieldsByIds
+  getMultipleTicketFieldsByIds,
+  searchTickets
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -44,4 +45,5 @@ router.get("/fetchPaymentDetails", fetchPaymentDetails);
 router.get("/searchMyTickets", searchMyTickets);
 router.post("/addMetaDataToTickets", addMetaDataToTickets);
 router.post("/getMultipleTicketFieldsByIds",getMultipleTicketFieldsByIds)
+router.get("/searchTickets",searchTickets)
 module.exports = router;

@@ -1755,6 +1755,7 @@ const getEvents = async (req, res) => {
       {
         _id: 1,
         name: 1,
+        slug : 1,
         belongsTo: 1,
         url: 1,
         eventDate: 1,

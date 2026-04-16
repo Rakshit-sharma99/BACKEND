@@ -180,7 +180,6 @@ const eventSchema = new mongoose.Schema(
     name: String,
     slug: {
       type: String,
-      required: true,
       unique: true,
       index: true,
     },
