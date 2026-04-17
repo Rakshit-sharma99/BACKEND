@@ -4364,9 +4364,14 @@ const getTopEvents = async (req, res) => {
 
 const getCategories = async (req, res) => {
   try {
-    const { limit } = req.query;
+    const { limit = 5 } = req.query;
 
     let categories = await Event.aggregate([
+      {
+        $match: {
+          primaryCategory: { $ne: null }
+        }
+      },
       {
         $group: {
           _id: "$primaryCategory",
@@ -4385,11 +4390,15 @@ const getCategories = async (req, res) => {
         }
       },
       {
-        $limit: limit
+        $limit: Number(limit)
       }
     ]);
 
-    categories = categories.map((category) => category._id);
+    if (categories.length === 0) {
+      categories = EVENT_CATEGORIES.slice(0, limit);
+    } else {
+      categories = categories.map((category) => category._id);
+    }
 
     return res.status(StatusCodes.OK).json({
       success: true,
@@ -4444,6 +4453,7 @@ async function categorizeEventHelper(event) {
     Event Tags: ${event.tags.join(", ")}
 
     Return the category in the following JSON format:
+    if any subCategory is found, it should be an array of strings with less than 3 categories.
     {
       "primaryCategory": "<category>",
       "subCategory": ["<sub-category>"]
@@ -4507,6 +4517,7 @@ const categorizeAllEvents = async (req, res) => {
     let updatedEvents = 0;
     for (const event of events) {
       const category = await categorizeEventHelper(event);
+      console.log("category",category)
       if (category) {
         await Event.findByIdAndUpdate(event._id, {
           $set: {
@@ -4515,6 +4526,7 @@ const categorizeAllEvents = async (req, res) => {
           }
         })
         updatedEvents++;
+        console.log("updated",updatedEvents);
       }
     }
     return res.status(StatusCodes.OK).json({
@@ -4539,12 +4551,12 @@ const categorizeEvent = async (req, res) => {
         message: "Event ID is required.",
       });
     }
-    // if (req.user.role !== "admin") {
-    //   return res.status(StatusCodes.UNAUTHORIZED).json({
-    //     success: false,
-    //     message: "Unauthorized",
-    //   });
-    // }
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
     const event = await Event.findById(
       {
         _id: eventId,
