@@ -30,6 +30,7 @@ const {
   getUserCommunityPosts,
   searchContentQA,
   getLikedByUsers,
+  searchLikedByUsers,
 } = require("../controllers/contentController");
 const {
   bulkUpdateContentParams,
@@ -62,4 +63,5 @@ router.post("/bulkUpdateContentParams", bulkUpdateContentParams);
 router.get("/getUserCommunityPosts", getUserCommunityPosts);
 router.post("/searchContentQA", searchContentQA);
 router.get("/getLikedByUsers", getLikedByUsers);
+router.get("/searchLikedByUsers", searchLikedByUsers);
 module.exports = router;

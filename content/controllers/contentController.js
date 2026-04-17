@@ -1722,6 +1722,48 @@ const searchContentQA = async (req, res) => {
   }
 };
 
+// Controller - searchLikedByUsers
+const searchLikedByUsers = async (req, res) => {
+  const { contentId, query } = req.query;
+
+  if (!contentId || !mongoose.Types.ObjectId.isValid(contentId)) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .send("Valid content ID is required.");
+  }
+
+  if (!query || typeof query !== "string" || !query.trim()) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .send("Search query is required.");
+  }
+
+  try {
+    const content = await Content.findById(contentId, { likes: 1 });
+
+    if (!content) {
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
+    }
+
+    const likes = content.likes || [];
+
+    if (likes.length === 0) {
+      return res.status(StatusCodes.OK).json({ users: [] });
+    }
+
+    const users = await fetchMultipleUserProfiles(likes);
+    const regex = new RegExp(query.trim(), "i");
+    const filtered = users.filter((user) => regex.test(user.name));
+
+    return res.status(StatusCodes.OK).json({ users: filtered });
+  } catch (error) {
+    console.error("❌ Error in searchLikedByUsers:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to search liked-by users.");
+  }
+};
+
 // Controller - getLikedByUsers
 const getLikedByUsers = async (req, res) => {
   const { contentId, batch = 1, batchSize = 20 } = req.query;
@@ -1798,4 +1840,5 @@ module.exports = {
   getUserCommunityPosts,
   searchContentQA,
   getLikedByUsers,
+  searchLikedByUsers,
 };
