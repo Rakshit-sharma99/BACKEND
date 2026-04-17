@@ -341,6 +341,22 @@ const checkUserBookmarks = async ({ userId, contentIds }) => {
   }
 };
 
+const fetchMultipleUserProfiles = async (ids) => {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    const config = generateServiceToken();
+    const response = await axios.post(
+      "http://universe:5050/universe/api/v1/user/fetchMultipleProfiles",
+      { ids },
+      config
+    );
+    return response.data || [];
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
 module.exports = {
   generateServiceToken,
   fetchUserData,
@@ -358,4 +374,5 @@ module.exports = {
   fetchCardsFromIds,
   fetchRandomCardsForFeed,
   checkUserBookmarks,
+  fetchMultipleUserProfiles,
 };

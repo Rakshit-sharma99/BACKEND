@@ -29,6 +29,7 @@ const {
   insertNewFields,
   getUserCommunityPosts,
   searchContentQA,
+  getLikedByUsers,
 } = require("../controllers/contentController");
 const {
   bulkUpdateContentParams,
@@ -60,4 +61,5 @@ router.post("/insertNewFields", insertNewFields);
 router.post("/bulkUpdateContentParams", bulkUpdateContentParams);
 router.get("/getUserCommunityPosts", getUserCommunityPosts);
 router.post("/searchContentQA", searchContentQA);
+router.get("/getLikedByUsers", getLikedByUsers);
 module.exports = router;

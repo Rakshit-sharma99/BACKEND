@@ -9,6 +9,7 @@ const {
   fetchRelatedTags,
   fetchNativeUserData,
   checkUserBookmarks,
+  fetchMultipleUserProfiles,
 } = require("./utilControllers");
 const Content = require("../models/content");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
@@ -1721,6 +1722,54 @@ const searchContentQA = async (req, res) => {
   }
 };
 
+// Controller - getLikedByUsers
+const getLikedByUsers = async (req, res) => {
+  const { contentId, batch = 1, batchSize = 20 } = req.query;
+
+  if (!contentId || !mongoose.Types.ObjectId.isValid(contentId)) {
+    return res
+      .status(StatusCodes.BAD_REQUEST)
+      .send("Valid content ID is required.");
+  }
+
+  try {
+    const content = await Content.findById(contentId, { likes: 1 });
+
+    if (!content) {
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
+    }
+
+    const likes = content.likes || [];
+    const b = parseInt(batch);
+    const s = parseInt(batchSize);
+    const start = (b - 1) * s;
+    const end = b * s;
+    const batchedUserIds = likes.slice(start, end);
+
+    if (batchedUserIds.length === 0) {
+      return res.status(StatusCodes.OK).json({
+        users: [],
+        total: likes.length,
+        hasMore: false,
+      });
+    }
+
+    // Fetch user profiles in a single batch call
+    const users = await fetchMultipleUserProfiles(batchedUserIds);
+
+    return res.status(StatusCodes.OK).json({
+      users,
+      total: likes.length,
+      hasMore: end < likes.length,
+    });
+  } catch (error) {
+    console.error("❌ Error in getLikedByUsers:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Failed to fetch liked-by users.");
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1748,4 +1797,5 @@ module.exports = {
   insertNewFields,
   getUserCommunityPosts,
   searchContentQA,
+  getLikedByUsers,
 };

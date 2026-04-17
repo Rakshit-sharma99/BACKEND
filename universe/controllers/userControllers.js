@@ -909,6 +909,8 @@ const fetchMultipleProfiles = async (req, res) => {
           _id: 1,
           interests: 1,
           pushToken: 1,
+          uid: 1,
+          universeMetaData: 1,
         },
       },
     ]);
@@ -2755,7 +2757,7 @@ const deleteUserAsset = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { $pull: { vicinityAsset: { assetId: assetId } } },
+      { $pull: { vicinityAsset: { _id: assetId } } },
       { new: true },
     );
 
