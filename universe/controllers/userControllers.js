@@ -614,6 +614,7 @@ const getBasicUserBio = async (req, res) => {
       cards: 1,
       vicinityAsset: 1,
     }).lean();
+    console.log("verified", user.emailVerified);
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
     }
