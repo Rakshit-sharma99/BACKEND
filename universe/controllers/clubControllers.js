@@ -4067,7 +4067,10 @@ const updateClubPermission = async (req, res) => {
     }
 
     // Authorization check
-    if (req.user.role !== "admin" && req.user.id !== club.mainAdmin) {
+    if (
+      req.user.role !== "admin" &&
+      req.user.id !== club.mainAdmin.toString()
+    ) {
       return res
         .status(403)
         .json({ message: "Not authorized to update permissions" });
