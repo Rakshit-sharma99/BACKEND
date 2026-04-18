@@ -2260,7 +2260,7 @@ const getStatus = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found");
     }
     const isAuthorized =
-      club.mainAdmin === id
+      club.mainAdmin.toString() === id
         ? "Fully-authorized"
         : club.adminId.includes(id)
           ? "Authorized"
