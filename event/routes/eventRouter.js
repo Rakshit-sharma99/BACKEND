@@ -61,7 +61,11 @@ const {
   requestEventLive,
   cancelEvent,
   slugifyAllEvents,
-  getLiveEvents
+  getLiveEvents,
+  getCategories,
+  categorizeAllEvents,
+  categorizeEvent,
+  getEventsByCategory
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
@@ -128,4 +132,8 @@ router.post("/requestPostponement", requestPostponement)
 router.get("/slugifyAllEvents", slugifyAllEvents);
 router.post("/canBuyTicket", canBuyTicket);
 router.get("/getLiveEvents", getLiveEvents);
+router.get("/categories", getCategories)
+router.get("/categorizeAllEvents", categorizeAllEvents)
+router.get("/categorizeEvent", categorizeEvent)
+router.post("/getEventsByCategory", getEventsByCategory)
 module.exports = router;

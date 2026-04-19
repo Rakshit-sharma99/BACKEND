@@ -2041,6 +2041,84 @@ const getMultipleTicketFieldsByIds = async (req, res) => {
   }
 };
 
+const searchTickets = async (req, res) => {
+  try {
+    const { eventId, name = "", email = "", ticketType } = req.query;
+
+    const event = await fetchEventData(
+      {
+        id : eventId,
+        fields : [
+          "bookedBy"
+        ]
+      }
+    )
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).send("Event not found.");
+    }
+
+    const tickets = await Ticket.aggregate([
+      {
+        $match: {
+          _id: { $in: event.bookedBy },
+          ...(ticketType && {
+            $expr: {
+              $eq: [
+                { $trim: { input: "$type" } },
+                ticketType.trim()
+              ]
+            }
+          }),
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "boughtBy",
+          foreignField: "_id",
+          as: "userMetaData",
+        },
+      },
+      {
+        $unwind: "$userMetaData"
+      },
+      {
+        $match: {
+          "userMetaData.name": { $regex: name, $options: "i" },
+          "userMetaData.email": { $regex: email, $options: "i" }
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          boughtBy: 1,
+          eventId: 1,
+          paymentId: 1,
+          amtPaid: 1,
+          status: 1,
+          generatedAt: 1,
+          type: 1,
+          userMetaData: {
+            name: 1,
+            course: 1,
+            reg: 1,
+            email: 1,
+            pushToken: 1,
+            image: 1,
+          },
+        }
+      }
+    ])
+    return res.status(StatusCodes.OK).json(tickets);
+  } catch (e) {
+    console.error(e);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -2061,5 +2139,6 @@ module.exports = {
   fetchPaymentDetails,
   searchMyTickets,
   addMetaDataToTickets,
-  getMultipleTicketFieldsByIds
+  getMultipleTicketFieldsByIds,
+  searchTickets
 };

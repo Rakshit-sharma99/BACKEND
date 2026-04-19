@@ -614,6 +614,7 @@ const getBasicUserBio = async (req, res) => {
       cards: 1,
       vicinityAsset: 1,
     }).lean();
+    console.log("verified", user.emailVerified);
     if (!user) {
       return res.status(StatusCodes.NOT_FOUND).send("User not found");
     }
@@ -909,6 +910,8 @@ const fetchMultipleProfiles = async (req, res) => {
           _id: 1,
           interests: 1,
           pushToken: 1,
+          uid: 1,
+          universeMetaData: 1,
         },
       },
     ]);
@@ -2755,7 +2758,7 @@ const deleteUserAsset = async (req, res) => {
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { $pull: { vicinityAsset: { assetId: assetId } } },
+      { $pull: { vicinityAsset: { _id: assetId } } },
       { new: true },
     );
 

@@ -174,13 +174,38 @@ const TicketTypeSchema = new mongoose.Schema(
   { _id: true },
 );
 
+const EVENT_CATEGORIES = [
+  "Music",
+  "Dance",
+  "Drama",
+  "Comedy",
+  "Literary",
+  "Art",
+  "Photography",
+  "Film",
+  "Fashion",
+  "Gaming",
+  "Tech",
+  "Workshop",
+  "Seminar",
+  "Sports",
+  "Fitness",
+  "Food",
+  "Networking",
+  "Startup",
+  "Cultural",
+  "Fest",
+  "Competition",
+  "Social",
+  "Other"
+];
+
 const eventSchema = new mongoose.Schema(
   {
     url: String,
     name: String,
     slug: {
       type: String,
-      required: true,
       unique: true,
       index: true,
     },
@@ -434,7 +459,7 @@ const eventSchema = new mongoose.Schema(
       default: 2.5,
     },
 
-    cancellation : {
+    cancellation: {
       requested: {
         type: Boolean,
         default: false,
@@ -455,7 +480,7 @@ const eventSchema = new mongoose.Schema(
       },
     },
 
-    postponement : {
+    postponement: {
       requested: {
         type: Boolean,
         default: false,
@@ -487,7 +512,7 @@ const eventSchema = new mongoose.Schema(
         type: Date,
       },
     },
-   
+
     layoutId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Layout"
@@ -498,23 +523,39 @@ const eventSchema = new mongoose.Schema(
       default: []
     },
     // documents of rules or instructions for participants
-    attachment: {
-      type: String
-    },
+    attachments: [
+      {
+        name: String,
+        url: String
+      }
+    ],
 
     pastMoments: [
       {
         type: {
           type: String,
           enum: ["image", "video"],
-          required: true,
         },
         url: {
           type: String,
-          required: true,
         },
       }
     ],
+
+    disclaimer: {
+      type: String,
+    },
+
+    primaryCategory: {
+      type: String,
+      enum: EVENT_CATEGORIES,
+    },
+
+    secondaryCategories: {
+      type: [String],
+      enum: EVENT_CATEGORIES,
+      validate: v => v.length <= 3
+    },
 
     uid: {
       type: String,

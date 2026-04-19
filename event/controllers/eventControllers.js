@@ -31,6 +31,12 @@ const schedule = require("node-schedule");
 const { default: mongoose } = require("mongoose");
 const axios = require("axios");
 const { createChannelForEvent } = require("./channelControllers");
+const OpenAI = require("openai");
+
+const openai = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
 //MiddleWare
 const isAuthorized = async (id, role, belongsTo, callSign) => {
@@ -1755,6 +1761,7 @@ const getEvents = async (req, res) => {
       {
         _id: 1,
         name: 1,
+        slug: 1,
         belongsTo: 1,
         url: 1,
         eventDate: 1,
@@ -1763,6 +1770,8 @@ const getEvents = async (req, res) => {
         endTime: 1,
         place: 1,
         status: 1,
+        primaryCategory: 1,
+        secondaryCategories: 1,
       },
     )
       .sort({ eventDate: -1 })
@@ -3542,7 +3551,7 @@ const toggleWaitlist = async (req, res) => {
 
 const getSearchedEvents = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, limit = 12 } = req.query;
     const events = await Event.aggregate([
       {
         $search: {
@@ -3554,15 +3563,36 @@ const getSearchedEvents = async (req, res) => {
                   query,
                   path: "name",
                   fuzzy: { maxEdits: 1 },
+                  score: { boost: { value: 5 } }
                 },
               },
+
               {
                 text: {
                   query,
                   path: ["description", "tags"],
                   fuzzy: { maxEdits: 1 },
+                  score: { boost: { value: 2 } }
                 },
               },
+
+              {
+                text: {
+                  query,
+                  path: "primaryCategory",
+                  fuzzy: { maxEdits: 1 },
+                  score: { boost: { value: 4 } }
+                },
+              },
+
+              {
+                text: {
+                  query,
+                  path: "secondaryCategories",
+                  fuzzy: { maxEdits: 1 },
+                  score: { boost: { value: 3 } }
+                },
+              }
             ],
           },
         },
@@ -3571,6 +3601,7 @@ const getSearchedEvents = async (req, res) => {
       {
         $project: {
           name: 1,
+          slug: 1,
           url: 1,
           description: 1,
           place: 1,
@@ -3581,10 +3612,19 @@ const getSearchedEvents = async (req, res) => {
           status: 1,
           type: { $literal: "event" },
           score: { $meta: "searchScore" },
+          primaryCategory: 1,
+          secondaryCategories: 1,
         },
       },
-      { $sort: { score: -1, membersCount: -1, eventDate: -1 } },
-      { $limit: 12 },
+      {
+        $addFields: {
+          isFeatured: {
+            $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
+          }
+        }
+      },
+      { $sort: { isFeatured: -1, score: -1, membersCount: -1, eventDate: -1 } },
+      { $limit: Number(limit) },
     ]);
 
     return res.status(StatusCodes.OK).json({ success: true, data: events });
@@ -4337,6 +4377,331 @@ const getTopEvents = async (req, res) => {
   }
 };
 
+const getCategories = async (req, res) => {
+  try {
+    const { limit = 5 } = req.query;
+
+    let categories = await Event.aggregate([
+      {
+        $match: {
+          primaryCategory: { $ne: null }
+        }
+      },
+      {
+        $group: {
+          _id: "$primaryCategory",
+          featuredCount: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
+            }
+          },
+          totalCount: { $sum: 1 }
+        }
+      },
+      {
+        $sort: {
+          featuredCount: -1, // priority 1
+          totalCount: -1     // fallback
+        }
+      },
+      {
+        $limit: Number(limit)
+      }
+    ]);
+
+    if (categories.length === 0) {
+      categories = EVENT_CATEGORIES.slice(0, limit);
+    } else {
+      categories = categories.map((category) => category._id);
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      categories,
+      count: categories.length
+    });
+  } catch (err) {
+    console.log("Error fetching categories:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+const EVENT_CATEGORIES = [
+  "Music",
+  "Dance",
+  "Drama",
+  "Comedy",
+  "Literary",
+  "Art",
+  "Photography",
+  "Film",
+  "Fashion",
+  "Gaming",
+  "Tech",
+  "Workshop",
+  "Seminar",
+  "Sports",
+  "Fitness",
+  "Food",
+  "Networking",
+  "Startup",
+  "Cultural",
+  "Fest",
+  "Competition",
+  "Social",
+  "Other"
+];
+
+// categorize event helper
+async function categorizeEventHelper(event) {
+  try {
+    const prompt = `
+    You are an expert in categorizing events.
+    Given an event name, description, and tags, categorize it into one of the following categories:
+    ${EVENT_CATEGORIES.join(", ")}
+
+    Event Name: ${event.name}
+    Event Description: ${event.description}
+    Event Tags: ${event.tags.join(", ")}
+
+    Return the category in the following JSON format:
+    if any subCategory is found, it should be an array of strings with less than 3 categories.
+    {
+      "primaryCategory": "<category>",
+      "subCategory": ["<sub-category>"]
+    }
+    `
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert in categorizing events.",
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const raw = response.choices[0].message.content;
+    const cleaned = raw
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    const category = JSON.parse(cleaned);
+    return category;
+  } catch (error) {
+    console.log("Error categorizing event:", error);
+    return null;
+  }
+}
+
+const categorizeAllEvents = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+    const events = await Event.find({
+      primaryCategory: {
+        $exists: false,
+        $eq: null
+      },
+      secondaryCategories: {
+        $exists: false,
+        $eq: null
+      }
+    }, {
+      name: 1,
+      slug: 1,
+      description: 1,
+      tags: 1,
+    })
+
+    console.log("Events found without category", events.length)
+
+    let updatedEvents = 0;
+    for (const event of events) {
+      const category = await categorizeEventHelper(event);
+      console.log("category",category)
+      if (category) {
+        await Event.findByIdAndUpdate(event._id, {
+          $set: {
+            primaryCategory: category.primaryCategory,
+            secondaryCategories: category.subCategory
+          }
+        })
+        updatedEvents++;
+        console.log("updated",updatedEvents);
+      }
+    }
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Events categorized successfully.",
+      updatedEvents
+    });
+  } catch (error) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+}
+
+const categorizeEvent = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    if (!eventId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Event ID is required.",
+      });
+    }
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+    const event = await Event.findById(
+      {
+        _id: eventId,
+        primaryCategory: {
+          $exists: false,
+          $eq: null
+        },
+        secondaryCategories: {
+          $exists: false,
+          $eq: null
+        }
+      },
+      {
+        name: 1,
+        slug: 1,
+        description: 1,
+        tags: 1,
+      });
+
+    if (!event) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+    const category = await categorizeEventHelper(event);
+    await Event.findByIdAndUpdate(eventId, {
+      $set: {
+        primaryCategory: category.primaryCategory,
+        secondaryCategories: category.subCategory
+      }
+    })
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Event categorized successfully.",
+    });
+  } catch (error) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+}
+
+const getEventsByCategory = async (req, res) => {
+  try {
+    const { categories } = req.body;
+
+    if (!categories) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Categories are required.",
+      });
+    }
+    const regexCategories = categories.map(cat => new RegExp(cat, "i"));
+    const events = await Event.aggregate([
+      {
+        $match: {
+          $or: [
+            { primaryCategory: { $in: regexCategories } },
+            { secondaryCategories: { $in: regexCategories } }
+          ]
+        }
+      },
+      {
+        $addFields: {
+          isFeatured: {
+            $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
+          },
+          score: {
+            $cond: [
+              {
+                $anyElementTrue: {
+                  $map: {
+                    input: categories,
+                    as: "cat",
+                    in: {
+                      $regexMatch: {
+                        input: "$primaryCategory",
+                        regex: "$$cat",
+                        options: "i"
+                      }
+                    }
+                  }
+                }
+              },
+              2,
+              1
+            ]
+          }
+        }
+      },
+      {
+        $sort: {
+          isFeatured: -1,  // featured first
+          score: -1,       // primary matches next
+          eventDate: 1     // earlier events first
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          slug: 1,
+          belongsTo: 1,
+          url: 1,
+          eventDate: 1,
+          description: 1,
+          startTime: 1,
+          endTime: 1,
+          place: 1,
+          status: 1,
+          primaryCategory: 1,
+          secondaryCategories: 1,
+        }
+      }
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      events,
+      count: events.length
+    });
+  } catch (error) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+}
 
 module.exports = {
   createEvent,
@@ -4399,5 +4764,9 @@ module.exports = {
   slugifyAllEvents,
   canBuyTicket,
   getTopEvents,
-  getLiveEvents
+  getLiveEvents,
+  getCategories,
+  categorizeAllEvents,
+  categorizeEvent,
+  getEventsByCategory
 };

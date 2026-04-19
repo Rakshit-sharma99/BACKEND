@@ -31,19 +31,50 @@ const {
 
 //Middleware
 
+/**
+ * Check a user's authorization level for a given club.
+ *
+ * @param {string} clubId – The club's _id.
+ * @param {string} id     – The user's _id to check.
+ * @returns {Promise<string>} One of:
+ *   "Fully-authorized" – user is the mainAdmin (founder)
+ *   "Authorized"       – user is in the adminId list
+ *   "Not-authorized"   – user has no admin privileges
+ *   "Club not found"   – no club exists with that id
+ */
 const checkAuthorization = async (clubId, id) => {
-  const club = await Club.findById(clubId, {
-    adminId: 1,
-    mainAdmin: 1,
-    _id: 0,
-  });
-  if (club) {
-    if (club.mainAdmin === id) return "Fully-authorized";
-    let admins = club.adminId;
-    let matchedAdmin = admins.find((item) => item === id);
-    if (matchedAdmin) return "Authorized";
+  if (!clubId || !id) {
     return "Not-authorized";
-  } else {
+  }
+
+  try {
+    const club = await Club.findById(clubId, {
+      adminId: 1,
+      mainAdmin: 1,
+    }).lean();
+
+    if (!club) {
+      return "Club not found";
+    }
+
+    const idStr = id.toString();
+
+    // Main admin / founder check
+    if (club.mainAdmin && club.mainAdmin.toString() === idStr) {
+      return "Fully-authorized";
+    }
+
+    // Admin check
+    if (
+      Array.isArray(club.adminId) &&
+      club.adminId.some((adminId) => adminId.toString() === idStr)
+    ) {
+      return "Authorized";
+    }
+
+    return "Not-authorized";
+  } catch (error) {
+    console.error("checkAuthorization error:", error);
     return "Club not found";
   }
 };
@@ -1355,6 +1386,8 @@ const editProfile = async (req, res) => {
     // ✅ Authorization check
     const isAuthorized = await checkAuthorization(clubId, req.user.id);
 
+    console.log(isAuthorized);
+
     if (isAuthorized !== "Fully-authorized") {
       return res
         .status(StatusCodes.FORBIDDEN)
@@ -2260,7 +2293,7 @@ const getStatus = async (req, res) => {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found");
     }
     const isAuthorized =
-      club.mainAdmin === id
+      club.mainAdmin.toString() === id
         ? "Fully-authorized"
         : club.adminId.includes(id)
           ? "Authorized"
@@ -4034,7 +4067,10 @@ const updateClubPermission = async (req, res) => {
     }
 
     // Authorization check
-    if (req.user.role !== "admin" && req.user.id !== club.mainAdmin) {
+    if (
+      req.user.role !== "admin" &&
+      req.user.id !== club.mainAdmin.toString()
+    ) {
       return res
         .status(403)
         .json({ message: "Not authorized to update permissions" });
