@@ -1983,6 +1983,8 @@ const editEventDetails = async (req, res) => {
       place,
       eventManagerMail,
       eventManagerPhone,
+      extraFields,
+      extraFieldsRequired,
     } = req.body;
 
     if (
@@ -1992,7 +1994,16 @@ const editEventDetails = async (req, res) => {
       return res.status(400).json({ message: "Invalid eventId or clubId" });
     }
 
-    if (!url && !description && !ticketTypes && !place) {
+    if (
+      !url &&
+      !description &&
+      !ticketTypes &&
+      !place &&
+      eventManagerMail === undefined &&
+      eventManagerPhone === undefined &&
+      extraFields === undefined &&
+      extraFieldsRequired === undefined
+    ) {
       return res.status(400).json({ message: "No fields to update" });
     }
 
@@ -2017,6 +2028,8 @@ const editEventDetails = async (req, res) => {
         ...(place !== undefined && { place }),
         ...(eventManagerMail !== undefined && { eventManagerMail }),
         ...(eventManagerPhone !== undefined && { eventManagerPhone }),
+        ...(extraFields !== undefined && { extraFields }),
+        ...(extraFieldsRequired !== undefined && { extraFieldsRequired }),
       },
       { new: true },
     );
@@ -2035,6 +2048,8 @@ const editEventDetails = async (req, res) => {
         place,
         eventManagerMail,
         eventManagerPhone,
+        extraFields,
+        extraFieldsRequired,
       },
     });
 
