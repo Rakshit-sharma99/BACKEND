@@ -2465,9 +2465,24 @@ const getAllClub = async (req, res) => {
     const batch = parseInt(req.query.batch) || 1; // default to first batch
     const batchSize = parseInt(req.query.batchSize) || 12; // default batch size
     const uid = req.query.uid?.toString().trim();
+    const filter = req.query.filter?.toString().trim();
     const skipCount = (batch - 1) * batchSize;
+
+    // Build initial match conditions
+    const matchConditions = {};
+    if (uid) matchConditions.uid = uid;
+    if (filter) {
+      const filterRegex = new RegExp(filter, "i");
+      matchConditions.$or = [
+        { tags: { $elemMatch: { $regex: filterRegex } } },
+        { hiddenTags: { $elemMatch: { $regex: filterRegex } } },
+      ];
+    }
+
     const clubs = await Club.aggregate([
-      ...(uid ? [{ $match: { uid } }] : []),
+      ...(Object.keys(matchConditions).length > 0
+        ? [{ $match: matchConditions }]
+        : []),
       {
         $project: {
           secondaryImg: 1,

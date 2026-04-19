@@ -945,10 +945,25 @@ const getAllCommunities = async (req, res) => {
     const batch = parseInt(req.query.batch) || 1; // default to first batch
     const batchSize = parseInt(req.query.batchSize) || 12; // default batch size
     const uid = req.query.uid?.toString().trim();
+    const filter = req.query.filter?.toString().trim();
     const skipCount = (batch - 1) * batchSize;
 
+    // Build initial match conditions
+    const initialMatch = {};
+    if (uid) initialMatch.uid = uid;
+    if (filter) {
+      const filterRegex = new RegExp(filter, "i");
+      initialMatch.$or = [
+        { tag: { $elemMatch: { $regex: filterRegex } } },
+        { hiddenTags: { $elemMatch: { $regex: filterRegex } } },
+        { label: { $regex: filterRegex } },
+      ];
+    }
+
     const community = await Community.aggregate([
-      ...(uid ? [{ $match: { uid } }] : []),
+      ...(Object.keys(initialMatch).length > 0
+        ? [{ $match: initialMatch }]
+        : []),
       {
         $match: {
           $or: [
