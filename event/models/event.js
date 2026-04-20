@@ -556,7 +556,14 @@ const eventSchema = new mongoose.Schema(
       enum: EVENT_CATEGORIES,
       validate: v => v.length <= 3
     },
-
+    payment: {
+      type: String,
+      enum: ["paid", "free"]
+    },
+    mode: {
+      type: String,
+      enum: ["online", "offline"]
+    },
     uid: {
       type: String,
       trim: true,

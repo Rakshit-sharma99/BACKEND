@@ -65,7 +65,10 @@ const {
   getCategories,
   categorizeAllEvents,
   categorizeEvent,
-  getEventsByCategory
+  getEventsByCategory,
+  getEventsByFilters,
+  addPaymentFieldToEvents,
+  addModeFieldToEvents
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
@@ -136,4 +139,7 @@ router.get("/categories", getCategories)
 router.get("/categorizeAllEvents", categorizeAllEvents)
 router.get("/categorizeEvent", categorizeEvent)
 router.post("/getEventsByCategory", getEventsByCategory)
+router.get("/getEventsByFilters", getEventsByFilters)
+router.get("/addPaymentFieldToEvents", addPaymentFieldToEvents)
+router.get("/addModeFieldToEvents", addModeFieldToEvents)
 module.exports = router;
