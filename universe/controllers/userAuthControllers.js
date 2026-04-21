@@ -312,20 +312,22 @@ const registerUser = async (req, res) => {
     }
 
     /* ---------- Cookies ---------- */
-    ["access_token", "refresh_token", "session_id"].forEach((name) => {
-      res.clearCookie(name, hostCookie);
-      res.clearCookie(name, sharedCookie);
-    });
+    if (platform === "web") {
+      ["access_token", "refresh_token", "session_id"].forEach((name) => {
+        res.clearCookie(name, hostCookie);
+        res.clearCookie(name, sharedCookie);
+      });
 
-    res.cookie("access_token", accessToken, {
-      ...sharedCookie,
-      maxAge: 25 * 60 * 1000,
-    });
+      res.cookie("access_token", accessToken, {
+        ...sharedCookie,
+        maxAge: 25 * 60 * 1000,
+      });
 
-    res.cookie("refresh_token", refreshToken, {
-      ...sharedCookie,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+      res.cookie("refresh_token", refreshToken, {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
 
     const res_payload = {
       user: {
@@ -466,25 +468,26 @@ const googleLogin = async (req, res) => {
       res.status(StatusCodes.OK).json({ msg: "User does not exists." });
       return;
     }
-    ["access_token", "refresh_token", "session_id"].forEach((name) => {
-      res.clearCookie(name, hostCookie);
-      res.clearCookie(name, sharedCookie);
-    });
+    if (platform === "web") {
+      ["access_token", "refresh_token", "session_id"].forEach((name) => {
+        res.clearCookie(name, hostCookie);
+        res.clearCookie(name, sharedCookie);
+      });
 
-    res.cookie("access_token", result.token, {
-      ...sharedCookie,
-      maxAge: 25 * 60 * 1000,
-    });
-    res.cookie("refresh_token", result.refreshToken, {
-      ...sharedCookie,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    let response = result;
-    if (platform === 'web') {
-      const { token, refreshToken, ...rest } = result
-      response = rest;
+      res.cookie("access_token", result.token, {
+        ...sharedCookie,
+        maxAge: 25 * 60 * 1000,
+      });
+      res.cookie("refresh_token", result.refreshToken, {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      const { token, refreshToken, ...rest } = result;
+      return res.status(StatusCodes.OK).json(rest);
     }
-    return res.status(StatusCodes.OK).json(response);
+
+    return res.status(StatusCodes.OK).json(result);
   } catch (error) {
     console.error("Error during Google Sign-In:", error);
     return res
@@ -541,26 +544,27 @@ const loginUser = async (req, res) => {
         .json({ message: "User does not exist." });
     }
 
-    ["access_token", "refresh_token", "session_id"].forEach((name) => {
-      res.clearCookie(name, hostCookie);
-      res.clearCookie(name, sharedCookie);
-    });
+    if (platform === "web") {
+      ["access_token", "refresh_token", "session_id"].forEach((name) => {
+        res.clearCookie(name, hostCookie);
+        res.clearCookie(name, sharedCookie);
+      });
 
-    res.cookie("access_token", result.token, {
-      ...sharedCookie,
-      maxAge: 25 * 60 * 1000,
-    });
+      res.cookie("access_token", result.token, {
+        ...sharedCookie,
+        maxAge: 25 * 60 * 1000,
+      });
 
-    res.cookie("refresh_token", result.refreshToken, {
-      ...sharedCookie,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    let response = result;
-    if (platform === 'web') {
-      const { token, refreshToken, ...rest } = result
-      response = rest;
+      res.cookie("refresh_token", result.refreshToken, {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      const { token, refreshToken, ...rest } = result;
+      return res.status(StatusCodes.OK).json(rest);
     }
-    return res.status(StatusCodes.OK).json(response);
+
+    return res.status(StatusCodes.OK).json(result);
   } catch (err) {
     console.error("Login error:", err);
     return res
@@ -626,23 +630,25 @@ const regenerateAccessToken = async (req, res) => {
     const session = await Session.create({ userId: payload.id });
 
     // 5. Set cookies
-    ["access_token", "refresh_token", "session_id"].forEach((name) => {
-      res.clearCookie(name, hostCookie);
-      res.clearCookie(name, sharedCookie);
-    });
+    if (key === "web") {
+      ["access_token", "refresh_token", "session_id"].forEach((name) => {
+        res.clearCookie(name, hostCookie);
+        res.clearCookie(name, sharedCookie);
+      });
 
-    res.cookie("access_token", newAccessToken, {
-      ...sharedCookie,
-      maxAge: 25 * 60 * 1000,
-    });
-    res.cookie("refresh_token", newRefreshToken, {
-      ...sharedCookie,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
-    res.cookie("session_id", session._id.toString(), {
-      ...sharedCookie,
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+      res.cookie("access_token", newAccessToken, {
+        ...sharedCookie,
+        maxAge: 25 * 60 * 1000,
+      });
+      res.cookie("refresh_token", newRefreshToken, {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+      res.cookie("session_id", session._id.toString(), {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
     let response = {};
     if (platform === 'app') {
       response.newAccessToken = newAccessToken;
