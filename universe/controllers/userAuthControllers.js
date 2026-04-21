@@ -577,9 +577,14 @@ const loginUser = async (req, res) => {
 const regenerateAccessToken = async (req, res) => {
   try {
     const { appVersion, platform = "app" } = req.body;
+    const key = platform.toLowerCase();
 
-    // 1. Get refresh token (cookie preferred)
-    const refreshToken = req.cookies?.refresh_token || req.body.refreshToken;
+    // 1. Get refresh token
+    // App clients should trust the body token first so stale cookies from older
+    // mobile sessions cannot override the current refresh token.
+    const refreshToken = key === "app"
+      ? req.body.refreshToken || req.cookies?.refresh_token
+      : req.cookies?.refresh_token || req.body.refreshToken;
 
     if (!refreshToken) {
       return res
@@ -609,8 +614,6 @@ const regenerateAccessToken = async (req, res) => {
         .status(StatusCodes.MISDIRECTED_REQUEST)
         .json({ message: "Invalid refresh token" });
     }
-
-    const key = platform.toLowerCase();
 
     if (!user.refreshTokens || user.refreshTokens[key] !== refreshToken) {
       return res
