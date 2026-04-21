@@ -124,6 +124,21 @@ const generateGibberishPassword = () => {
     .join("");
 };
 
+const hostCookie = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  path: "/",
+};
+
+const sharedCookie = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  domain: ".macbease.com",
+  path: "/",
+};
+
 const registerUser = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -297,16 +312,18 @@ const registerUser = async (req, res) => {
     }
 
     /* ---------- Cookies ---------- */
+    ["access_token", "refresh_token", "session_id"].forEach((name) => {
+      res.clearCookie(name, hostCookie);
+      res.clearCookie(name, sharedCookie);
+    });
+
     res.cookie("access_token", accessToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      ...sharedCookie,
       maxAge: 25 * 60 * 1000,
     });
+
     res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      ...sharedCookie,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
@@ -449,7 +466,25 @@ const googleLogin = async (req, res) => {
       res.status(StatusCodes.OK).json({ msg: "User does not exists." });
       return;
     }
-    return res.status(StatusCodes.OK).json(result);
+    ["access_token", "refresh_token", "session_id"].forEach((name) => {
+      res.clearCookie(name, hostCookie);
+      res.clearCookie(name, sharedCookie);
+    });
+
+    res.cookie("access_token", result.token, {
+      ...sharedCookie,
+      maxAge: 25 * 60 * 1000,
+    });
+    res.cookie("refresh_token", result.refreshToken, {
+      ...sharedCookie,
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    let response = result;
+    if (platform === 'web') {
+      const { token, refreshToken, ...rest } = result
+      response = rest;
+    }
+    return res.status(StatusCodes.OK).json(response);
   } catch (error) {
     console.error("Error during Google Sign-In:", error);
     return res
@@ -506,26 +541,26 @@ const loginUser = async (req, res) => {
         .json({ message: "User does not exist." });
     }
 
+    ["access_token", "refresh_token", "session_id"].forEach((name) => {
+      res.clearCookie(name, hostCookie);
+      res.clearCookie(name, sharedCookie);
+    });
+
     res.cookie("access_token", result.token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      ...sharedCookie,
       maxAge: 25 * 60 * 1000,
     });
 
     res.cookie("refresh_token", result.refreshToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
+      ...sharedCookie,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-
-    if (platform === "web") {
-      const { token, refreshToken, ...safeData } = result;
-      return res.status(StatusCodes.OK).json(safeData);
+    let response = result;
+    if (platform === 'web') {
+      const { token, refreshToken, ...rest } = result
+      response = rest;
     }
-
-    return res.status(StatusCodes.OK).json(result);
+    return res.status(StatusCodes.OK).json(response);
   } catch (err) {
     console.error("Login error:", err);
     return res
@@ -591,37 +626,33 @@ const regenerateAccessToken = async (req, res) => {
     const session = await Session.create({ userId: payload.id });
 
     // 5. Set cookies
-    const cookieOptions = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    };
+    ["access_token", "refresh_token", "session_id"].forEach((name) => {
+      res.clearCookie(name, hostCookie);
+      res.clearCookie(name, sharedCookie);
+    });
 
     res.cookie("access_token", newAccessToken, {
-      ...cookieOptions,
+      ...sharedCookie,
       maxAge: 25 * 60 * 1000,
     });
-
     res.cookie("refresh_token", newRefreshToken, {
-      ...cookieOptions,
+      ...sharedCookie,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-
     res.cookie("session_id", session._id.toString(), {
-      ...cookieOptions,
+      ...sharedCookie,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
-
-    // 6. Response only for app
-    if (key === "app") {
-      return res.status(StatusCodes.OK).json({
-        newAccessToken,
-        newRefreshToken,
-        sessionId: session._id,
-      });
+    let response = {};
+    if (platform === 'app') {
+      response.newAccessToken = newAccessToken;
+      response.newRefreshToken = newRefreshToken;
+      response.sessionId = session._id
     }
 
-    return res.status(StatusCodes.OK).json({});
+    return res
+      .status(StatusCodes.OK)
+      .json(response);
   } catch (err) {
     console.error("regenerateAccessToken error:", err);
     return res
@@ -1088,7 +1119,7 @@ const getUploadUrl = async (req, res) => {
     const command = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
-      ContentType: fileType,
+      ContentType: fileType, // ✅ IMPORTANT
     });
 
     let signedUrl;

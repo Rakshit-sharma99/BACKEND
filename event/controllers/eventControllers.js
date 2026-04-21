@@ -4532,7 +4532,7 @@ const categorizeAllEvents = async (req, res) => {
     let updatedEvents = 0;
     for (const event of events) {
       const category = await categorizeEventHelper(event);
-      console.log("category",category)
+      console.log("category", category)
       if (category) {
         await Event.findByIdAndUpdate(event._id, {
           $set: {
@@ -4541,7 +4541,7 @@ const categorizeAllEvents = async (req, res) => {
           }
         })
         updatedEvents++;
-        console.log("updated",updatedEvents);
+        console.log("updated", updatedEvents);
       }
     }
     return res.status(StatusCodes.OK).json({
@@ -4703,6 +4703,172 @@ const getEventsByCategory = async (req, res) => {
   }
 }
 
+const getEventsByFilters = async (req, res) => {
+  try {
+    const { categories, statuses, mode, payment, page, limit } = req.body;
+    const query = {};
+
+    // Categories
+    if (categories?.length) {
+      query.$or = [
+        { primaryCategory: { $in: categories } },
+        { secondaryCategories: { $in: categories } }
+      ];
+    }
+
+    // Status
+    const allowedStatuses = ["featured", "expired", "pending"];
+    if (statuses?.length) {
+      const validStatuses = statuses.filter(s => allowedStatuses.includes(s));
+      if (!validStatuses.length) {
+        return res.status(400).json({ success: false, message: "Invalid status." });
+      }
+      query.status = { $in: validStatuses };
+    }
+
+    // Mode
+    const allowedModes = ["online", "offline"];
+    if (mode && allowedModes.includes(mode)) {
+      query.mode = mode;
+    }
+
+    // Payment
+    const allowedPayments = ["paid", "free"];
+    if (payment?.length) {
+      const validPayments = payment.filter(p => allowedPayments.includes(p));
+      if (!validPayments.length) {
+        return res.status(400).json({ success: false, message: "Invalid payment." });
+      }
+      query.payment = { $in: validPayments };
+    }
+
+    // Pagination
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 10;
+    const skip = (pageNum - 1) * limitNum;
+
+    const events = await Event.find(query)
+      .select("_id name slug belongsTo url eventDate description startTime endTime place status primaryCategory secondaryCategories")
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ eventDate: 1 })
+      .lean();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      events,
+      count: events.length
+    });
+
+  } catch (err) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+const addPaymentFieldToEvents = async (req, res) => {
+  try {
+    if(req.user.role !== "admin"){
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized.",
+      });
+    }
+    
+    const events = await Event.find({
+      payment: { $exists: false },
+      mode: { $exists: false }
+    }).lean();
+
+    console.log("Events found", events.length);
+
+    const bulkOps = events.map(event => {
+      let payment = "free";
+
+      if (event.ticketTypes?.length > 0) {
+        const hasPaidTicket = event.ticketTypes.some(t => t.price > 0);
+        if (hasPaidTicket) payment = "paid";
+      } 
+      else if (event.cumulativeRevenue?.length > 0) {
+        const totalRevenue = event.cumulativeRevenue.reduce((acc, curr) => acc + curr, 0);
+        if (totalRevenue > 0) payment = "paid";
+      }
+
+      return {
+        updateOne: {
+          filter: { _id: event._id },
+          update: { $set: { payment } }
+        }
+      };
+    });
+
+    if (bulkOps.length > 0) {
+      await Event.bulkWrite(bulkOps);
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      updatedCount: bulkOps.length
+    });
+
+  } catch (err) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+const addModeFieldToEvents = async (req, res) => {
+  try{
+
+    if(req.user.role !== "admin"){
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized.",
+      });
+    }
+
+    const events = await Event.find({
+      mode: { $exists: false }
+    }).lean();
+
+    console.log("Events found", events.length);
+
+    const bulkOps = events.map(event => {
+      let mode = "online";
+
+      if (event.place) {
+        mode = "offline";
+      }
+
+      return {
+        updateOne: {
+          filter: { _id: event._id },
+          update: { $set: { mode } }
+        }
+      };
+    });
+
+    if (bulkOps.length > 0) {
+      await Event.bulkWrite(bulkOps);
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      updatedCount: bulkOps.length
+    });
+
+  }catch(err){
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+}
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -4768,5 +4934,8 @@ module.exports = {
   getCategories,
   categorizeAllEvents,
   categorizeEvent,
-  getEventsByCategory
+  getEventsByCategory,
+  getEventsByFilters,
+  addPaymentFieldToEvents,
+  addModeFieldToEvents
 };
