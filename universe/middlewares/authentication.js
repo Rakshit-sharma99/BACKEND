@@ -8,12 +8,12 @@ const auth = async (req, res, next) => {
 
   let token = null;
 
-  if (cookieToken) {
-    token = cookieToken;
+  if (authHeader && authHeader.startsWith("Bearer")) {
+    token = authHeader.split(" ")[1];
   }
 
-  else if (authHeader && authHeader.startsWith("Bearer")) {
-    token = authHeader.split(" ")[1];
+  else if (cookieToken) {
+    token = cookieToken;
   }
   if (!token) {
     return res
