@@ -520,6 +520,106 @@ const fetchAssetCategories = async () => {
   }
 };
 
+const fetchTrendingEvents = async ({ limit = 6 }) => {
+  try {
+    const config = generateServiceToken();
+
+    // 1. Fetch live (featured) events
+    const liveRes = await axios.post(
+      "http://event:5060/event/api/v1/getFeaturedEvents",
+      {
+        fields: [
+          "name",
+          "url",
+          "description",
+          "place",
+          "startTime",
+          "endTime",
+          "eventDate",
+          "eventEndDate",
+          "status",
+          "belongsTo",
+          "tags",
+          "primaryCategory",
+        ],
+      },
+      config,
+    );
+
+    let events = liveRes.data?.data || [];
+
+    // 2. If not enough live events, pad with recently expired ones
+    if (events.length < limit) {
+      const needed = limit - events.length;
+      const pastRes = await axios.post(
+        "http://event:5060/event/api/v1/getPastEvents",
+        {
+          daysAgo: 30,
+          projection: "name url description place startTime endTime eventDate eventEndDate status belongsTo tags primaryCategory",
+          limit: needed,
+        },
+        config,
+      );
+
+      const pastEvents = pastRes.data?.data || [];
+      const existingIds = new Set(events.map((e) => e._id.toString()));
+      for (const pe of pastEvents) {
+        if (!existingIds.has(pe._id.toString())) {
+          events.push(pe);
+        }
+        if (events.length >= limit) break;
+      }
+    }
+
+    return events.slice(0, limit);
+  } catch (error) {
+    console.error("Error in fetchTrendingEvents:", error.message);
+    return [];
+  }
+};
+
+const fetchTrendingCards = async ({ tags, limit = 6 }) => {
+  try {
+    const config = generateServiceToken();
+    let cards = [];
+
+    if (Array.isArray(tags) && tags.length > 0) {
+      const cardsRes = await axios.post(
+        "http://card:5030/card/api/v1/getCardsFromTag",
+        { tag: tags },
+        config,
+      );
+      cards = Array.isArray(cardsRes.data) ? cardsRes.data : [];
+    }
+
+    // Pad with random cards if we dont have enough
+    if (cards.length < limit) {
+      const needed = limit - cards.length;
+      try {
+        const randomRes = await axios.get(
+          `http://card:5030/card/api/v1/getRandomCards?size=${needed * 2}`,
+          config
+        );
+        const randomCards = Array.isArray(randomRes.data) ? randomRes.data : [];
+        const existingIds = new Set(cards.map((c) => c._id.toString()));
+        for (const rc of randomCards) {
+          if (!existingIds.has(rc._id.toString())) {
+            cards.push(rc);
+          }
+          if (cards.length >= limit) break;
+        }
+      } catch (err) {
+        console.error("Error fetching random cards for padding:", err.message);
+      }
+    }
+
+    return cards.slice(0, limit);
+  } catch (error) {
+    console.error("Error in fetchTrendingCards:", error.message);
+    return [];
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -541,4 +641,6 @@ module.exports = {
   fetchSearchedProfileFacets,
   registerCustomUniverse,
   fetchAssetCategories,
+  fetchTrendingEvents,
+  fetchTrendingCards,
 };

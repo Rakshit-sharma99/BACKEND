@@ -22,6 +22,8 @@ const {
   fetchMultipleAssets,
   fetchSearchedProfileFacets,
   fetchAssetCategories,
+  fetchTrendingEvents,
+  fetchTrendingCards,
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
@@ -3410,6 +3412,166 @@ const getRecommendedProfiles = async (req, res) => {
   }
 };
 
+const getTrendingSearches = async (req, res) => {
+  try {
+    const { filter } = req.query;
+    const LIMIT = 6;
+
+    if (!filter) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ success: false, message: "filter query param is required" });
+    }
+
+    const validFilters = ["club", "community", "events", "people", "card"];
+    if (!validFilters.includes(filter)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: `Invalid filter. Must be one of: ${validFilters.join(", ")}`,
+      });
+    }
+
+    // ── Club / Community ───────────────────────────────────────────────
+    if (filter === "club") {
+      const clubs = await Club.aggregate([
+        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        { $sort: { membersCount: -1 } },
+        { $limit: LIMIT },
+        {
+          $project: {
+            name: 1,
+            motto: 1,
+            featuringImg: 1,
+            secondaryImg: 1,
+            tags: 1,
+            membersCount: 1,
+            universeMetaData: 1,
+          },
+        },
+      ]);
+
+      return res.status(StatusCodes.OK).json({ success: true, filter, data: clubs });
+    }
+
+    if (filter === "community") {
+      const communities = await Community.aggregate([
+        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        { $sort: { membersCount: -1 } },
+        { $limit: LIMIT },
+        {
+          $project: {
+            title: 1,
+            label: 1,
+            cover: 1,
+            secondaryCover: 1,
+            tag: 1,
+            membersCount: 1,
+            universeMetaData: 1,
+          },
+        },
+      ]);
+
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, filter, data: communities });
+    }
+
+    // ── Events (interservice) ──────────────────────────────────────────
+    if (filter === "events") {
+      const events = await fetchTrendingEvents({ limit: LIMIT });
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, filter, data: events });
+    }
+
+    // ── People ─────────────────────────────────────────────────────────
+    if (filter === "people") {
+      const currentUser = await User.findById(req.user.id, {
+        interests: 1,
+      }).lean();
+
+      const interests = currentUser?.interests || [];
+
+      let people;
+      if (interests.length > 0) {
+        // Match users who share at least one interest, ranked by overlap
+        people = await User.aggregate([
+          {
+            $match: {
+              _id: { $ne: mongoose.Types.ObjectId(req.user.id) },
+              interests: { $in: interests },
+              deactivated: { $ne: true },
+            },
+          },
+          {
+            $addFields: {
+              matchScore: {
+                $size: {
+                  $setIntersection: ["$interests", interests],
+                },
+              },
+            },
+          },
+          { $sort: { matchScore: -1 } },
+          { $limit: LIMIT },
+          {
+            $project: {
+              name: 1,
+              image: 1,
+              course: 1,
+              interests: 1,
+              universeMetaData: 1,
+            },
+          },
+        ]);
+      } else {
+        // Fallback: random non-deactivated users
+        people = await User.aggregate([
+          {
+            $match: {
+              _id: { $ne: mongoose.Types.ObjectId(req.user.id) },
+              deactivated: { $ne: true },
+            },
+          },
+          { $sample: { size: LIMIT } },
+          {
+            $project: {
+              name: 1,
+              image: 1,
+              course: 1,
+              interests: 1,
+              universeMetaData: 1,
+            },
+          },
+        ]);
+      }
+
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, filter, data: people });
+    }
+
+    // ── Card (interservice) ────────────────────────────────────────────
+    if (filter === "card") {
+      const currentUser = await User.findById(req.user.id, {
+        interests: 1,
+      }).lean();
+
+      const interests = currentUser?.interests || [];
+      const cards = await fetchTrendingCards({ tags: interests, limit: LIMIT });
+
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, filter, data: cards });
+    }
+  } catch (error) {
+    console.error("Error in getTrendingSearches:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: "Something went wrong" });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -3483,4 +3645,5 @@ module.exports = {
   getUserChannels,
   checkUserChannelRole,
   getRecommendedProfiles,
+  getTrendingSearches,
 };
