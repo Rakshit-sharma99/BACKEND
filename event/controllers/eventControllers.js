@@ -171,36 +171,36 @@ async function ticketBuyResolver({
     return mainAdmin === safeUserId
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to the club owner.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to the club owner.",
+        };
   }
 
   if (accessLevel === "club_admin" || accessLevel === "club_admins") {
     return adminIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to club admins.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to club admins.",
+        };
   }
 
   if (accessLevel === "club_core") {
     return teamIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to the club core team.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to the club core team.",
+        };
   }
 
   if (accessLevel === "club_members") {
     return memberIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-        canBuy: false,
-        message: "This ticket is only available to club members.",
-      };
+          canBuy: false,
+          message: "This ticket is only available to club members.",
+        };
   }
 
   return {
@@ -2018,7 +2018,8 @@ const editEventDetails = async (req, res) => {
 
     const event = await Event.findById(eventId, { permissions: 1 }).lean();
     const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
-      ? event.permissions.whoCanEditEvent.includes(req.user.id)
+      ? event.permissions.whoCanEditEvent.includes(req.user.id) ||
+        req.user.role === "admin"
       : false;
 
     if (!authorized) {
@@ -2241,8 +2242,9 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${field.type
-            }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${
+            field.type
+          }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3563,7 +3565,7 @@ const getSearchedEvents = async (req, res) => {
                   query,
                   path: "name",
                   fuzzy: { maxEdits: 1 },
-                  score: { boost: { value: 5 } }
+                  score: { boost: { value: 5 } },
                 },
               },
 
@@ -3572,7 +3574,7 @@ const getSearchedEvents = async (req, res) => {
                   query,
                   path: ["description", "tags"],
                   fuzzy: { maxEdits: 1 },
-                  score: { boost: { value: 2 } }
+                  score: { boost: { value: 2 } },
                 },
               },
 
@@ -3581,7 +3583,7 @@ const getSearchedEvents = async (req, res) => {
                   query,
                   path: "primaryCategory",
                   fuzzy: { maxEdits: 1 },
-                  score: { boost: { value: 4 } }
+                  score: { boost: { value: 4 } },
                 },
               },
 
@@ -3590,9 +3592,9 @@ const getSearchedEvents = async (req, res) => {
                   query,
                   path: "secondaryCategories",
                   fuzzy: { maxEdits: 1 },
-                  score: { boost: { value: 3 } }
+                  score: { boost: { value: 3 } },
                 },
-              }
+              },
             ],
           },
         },
@@ -3619,9 +3621,9 @@ const getSearchedEvents = async (req, res) => {
       {
         $addFields: {
           isFeatured: {
-            $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
-          }
-        }
+            $cond: [{ $eq: ["$status", "featured"] }, 1, 0],
+          },
+        },
       },
       { $sort: { isFeatured: -1, score: -1, membersCount: -1, eventDate: -1 } },
       { $limit: Number(limit) },
@@ -3737,27 +3739,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-          {
-            $match: {
-              status: "featured",
-              eventDate: { $gte: now },
-              tags: { $in: interestTags },
-              ...universeFilter,
+            {
+              $match: {
+                status: "featured",
+                eventDate: { $gte: now },
+                tags: { $in: interestTags },
+                ...universeFilter,
+              },
             },
-          },
-          { $limit: limit },
-          {
-            $project: {
-              bookedBy: 0,
-              amtPaid: 0,
-              amtPaidTo: 0,
-              ticketSellingDays: 0,
-              cumulativeRevenue: 0,
-              courseAnalytics: 0,
-              faq: 0,
+            { $limit: limit },
+            {
+              $project: {
+                bookedBy: 0,
+                amtPaid: 0,
+                amtPaidTo: 0,
+                ticketSellingDays: 0,
+                cumulativeRevenue: 0,
+                courseAnalytics: 0,
+                faq: 0,
+              },
             },
-          },
-        ])
+          ])
         : [];
 
     let finalEvents = [...suggestedEvents];
@@ -3857,7 +3859,6 @@ const slugifyAllEvents = async (req, res) => {
   }
 };
 
-
 const requestCancellation = async (req, res) => {
   const { id, reason, agreeToTerms } = req.body;
   try {
@@ -3895,8 +3896,8 @@ const requestCancellation = async (req, res) => {
     //secondary actions
     try {
       const admins = await fetchEventAdminsByFields({
-        fields: ["name", "email", "pushToken"]
-      })
+        fields: ["name", "email", "pushToken"],
+      });
       const subject = `Event Cancellation Request for ${event.name}`;
 
       const intro = `A cancellation request has been submitted for the event ${event.name}.
@@ -3908,7 +3909,8 @@ const requestCancellation = async (req, res) => {
       const outro = `Please review and approve or reject this request at your earliest convenience.`;
 
       const action = {
-        instructions: "Click the button below to review the cancellation request:",
+        instructions:
+          "Click the button below to review the cancellation request:",
         button: {
           color: "#1ea1ed",
           text: "Review Request",
@@ -3926,54 +3928,42 @@ const requestCancellation = async (req, res) => {
           subject,
           destination,
           action,
-          null
+          null,
         );
 
         await ses.sendEmail(params).promise();
       }
-
     } catch (err) {
       console.log("Error in secondary actions:", err);
     }
 
-    return res
-      .status(StatusCodes.OK)
-      .json({
-        success: true,
-        message: "Event cancellation requested successfully.",
-      });
-
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Event cancellation requested successfully.",
+    });
   } catch (error) {
     console.error("Error in requestEventCancellation:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({
-        success: false,
-        message: "Something went wrong",
-      });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
   }
-}
+};
 
-const processRefund = async (
-  razorpay_payment_id,
-  amtPaid,
-  userId,
-  eventId
-) => {
+const processRefund = async (razorpay_payment_id, amtPaid, userId, eventId) => {
   try {
-
     if (!razorpay_payment_id?.startsWith("pay_")) {
       return;
     }
 
     const authHeader = `Basic ${Buffer.from(
-      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`
+      `${process.env.RAZOR_PAY_KEY}:${process.env.RAZOR_PAY_SECRET}`,
     ).toString("base64")}`;
 
     // Step 1: Fetch payment from Razorpay
     const paymentResponse = await axios.get(
       `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
-      { headers: { Authorization: authHeader } }
+      { headers: { Authorization: authHeader } },
     );
 
     const payment = paymentResponse.data;
@@ -3988,7 +3978,7 @@ const processRefund = async (
       {
         amount: payment.amount,
       },
-      { headers: { Authorization: authHeader } }
+      { headers: { Authorization: authHeader } },
     );
 
     // Step 3: Log refund
@@ -3999,7 +3989,6 @@ const processRefund = async (
       amtPaid: payment.amount / 100,
       refundStatus: "PENDING",
     });
-
   } catch (error) {
     console.error("Razorpay error:", error.response?.data || error.message);
   }
@@ -4009,7 +3998,7 @@ const cancelEvent = async (req, res) => {
   const { eventId } = req.body;
 
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== "admin") {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
         message: "Unauthorized",
@@ -4027,27 +4016,30 @@ const cancelEvent = async (req, res) => {
     event.status = "cancelled";
     await event.save();
 
-    const tickets = await fetchMultipleTicketFieldsById(
-      {
-        ticketIds: event.bookedBy,
-        fields: ["boughtBy", "paymentId", "amtPaid"]
-      });
+    const tickets = await fetchMultipleTicketFieldsById({
+      ticketIds: event.bookedBy,
+      fields: ["boughtBy", "paymentId", "amtPaid"],
+    });
     const usersData = [];
-    const uniqueUsers = [...new Set(tickets.map(ticket => ticket.boughtBy))];
+    const uniqueUsers = [...new Set(tickets.map((ticket) => ticket.boughtBy))];
 
     for (const userId of uniqueUsers) {
-      const user = await fetchUserData(
-        {
-          id: userId,
-          fields: ["name", "email", "pushToken"]
-        });
+      const user = await fetchUserData({
+        id: userId,
+        fields: ["name", "email", "pushToken"],
+      });
       usersData.push(user);
     }
 
     // Initate Refund for the ticket buyers
     for (const ticket of tickets) {
       if (ticket.amtPaid > 0) {
-        await processRefund(ticket.paymentId, ticket.amtPaid, ticket.boughtBy, event._id);
+        await processRefund(
+          ticket.paymentId,
+          ticket.amtPaid,
+          ticket.boughtBy,
+          event._id,
+        );
       }
     }
 
@@ -4065,7 +4057,8 @@ const cancelEvent = async (req, res) => {
       const subject = "Event Cancelled & Refund Information";
 
       const action = {
-        instructions: "Click the button below to view your tickets and refund status:",
+        instructions:
+          "Click the button below to view your tickets and refund status:",
         button: {
           color: "#1ea1ed",
           text: "View Details",
@@ -4083,7 +4076,7 @@ const cancelEvent = async (req, res) => {
           subject,
           destination,
           action,
-          null
+          null,
         );
 
         await ses.sendEmail(params).promise();
@@ -4100,11 +4093,10 @@ const cancelEvent = async (req, res) => {
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ success: false, message: "Something went wrong" });
   }
-}
+};
 
 const requestEventLive = async (req, res) => {
   try {
-
     const { eventId } = req.query;
 
     if (!eventId) {
@@ -4130,8 +4122,8 @@ const requestEventLive = async (req, res) => {
     // send mail to admins
     try {
       const admins = await fetchEventAdminsByFields({
-        fields: ["name", "email", "pushToken"]
-      })
+        fields: ["name", "email", "pushToken"],
+      });
       const subject = `Make ${event.name} Live`;
 
       const intro = `A request has been submitted to make the event ${event.name} live on the platform.
@@ -4143,7 +4135,8 @@ const requestEventLive = async (req, res) => {
       const outro = `Please review this request and approve or reject it at your earliest convenience.`;
 
       const action = {
-        instructions: "Click the button below to review the event and take action:",
+        instructions:
+          "Click the button below to review the event and take action:",
         button: {
           color: "#16a34a",
           text: "Review Event",
@@ -4161,7 +4154,7 @@ const requestEventLive = async (req, res) => {
           subject,
           destination,
           action,
-          null
+          null,
         );
 
         await ses.sendEmail(params).promise();
@@ -4178,11 +4171,12 @@ const requestEventLive = async (req, res) => {
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .send("Something went wrong");
   }
-}
+};
 
 const requestPostponement = async (req, res) => {
   try {
-    const { eventId, eventData, eventEndDate, startTime, endTime, reason } = req.body;
+    const { eventId, eventData, eventEndDate, startTime, endTime, reason } =
+      req.body;
 
     if (!eventId) {
       return res.status(400).json({
@@ -4290,7 +4284,7 @@ const requestPostponement = async (req, res) => {
           subject,
           email,
           action,
-          null
+          null,
         );
 
         await ses.sendEmail(params).promise();
@@ -4303,7 +4297,6 @@ const requestPostponement = async (req, res) => {
       success: true,
       message: "Postponement request submitted successfully.",
     });
-
   } catch (err) {
     console.error("Controller error:", err);
     return res.status(500).json({
@@ -4321,7 +4314,7 @@ const getLiveEvents = async (req, res) => {
       });
     }
     const count = await Event.countDocuments({
-      status: "featured"
+      status: "featured",
     });
     return res.status(StatusCodes.OK).json({ count });
   } catch (error) {
@@ -4384,29 +4377,29 @@ const getCategories = async (req, res) => {
     let categories = await Event.aggregate([
       {
         $match: {
-          primaryCategory: { $ne: null }
-        }
+          primaryCategory: { $ne: null },
+        },
       },
       {
         $group: {
           _id: "$primaryCategory",
           featuredCount: {
             $sum: {
-              $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
-            }
+              $cond: [{ $eq: ["$status", "featured"] }, 1, 0],
+            },
           },
-          totalCount: { $sum: 1 }
-        }
+          totalCount: { $sum: 1 },
+        },
       },
       {
         $sort: {
           featuredCount: -1, // priority 1
-          totalCount: -1     // fallback
-        }
+          totalCount: -1, // fallback
+        },
       },
       {
-        $limit: Number(limit)
-      }
+        $limit: Number(limit),
+      },
     ]);
 
     if (categories.length === 0) {
@@ -4418,7 +4411,7 @@ const getCategories = async (req, res) => {
     return res.status(StatusCodes.OK).json({
       success: true,
       categories,
-      count: categories.length
+      count: categories.length,
     });
   } catch (err) {
     console.log("Error fetching categories:", err);
@@ -4452,7 +4445,7 @@ const EVENT_CATEGORIES = [
   "Fest",
   "Competition",
   "Social",
-  "Other"
+  "Other",
 ];
 
 // categorize event helper
@@ -4473,7 +4466,7 @@ async function categorizeEventHelper(event) {
       "primaryCategory": "<category>",
       "subCategory": ["<sub-category>"]
     }
-    `
+    `;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -4511,35 +4504,38 @@ const categorizeAllEvents = async (req, res) => {
         message: "Unauthorized",
       });
     }
-    const events = await Event.find({
-      primaryCategory: {
-        $exists: false,
-        $eq: null
+    const events = await Event.find(
+      {
+        primaryCategory: {
+          $exists: false,
+          $eq: null,
+        },
+        secondaryCategories: {
+          $exists: false,
+          $eq: null,
+        },
       },
-      secondaryCategories: {
-        $exists: false,
-        $eq: null
-      }
-    }, {
-      name: 1,
-      slug: 1,
-      description: 1,
-      tags: 1,
-    })
+      {
+        name: 1,
+        slug: 1,
+        description: 1,
+        tags: 1,
+      },
+    );
 
-    console.log("Events found without category", events.length)
+    console.log("Events found without category", events.length);
 
     let updatedEvents = 0;
     for (const event of events) {
       const category = await categorizeEventHelper(event);
-      console.log("category", category)
+      console.log("category", category);
       if (category) {
         await Event.findByIdAndUpdate(event._id, {
           $set: {
             primaryCategory: category.primaryCategory,
-            secondaryCategories: category.subCategory
-          }
-        })
+            secondaryCategories: category.subCategory,
+          },
+        });
         updatedEvents++;
         console.log("updated", updatedEvents);
       }
@@ -4547,7 +4543,7 @@ const categorizeAllEvents = async (req, res) => {
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Events categorized successfully.",
-      updatedEvents
+      updatedEvents,
     });
   } catch (error) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -4555,7 +4551,7 @@ const categorizeAllEvents = async (req, res) => {
       message: "Something went wrong.",
     });
   }
-}
+};
 
 const categorizeEvent = async (req, res) => {
   try {
@@ -4577,19 +4573,20 @@ const categorizeEvent = async (req, res) => {
         _id: eventId,
         primaryCategory: {
           $exists: false,
-          $eq: null
+          $eq: null,
         },
         secondaryCategories: {
           $exists: false,
-          $eq: null
-        }
+          $eq: null,
+        },
       },
       {
         name: 1,
         slug: 1,
         description: 1,
         tags: 1,
-      });
+      },
+    );
 
     if (!event) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -4601,9 +4598,9 @@ const categorizeEvent = async (req, res) => {
     await Event.findByIdAndUpdate(eventId, {
       $set: {
         primaryCategory: category.primaryCategory,
-        secondaryCategories: category.subCategory
-      }
-    })
+        secondaryCategories: category.subCategory,
+      },
+    });
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Event categorized successfully.",
@@ -4614,7 +4611,7 @@ const categorizeEvent = async (req, res) => {
       message: "Something went wrong.",
     });
   }
-}
+};
 
 const getEventsByCategory = async (req, res) => {
   try {
@@ -4626,20 +4623,20 @@ const getEventsByCategory = async (req, res) => {
         message: "Categories are required.",
       });
     }
-    const regexCategories = categories.map(cat => new RegExp(cat, "i"));
+    const regexCategories = categories.map((cat) => new RegExp(cat, "i"));
     const events = await Event.aggregate([
       {
         $match: {
           $or: [
             { primaryCategory: { $in: regexCategories } },
-            { secondaryCategories: { $in: regexCategories } }
-          ]
-        }
+            { secondaryCategories: { $in: regexCategories } },
+          ],
+        },
       },
       {
         $addFields: {
           isFeatured: {
-            $cond: [{ $eq: ["$status", "featured"] }, 1, 0]
+            $cond: [{ $eq: ["$status", "featured"] }, 1, 0],
           },
           score: {
             $cond: [
@@ -4652,24 +4649,24 @@ const getEventsByCategory = async (req, res) => {
                       $regexMatch: {
                         input: "$primaryCategory",
                         regex: "$$cat",
-                        options: "i"
-                      }
-                    }
-                  }
-                }
+                        options: "i",
+                      },
+                    },
+                  },
+                },
               },
               2,
-              1
-            ]
-          }
-        }
+              1,
+            ],
+          },
+        },
       },
       {
         $sort: {
-          isFeatured: -1,  // featured first
-          score: -1,       // primary matches next
-          eventDate: 1     // earlier events first
-        }
+          isFeatured: -1, // featured first
+          score: -1, // primary matches next
+          eventDate: 1, // earlier events first
+        },
       },
       {
         $project: {
@@ -4686,14 +4683,14 @@ const getEventsByCategory = async (req, res) => {
           status: 1,
           primaryCategory: 1,
           secondaryCategories: 1,
-        }
-      }
+        },
+      },
     ]);
 
     return res.status(StatusCodes.OK).json({
       success: true,
       events,
-      count: events.length
+      count: events.length,
     });
   } catch (error) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
@@ -4701,7 +4698,7 @@ const getEventsByCategory = async (req, res) => {
       message: "Something went wrong.",
     });
   }
-}
+};
 
 const getEventsByFilters = async (req, res) => {
   try {
@@ -4712,16 +4709,18 @@ const getEventsByFilters = async (req, res) => {
     if (categories?.length) {
       query.$or = [
         { primaryCategory: { $in: categories } },
-        { secondaryCategories: { $in: categories } }
+        { secondaryCategories: { $in: categories } },
       ];
     }
 
     // Status
     const allowedStatuses = ["featured", "expired", "pending"];
     if (statuses?.length) {
-      const validStatuses = statuses.filter(s => allowedStatuses.includes(s));
+      const validStatuses = statuses.filter((s) => allowedStatuses.includes(s));
       if (!validStatuses.length) {
-        return res.status(400).json({ success: false, message: "Invalid status." });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid status." });
       }
       query.status = { $in: validStatuses };
     }
@@ -4735,9 +4734,11 @@ const getEventsByFilters = async (req, res) => {
     // Payment
     const allowedPayments = ["paid", "free"];
     if (payment?.length) {
-      const validPayments = payment.filter(p => allowedPayments.includes(p));
+      const validPayments = payment.filter((p) => allowedPayments.includes(p));
       if (!validPayments.length) {
-        return res.status(400).json({ success: false, message: "Invalid payment." });
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid payment." });
       }
       query.payment = { $in: validPayments };
     }
@@ -4748,7 +4749,9 @@ const getEventsByFilters = async (req, res) => {
     const skip = (pageNum - 1) * limitNum;
 
     const events = await Event.find(query)
-      .select("_id name slug belongsTo url eventDate description startTime endTime place status primaryCategory secondaryCategories")
+      .select(
+        "_id name slug belongsTo url eventDate description startTime endTime place status primaryCategory secondaryCategories",
+      )
       .skip(skip)
       .limit(limitNum)
       .sort({ eventDate: 1 })
@@ -4757,9 +4760,8 @@ const getEventsByFilters = async (req, res) => {
     return res.status(StatusCodes.OK).json({
       success: true,
       events,
-      count: events.length
+      count: events.length,
     });
-
   } catch (err) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
@@ -4770,37 +4772,39 @@ const getEventsByFilters = async (req, res) => {
 
 const addPaymentFieldToEvents = async (req, res) => {
   try {
-    if(req.user.role !== "admin"){
+    if (req.user.role !== "admin") {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
         message: "Unauthorized.",
       });
     }
-    
+
     const events = await Event.find({
       payment: { $exists: false },
-      mode: { $exists: false }
+      mode: { $exists: false },
     }).lean();
 
     console.log("Events found", events.length);
 
-    const bulkOps = events.map(event => {
+    const bulkOps = events.map((event) => {
       let payment = "free";
 
       if (event.ticketTypes?.length > 0) {
-        const hasPaidTicket = event.ticketTypes.some(t => t.price > 0);
+        const hasPaidTicket = event.ticketTypes.some((t) => t.price > 0);
         if (hasPaidTicket) payment = "paid";
-      } 
-      else if (event.cumulativeRevenue?.length > 0) {
-        const totalRevenue = event.cumulativeRevenue.reduce((acc, curr) => acc + curr, 0);
+      } else if (event.cumulativeRevenue?.length > 0) {
+        const totalRevenue = event.cumulativeRevenue.reduce(
+          (acc, curr) => acc + curr,
+          0,
+        );
         if (totalRevenue > 0) payment = "paid";
       }
 
       return {
         updateOne: {
           filter: { _id: event._id },
-          update: { $set: { payment } }
-        }
+          update: { $set: { payment } },
+        },
       };
     });
 
@@ -4810,9 +4814,8 @@ const addPaymentFieldToEvents = async (req, res) => {
 
     return res.status(StatusCodes.OK).json({
       success: true,
-      updatedCount: bulkOps.length
+      updatedCount: bulkOps.length,
     });
-
   } catch (err) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
@@ -4822,9 +4825,8 @@ const addPaymentFieldToEvents = async (req, res) => {
 };
 
 const addModeFieldToEvents = async (req, res) => {
-  try{
-
-    if(req.user.role !== "admin"){
+  try {
+    if (req.user.role !== "admin") {
       return res.status(StatusCodes.UNAUTHORIZED).json({
         success: false,
         message: "Unauthorized.",
@@ -4832,12 +4834,12 @@ const addModeFieldToEvents = async (req, res) => {
     }
 
     const events = await Event.find({
-      mode: { $exists: false }
+      mode: { $exists: false },
     }).lean();
 
     console.log("Events found", events.length);
 
-    const bulkOps = events.map(event => {
+    const bulkOps = events.map((event) => {
       let mode = "online";
 
       if (event.place) {
@@ -4847,8 +4849,8 @@ const addModeFieldToEvents = async (req, res) => {
       return {
         updateOne: {
           filter: { _id: event._id },
-          update: { $set: { mode } }
-        }
+          update: { $set: { mode } },
+        },
       };
     });
 
@@ -4858,16 +4860,15 @@ const addModeFieldToEvents = async (req, res) => {
 
     return res.status(StatusCodes.OK).json({
       success: true,
-      updatedCount: bulkOps.length
+      updatedCount: bulkOps.length,
     });
-
-  }catch(err){
+  } catch (err) {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Something went wrong.",
     });
   }
-}
+};
 
 module.exports = {
   createEvent,
@@ -4937,5 +4938,5 @@ module.exports = {
   getEventsByCategory,
   getEventsByFilters,
   addPaymentFieldToEvents,
-  addModeFieldToEvents
+  addModeFieldToEvents,
 };

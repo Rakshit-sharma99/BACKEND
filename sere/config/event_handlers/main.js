@@ -3,6 +3,7 @@ const { user_activity } = require("./user_activity");
 const { streak_update } = require("./streak_update");
 const { query_deferred } = require("./query_deferred");
 const { answer_resolved } = require("./answer_resolved");
+const { live_notification } = require("./live_notification");
 
 /**
  * Handler registry — maps Kafka topic names to handler functions.
@@ -18,6 +19,7 @@ const handlers = {
   "streak.update": streak_update,
   "query.deferred": query_deferred,
   "answer.resolved": answer_resolved,
+  "live.notification": live_notification,
 };
 
 module.exports = { handlers };

@@ -198,6 +198,46 @@ const markAsUnread = async (req, res) => {
       });
     }
 
+    // ✅ Live notification → SERE (in-app heads-up banner)
+    try {
+      const { producer } = require("../config/kafka_producer");
+      await producer.send({
+        topic: "live.notification",
+        messages: [
+          {
+            value: JSON.stringify({
+              targetUserId: hisId,
+              notification: {
+                type: "dm",
+                title: senderDetails.name,
+                body: message || "Sent you a message",
+                action: {
+                  navigateTo: "chatScreen",
+                  params: {
+                    id: myId,
+                    name: senderDetails.name,
+                    img: senderDetails.image,
+                  },
+                },
+                ttl: 8000,
+                priority: "high",
+                groupKey: `dm:${myId}`,
+                metadata: {
+                  senderId: myId,
+                  entityName: senderDetails.name,
+                  entityLogo: senderDetails.image,
+                  entityId: myId,
+                  entityType: "user",
+                },
+              },
+            }),
+          },
+        ],
+      });
+    } catch (kafkaErr) {
+      console.error("Live notification emit failed:", kafkaErr.message);
+    }
+
     return res
       .status(StatusCodes.OK)
       .send("The chat room has been marked unread.");

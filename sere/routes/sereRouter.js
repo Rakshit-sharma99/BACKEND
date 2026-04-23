@@ -18,6 +18,11 @@ const {
   getCampaignMetrics,
 } = require("../controllers/campaignController");
 
+const {
+  getLiveStats,
+  getLiveHistory,
+} = require("../controllers/liveNotificationController");
+
 // ── Reminder routes (user-facing) ──
 router.get("/reminders", getReminders);
 router.post("/reminders/:id/interact", interactWithReminder);
@@ -36,5 +41,9 @@ router.post("/campaigns", createCampaign);
 router.get("/campaigns", getCampaigns);
 router.patch("/campaigns/:id", updateCampaign);
 router.get("/campaigns/:id/metrics", getCampaignMetrics);
+
+// ── Live notification routes ──
+router.get("/live/stats", getLiveStats);
+router.get("/live/history", getLiveHistory);
 
 module.exports = router;
