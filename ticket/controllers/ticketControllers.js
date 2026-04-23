@@ -24,6 +24,9 @@ const {
   fetchItineraries,
   fetchItinerary,
   verifyTicketPurchaseAccess,
+  formatEventDateRange,
+  formatTimeStamp,
+  generateSingleTicketPDFAndUpload,
 } = require("./utilControllers");
 const { io } = require("../app");
 const {
@@ -2119,6 +2122,74 @@ const searchTickets = async (req, res) => {
   }
 };
 
+const getPhysicalCopyOfTicket = async (req, res) => {
+  try {
+    const { ticketId } = req.query;
+
+    // Fetch ticket
+    const ticket = await Ticket.findById(ticketId).lean();
+    if (!ticket) {
+      return res.status(StatusCodes.NOT_FOUND).json({ msg: "Ticket not found" });
+    }
+
+    // Fetch event data using interservice call
+    const eventData = await fetchEventData({
+      id: ticket.eventId,
+      fields: [
+        "name",
+        "url",
+        "belongsTo",
+        "eventDate",
+        "eventEndDate",
+        "startTime",
+        "endTime",
+        "place",
+      ],
+    });
+
+    if (!eventData) {
+      return res.status(StatusCodes.NOT_FOUND).json({ msg: "Event not found" });
+    }
+
+    // Fetch payment details (if applicable)
+    let paymentDetail = {};
+    if (ticket.paymentId && ticket.paymentId !== "free") {
+      const payments = await fetchPayments([ticket.paymentId]);
+      if (payments && payments.length > 0) {
+        paymentDetail = payments[0];
+      }
+    }
+
+    // Prepare ticket data
+    const ticketData = {
+      id: ticket._id.toString(),
+      eventName: eventData.name,
+      organizer: eventData.belongsTo?.name || "N/A",
+      imageUrl: eventData.url || null,
+      date: formatEventDateRange(eventData.eventDate, eventData.eventEndDate),
+      time: `${formatTimeStamp(eventData.startTime, true)} - ${formatTimeStamp(
+        eventData.endTime,
+        true
+      )}`,
+      venue: eventData.place,
+      type: ticket.type,
+      amount: ticket.amtPaid,
+      mode: paymentDetail?.data?.method || "N/A",
+      contact: paymentDetail?.data?.contact || "N/A",
+      paymentId: paymentDetail?.data?.id || "N/A",
+      paidAt: ticket.generatedAt,
+    };
+
+    // Generate and upload PDF
+    const link = await generateSingleTicketPDFAndUpload(ticketData);
+
+    return res.status(StatusCodes.OK).json({ msg: "Done", link });
+  } catch (error) {
+    console.error("Error generating ticket:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ msg: "Something went wrong." });
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -2140,5 +2211,6 @@ module.exports = {
   searchMyTickets,
   addMetaDataToTickets,
   getMultipleTicketFieldsByIds,
-  searchTickets
+  searchTickets,
+  getPhysicalCopyOfTicket
 };

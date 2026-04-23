@@ -2,6 +2,20 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const AWS = require("aws-sdk");
 const { getMessaging } = require("firebase-admin/messaging");
+const path = require("path");
+const stream = require("stream");
+const { v4: uuidv4 } = require("uuid");
+const PDFDocument = require("pdfkit");
+const QRCode = require("qrcode");
+
+const s3 = new AWS.S3({
+  accessKeyId: process.env.S3_AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY,
+  region: process.env.S3_AWS_REGION,
+});
+
+const logoPath = path.resolve(__dirname, "../assets/logo_1024x1024.png");
+const graffitiPath = path.resolve(__dirname, "../assets/graffit.jpeg");
 
 const services = {
   universe: "universe:5050",
@@ -398,6 +412,254 @@ const scheduleNotification2 = ({ pushToken, title, body, image, url }) => {
   });
 };
 
+function getFullDateInString(str) {
+  const date = new Date(str);
+  const formattedDate = date
+    .toLocaleDateString("en-GB", {
+      weekday: "short", // "Sun"
+      day: "numeric", // "9"
+      month: "short", // "Feb"
+    })
+    .replace(",", "");
+
+  return formattedDate;
+}
+
+function getYear(str) {
+  const date = new Date(str);
+  const year = date.getFullYear();
+  return year;
+}
+
+const formatEventDateRange = (start, end) => {
+  const startDate = getFullDateInString(start);
+  const endDate = getFullDateInString(end);
+  const year = getYear(start);
+
+  return `${startDate}${endDate !== startDate ? ` - ${endDate}` : ""} ${year}`;
+};
+
+const formatTimeStamp = (str, notShowDate) => {
+  const date = new Date(str);
+  const day = date.getUTCDate();
+  const month = date.toLocaleString("en-GB", {
+    month: "short",
+    timeZone: "UTC",
+  });
+  const time = date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "UTC",
+  });
+  if (notShowDate) {
+    return `${time}`;
+  }
+  return `${day} ${month} ${time}`;
+};
+
+const generateSingleTicketPDFAndUpload = async (ticket) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Fetch event banner image
+      let imageBuffer = null;
+      if (ticket.imageUrl) {
+        try {
+          let fetchUrl = ticket.imageUrl;
+          if (!fetchUrl.startsWith('http')) {
+            // Encode the S3 key properly to handle characters like '+' which cause 403 Forbidden
+            const encodedKey = encodeURIComponent(fetchUrl).replace(/%2F/g, '/');
+            fetchUrl = `${process.env.S3_OBJECT_URL}${encodedKey}`;
+          }
+          // Fetch with a 5-second timeout. If the image is 37MB+, it will timeout,
+          // preventing the API from hanging and generating a 37MB PDF file.
+          const response = await axios.get(fetchUrl, { 
+            responseType: 'arraybuffer',
+            timeout: 5000 
+          });
+          imageBuffer = Buffer.from(response.data);
+        } catch (e) {
+          console.error("Failed to fetch event image for PDF:", e.message);
+        }
+      }
+
+      // A5 size is approximately 420 x 595 points
+      const a5Width = 420;
+      const a5Height = 595;
+      const doc = new PDFDocument({ margin: 0, size: "A5" });
+      const passThroughStream = new stream.PassThrough();
+
+      const fileKey = `tickets/${ticket.eventName.replace(
+        /\s+/g,
+        "_"
+      )}-${uuidv4()}.pdf`;
+
+      const uploadParams = {
+        Bucket: process.env.S3_BUCKET,
+        Key: fileKey,
+        Body: passThroughStream,
+        ContentType: "application/pdf",
+      };
+
+      s3.upload(uploadParams, (err) => {
+        if (err) reject(err);
+        else resolve(`${process.env.S3_OBJECT_URL}${fileKey}`);
+      });
+
+      doc.pipe(passThroughStream);
+
+      // ========================
+      // 🎨 Layout Design
+      // ========================
+
+      // Background color for the whole page (light gray/off-white) to match mobile background
+      doc.rect(0, 0, a5Width, a5Height).fill('#f7f8fa');
+
+      // Ticket Card background
+      const cardX = 30;
+      const cardY = 40;
+      const cardWidth = 360;
+      const cardHeight = 500;
+      const borderRadius = 12;
+
+      // Draw subtle drop shadow manually
+      doc.roundedRect(cardX + 2, cardY + 2, cardWidth, cardHeight, borderRadius).fill('#eaeaeb');
+      
+      // Draw main card
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, borderRadius).fill('#ffffff');
+
+      // Add Macbease Logo Watermark inside the card
+      if (logoPath) {
+        doc.save();
+        // Clip to card boundaries so watermark doesn't spill over
+        doc.roundedRect(cardX, cardY, cardWidth, cardHeight, borderRadius).clip();
+        const wmSize = 250;
+        const wmX = cardX + (cardWidth - wmSize) / 2;
+        const wmY = cardY + (cardHeight - wmSize) / 2 - 20;
+        doc.opacity(0.06);
+        try {
+          doc.image(logoPath, wmX, wmY, { width: wmSize });
+        } catch (e) {
+          console.error("Watermark failed:", e.message);
+        }
+        doc.restore();
+      }
+
+      // Card content padding
+      const padding = 20;
+      const startX = cardX + padding;
+      const startY = cardY + padding;
+
+      // 1. Event Image (Top Left)
+      const imgWidth = 140;
+      const imgHeight = 90;
+      if (imageBuffer) {
+        doc.save();
+        doc.roundedRect(startX, startY, imgWidth, imgHeight, 8).clip();
+        try {
+          doc.image(imageBuffer, startX, startY, { width: imgWidth, height: imgHeight, cover: [imgWidth, imgHeight] });
+        } catch(e) {
+          // Fallback if image format is unsupported by PDFKit (e.g. webp)
+          doc.roundedRect(startX, startY, imgWidth, imgHeight, 8).fill('#eeeeee');
+        }
+        doc.restore();
+      } else {
+        // Placeholder gray box
+        doc.roundedRect(startX, startY, imgWidth, imgHeight, 8).fill('#eeeeee');
+      }
+
+      // 2. Event Info (Top Right)
+      const infoX = startX + imgWidth + 15;
+      const infoWidth = cardWidth - (imgWidth + 15 + padding * 2);
+
+      doc.font('Helvetica-Bold').fontSize(16).fillColor('#111111')
+         .text(ticket.eventName, infoX, startY, { width: infoWidth, align: 'left' });
+
+      doc.moveDown(0.5);
+      doc.font('Helvetica').fontSize(10).fillColor('#777777')
+         .text("Organized By", { width: infoWidth, align: 'left' });
+      
+      doc.moveDown(0.2);
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#111111')
+         .text(ticket.organizer, { width: infoWidth, align: 'left' });
+
+      // 3. Middle Section: 2x2 Grid
+      const gridY = startY + imgHeight + 30;
+      const col1X = startX;
+      const col2X = startX + (cardWidth - padding * 2) / 2 + 10;
+
+      const drawGridItem = (label, value, x, y) => {
+        doc.font('Helvetica').fontSize(10).fillColor('#777777').text(label, x, y);
+        doc.font('Helvetica-Bold').fontSize(12).fillColor('#111111').text(value, x, y + 15);
+      };
+
+      // Row 1
+      drawGridItem("Date", ticket.date, col1X, gridY);
+      drawGridItem("Time", ticket.time, col2X, gridY);
+
+      // Row 2
+      const gridY2 = gridY + 45;
+      drawGridItem("Type", ticket.type, col1X, gridY2);
+      drawGridItem("Venue", ticket.venue, col2X, gridY2);
+
+      // 4. Divider Line (Perforated)
+      const dividerY = gridY2 + 50;
+      const circleRadius = 12;
+      
+      // Semicircles (cutouts) on left and right
+      doc.save();
+      // Left Cutout
+      doc.moveTo(cardX, dividerY - circleRadius)
+         .path(`M ${cardX},${dividerY - circleRadius} A ${circleRadius},${circleRadius} 0 0,1 ${cardX},${dividerY + circleRadius}`)
+         .fill('#f7f8fa');
+      
+      // Right Cutout
+      doc.moveTo(cardX + cardWidth, dividerY - circleRadius)
+         .path(`M ${cardX + cardWidth},${dividerY - circleRadius} A ${circleRadius},${circleRadius} 0 0,0 ${cardX + cardWidth},${dividerY + circleRadius}`)
+         .fill('#f7f8fa');
+      doc.restore();
+
+      // Dashed line
+      doc.save();
+      doc.moveTo(cardX + circleRadius + 5, dividerY)
+         .lineTo(cardX + cardWidth - circleRadius - 5, dividerY)
+         .strokeColor('#dddddd')
+         .dash(4, { space: 4 })
+         .stroke();
+      doc.undash();
+      doc.restore();
+
+      // 5. QR Code Section (Centered)
+      const qrSize = 160;
+      const qrY = dividerY + 30;
+      const qrX = cardX + (cardWidth - qrSize) / 2;
+
+      try {
+        const qrDataUrl = await QRCode.toDataURL(ticket.id, { margin: 1 });
+        doc.image(qrDataUrl, qrX, qrY, { width: qrSize });
+      } catch (err) {
+        console.error("Failed to generate QR code:", err);
+      }
+
+      // 6. Ticket ID at the bottom
+      const idY = qrY + qrSize + 20;
+      doc.font('Helvetica-Bold').fontSize(12).fillColor('#111111')
+         .text(`TICKET ID - ${ticket.id}`, cardX, idY, { width: cardWidth, align: 'center' });
+
+      // 7. Terms & Conditions
+      const tcY = idY + 25;
+      doc.font('Helvetica').fontSize(8).fillColor('#888888')
+         .text("Terms & Conditions: This ticket is non-transferable. A valid ID may be required for entry.", cardX + padding, tcY, { width: cardWidth - padding * 2, align: 'center' });
+      doc.text("Macbease and the organizer reserve the right to deny entry.", { width: cardWidth - padding * 2, align: 'center' });
+
+      doc.end();
+    } catch (fatalErr) {
+      console.error("Fatal error generating PDF:", fatalErr);
+      reject(fatalErr);
+    }
+  });
+};
+
 module.exports = {
   fetchLayoutById,
   fetchEventData,
@@ -409,5 +671,8 @@ module.exports = {
   fetchItineraries,
   fetchItinerary,
   sendMail,
-  scheduleNotification2
+  scheduleNotification2,
+  formatEventDateRange,
+  formatTimeStamp,
+  generateSingleTicketPDFAndUpload
 };
