@@ -185,7 +185,7 @@ const likeContent = async (req, res) => {
 
 //Controller 3
 const comment = async (req, res) => {
-  const { contentId, type, text, peopleTagged } = req.body;
+  const { contentId, type, text, peopleTagged, cid } = req.body;
 
   if (!text || typeof text !== "string" || !text.trim()) {
     return res.status(StatusCodes.BAD_REQUEST).send("Invalid comment.");
@@ -215,7 +215,7 @@ const comment = async (req, res) => {
     }
 
     const newComment = {
-      cid: uuidv4(),
+      cid: cid || uuidv4(),
       text: text.trim(),
       peopleTagged: Array.isArray(peopleTagged) ? peopleTagged : [],
       likes: [],
@@ -224,6 +224,7 @@ const comment = async (req, res) => {
       pushToken: user.pushToken,
       _id: user._id,
       createdAt: new Date(),
+      timeStamp: new Date(),
       uid: user.uid,
       universeMetaData: user.universeMetaData,
     };
@@ -265,7 +266,7 @@ const comment = async (req, res) => {
 
     scheduleNotification2(notification);
 
-    return res.status(StatusCodes.OK).send("Comment posted successfully!");
+    return res.status(StatusCodes.OK).json(newComment);
   } catch (error) {
     console.error("Error in comment controller:", error);
     return res
@@ -674,6 +675,7 @@ const searchContentByTag = async (req, res) => {
 const replyToComment = async (req, res) => {
   const { contentId, cid } = req.query;
   const reply = req.body;
+  reply.userId = req.user.id;
 
   if (!contentId || !cid) {
     return res.status(StatusCodes.BAD_REQUEST).send("Incomplete information.");
@@ -1812,6 +1814,161 @@ const getLikedByUsers = async (req, res) => {
   }
 };
 
+const editComment = async (req, res) => {
+  const { contentId, cid } = req.query;
+  const { text } = req.body;
+  const userId = req.user.id;
+  const isAdmin = req.user.role === "admin";
+
+  if (!contentId || !cid || !text || !text.trim()) {
+    return res.status(StatusCodes.BAD_REQUEST).send("Incomplete information.");
+  }
+
+  try {
+    const content = await Content.findById(contentId, { comments: 1 });
+    if (!content) {
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
+    }
+
+    const commentIndex = content.comments.findIndex((c) => c.cid === cid);
+    if (commentIndex === -1) {
+      return res.status(StatusCodes.NOT_FOUND).send("Comment not found.");
+    }
+
+    const targetComment = content.comments[commentIndex];
+
+    if (targetComment._id !== userId && !isAdmin) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to edit this comment.");
+    }
+
+    targetComment.text = text.trim();
+    content.comments[commentIndex] = targetComment;
+    await content.save();
+
+    return res.status(StatusCodes.OK).json({ message: "Comment successfully updated." });
+  } catch (error) {
+    console.error("Error in editComment:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+const deleteComment = async (req, res) => {
+  console.log("deleteComment called with query:", req.query);
+  const { contentId, cid } = req.query;
+  const userId = req.user.id;
+  const isAdmin = req.user.role === "admin";
+  console.log("User details -> id:", userId, "isAdmin:", isAdmin);
+
+  if (!contentId || !cid) {
+    console.log("deleteComment missing params");
+    return res.status(StatusCodes.BAD_REQUEST).send("Incomplete information.");
+  }
+
+  try {
+    const content = await Content.findById(contentId, { comments: 1 });
+    if (!content) {
+      console.log("deleteComment content not found");
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
+    }
+
+    const commentIndex = content.comments.findIndex((c) => c.cid === cid);
+    if (commentIndex === -1) {
+      console.log("deleteComment comment not found in content.comments. available cids:", content.comments.map(c => c.cid));
+      return res.status(StatusCodes.NOT_FOUND).send("Comment not found.");
+    }
+
+    const targetComment = content.comments[commentIndex];
+    console.log("deleteComment targetComment found:", targetComment);
+
+    if (targetComment._id !== userId && !isAdmin) {
+      console.log(`deleteComment unauthorized. targetComment._id: ${targetComment._id}, userId: ${userId}`);
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to delete this comment.");
+    }
+
+    content.comments.splice(commentIndex, 1);
+    await content.save();
+
+    console.log("deleteComment successfully completed.");
+    return res.status(StatusCodes.OK).json({ message: "Comment successfully deleted." });
+  } catch (error) {
+    console.error("Error in deleteComment:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
+const deleteReply = async (req, res) => {
+  const { contentId, cid, rid } = req.query;
+  const userId = req.user.id;
+  const isAdmin = req.user.role === "admin";
+
+  if (!contentId || !cid || !rid) {
+    return res.status(StatusCodes.BAD_REQUEST).send("Incomplete information.");
+  }
+
+  try {
+    const content = await Content.findById(contentId, { comments: 1 });
+    if (!content) {
+      return res.status(StatusCodes.NOT_FOUND).send("Content not found.");
+    }
+
+    const commentIndex = content.comments.findIndex((c) => c.cid === cid);
+    if (commentIndex === -1) {
+      return res.status(StatusCodes.NOT_FOUND).send("Comment not found.");
+    }
+
+    const targetComment = content.comments[commentIndex];
+    
+    if (!targetComment.replies) {
+      return res.status(StatusCodes.NOT_FOUND).send("Reply not found.");
+    }
+
+    const replyIndex = targetComment.replies.findIndex((r) => r.rid === rid);
+    if (replyIndex === -1) {
+      return res.status(StatusCodes.NOT_FOUND).send("Reply not found.");
+    }
+
+    const targetReply = targetComment.replies[replyIndex];
+
+    let isAuthorized = isAdmin;
+
+    if (!isAuthorized) {
+      if (targetReply.userId && targetReply.userId === userId) {
+        isAuthorized = true;
+      } else {
+        const user_query = { id: userId, fields: ["name", "pushToken"] };
+        const user = await fetchUserData(user_query);
+        if (user && (user.name === targetReply.name || user.pushToken === targetReply.pushToken)) {
+          isAuthorized = true;
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You are not authorized to delete this reply.");
+    }
+
+    targetComment.replies.splice(replyIndex, 1);
+    await content.save();
+
+    return res.status(StatusCodes.OK).json({ message: "Reply successfully deleted." });
+  } catch (error) {
+    console.error("Error in deleteReply:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong.");
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -1841,4 +1998,7 @@ module.exports = {
   searchContentQA,
   getLikedByUsers,
   searchLikedByUsers,
+  editComment,
+  deleteComment,
+  deleteReply,
 };

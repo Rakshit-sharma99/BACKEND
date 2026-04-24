@@ -31,6 +31,9 @@ const {
   searchContentQA,
   getLikedByUsers,
   searchLikedByUsers,
+  editComment,
+  deleteComment,
+  deleteReply,
 } = require("../controllers/contentController");
 const {
   bulkUpdateContentParams,
@@ -64,4 +67,7 @@ router.get("/getUserCommunityPosts", getUserCommunityPosts);
 router.post("/searchContentQA", searchContentQA);
 router.get("/getLikedByUsers", getLikedByUsers);
 router.get("/searchLikedByUsers", searchLikedByUsers);
+router.patch("/editComment", editComment);
+router.delete("/deleteComment", deleteComment);
+router.delete("/deleteReply", deleteReply);
 module.exports = router;

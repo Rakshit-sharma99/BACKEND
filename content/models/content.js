@@ -48,6 +48,10 @@ const commentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  timeStamp: {
+    type: Date,
+    default: Date.now,
+  },
   replies: [
     {
       rid: String,
@@ -57,6 +61,7 @@ const commentSchema = new mongoose.Schema({
       pushToken: String,
       course: String,
       timeStamp: Date,
+      userId: String,
       _id: false,
     },
   ],
