@@ -43,7 +43,7 @@ const s3v3Videos = new S3Client({
     secretAccessKey: process.env.S3_AWS_SECRET_ACCESS_KEY,
   },
 });
-const { redis } = require("../../app");
+const { redis } = require("../app");
 const securePassword = async (password) => {
   try {
     const hash = await bcrypt.hash(password, 10);
