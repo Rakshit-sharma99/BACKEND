@@ -171,36 +171,36 @@ async function ticketBuyResolver({
     return mainAdmin === safeUserId
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to the club owner.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to the club owner.",
+      };
   }
 
   if (accessLevel === "club_admin" || accessLevel === "club_admins") {
     return adminIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to club admins.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to club admins.",
+      };
   }
 
   if (accessLevel === "club_core") {
     return teamIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to the club core team.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to the club core team.",
+      };
   }
 
   if (accessLevel === "club_members") {
     return memberIds.has(safeUserId)
       ? { canBuy: true, message: "You can buy ticket" }
       : {
-          canBuy: false,
-          message: "This ticket is only available to club members.",
-        };
+        canBuy: false,
+        message: "This ticket is only available to club members.",
+      };
   }
 
   return {
@@ -2019,7 +2019,7 @@ const editEventDetails = async (req, res) => {
     const event = await Event.findById(eventId, { permissions: 1 }).lean();
     const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
       ? event.permissions.whoCanEditEvent.includes(req.user.id) ||
-        req.user.role === "admin"
+      req.user.role === "admin"
       : false;
 
     if (!authorized) {
@@ -2242,9 +2242,8 @@ const addExtraFieldsToEvent = async (req, res) => {
       const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
-          message: `Invalid type "${
-            field.type
-          }". Allowed types are: ${allowedTypes.join(", ")}`,
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
         });
       }
     }
@@ -3739,27 +3738,27 @@ const getFeaturedEventsForFeed = async (req, res) => {
     const suggestedEvents =
       interestTags.length > 0
         ? await Event.aggregate([
-            {
-              $match: {
-                status: "featured",
-                eventDate: { $gte: now },
-                tags: { $in: interestTags },
-                ...universeFilter,
-              },
+          {
+            $match: {
+              status: "featured",
+              eventDate: { $gte: now },
+              tags: { $in: interestTags },
+              ...universeFilter,
             },
-            { $limit: limit },
-            {
-              $project: {
-                bookedBy: 0,
-                amtPaid: 0,
-                amtPaidTo: 0,
-                ticketSellingDays: 0,
-                cumulativeRevenue: 0,
-                courseAnalytics: 0,
-                faq: 0,
-              },
+          },
+          { $limit: limit },
+          {
+            $project: {
+              bookedBy: 0,
+              amtPaid: 0,
+              amtPaidTo: 0,
+              ticketSellingDays: 0,
+              cumulativeRevenue: 0,
+              courseAnalytics: 0,
+              faq: 0,
             },
-          ])
+          },
+        ])
         : [];
 
     let finalEvents = [...suggestedEvents];
@@ -4870,6 +4869,58 @@ const addModeFieldToEvents = async (req, res) => {
   }
 };
 
+const getEventsByUid = async (req, res) => {
+  try {
+    const { uid } = req.query;
+    const { fields } = req.body;
+
+    const defaultProjection = {
+      _id: 1,
+      name: 1,
+      slug: 1,
+      belongsTo: 1,
+      url: 1,
+      eventDate: 1,
+      description: 1,
+      startTime: 1,
+      endTime: 1,
+      place: 1,
+      status: 1,
+      primaryCategory: 1,
+      secondaryCategories: 1,
+    };
+
+    let fieldProjection = {};
+
+    if (fields && fields.length > 0) {
+      fields.forEach((field) => {
+        if (field) {
+          fieldProjection[field] = 1;
+        }
+      });
+    } else {
+      fieldProjection = defaultProjection;
+    }
+
+    const events = await Event.find(
+      { uid },
+      fieldProjection
+    );
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      events,
+      count: events.length,
+    });
+
+  } catch (err) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -4939,4 +4990,5 @@ module.exports = {
   getEventsByFilters,
   addPaymentFieldToEvents,
   addModeFieldToEvents,
+  getEventsByUid
 };

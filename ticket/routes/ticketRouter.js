@@ -23,7 +23,8 @@ const {
   addMetaDataToTickets,
   getMultipleTicketFieldsByIds,
   searchTickets,
-  getPhysicalCopyOfTicket
+  getPhysicalCopyOfTicket,
+  getTicketsByEventIDsAndUID
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -48,4 +49,5 @@ router.post("/addMetaDataToTickets", addMetaDataToTickets);
 router.post("/getMultipleTicketFieldsByIds",getMultipleTicketFieldsByIds)
 router.get("/searchTickets",searchTickets)
 router.get("/getPhysicalCopyOfTicket", getPhysicalCopyOfTicket);
+router.post("/getTicketsByEventIDsAndUID", getTicketsByEventIDsAndUID);
 module.exports = router;
