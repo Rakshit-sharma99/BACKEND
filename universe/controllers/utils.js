@@ -1335,6 +1335,48 @@ const sendOnboardingMail = async (user) => {
     console.log(error);
   }
 }
+
+const fetchEventsByUid = async (query) => {
+  try {
+    if (!query.uid || !query.fields || query.fields.length === 0) {
+      return;
+    }
+    const { uid } = query;
+    const { fields } = query;
+    const config = generateServiceToken();
+    const events = await axios.post(
+      "http://event:5060/event/api/v1/getEventsByUid",
+      { uid, fields },
+      config
+    );
+    return events.data;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const fetchTicketsByEventIDsAndUID = async (query) => {
+  try {
+    if ((!query.uid && !query.excludeUid) || !query.fields || query.fields.length === 0) {
+      return;
+    }
+    const { uid, eventIds, excludeUid } = query;
+    const { fields } = query;
+    const config = generateServiceToken();
+    const tickets = await axios.post(
+      "http://ticket:5060/ticket/api/v1/getTicketsByEventIDsAndUID",
+      {
+        query: { uid, eventIds, excludeUid },
+        fields
+      },
+      config
+    );
+    return tickets.data;
+  } catch (error) {
+    console.log(error);
+  }
+};
+
 async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   uid = uid?.toString();
   console.log(
@@ -1344,9 +1386,6 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   const User = require("../models/user");
   const Club = require("../models/club");
   const Community = require("../models/community");
-  const Event = require("../models/event");
-  const Content = require("../models/content");
-  const Ticket = require("../models/ticket");
 
   let result = [];
 
@@ -1552,91 +1591,97 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
 
     // 12. Total events created
     case "total_event_created": {
-      const count = await Event.aggregate([
-        {
-          $match: {
-            uid: { $eq: uid }
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: 1 }
-          }
-        }
-      ]);
-      result = [count[0]?.total || 0];
+      const eventsData = await fetchEventsByUid({ uid, fields: ["_id"] });
+      const count = eventsData?.count || 0;
+      result = [count];
       break;
     }
 
     // 13. Total event registrations
     case "total_event_registration": {
-      const count = await Event.aggregate([
-        {
-          $match: {
-            uid,
-            bookedBy: { $ne: [] }
-          }
-        },
-        {
-          $project: {
-            bookedBy: 1
-          }
-        },
-        {
-          $group: {
-            _id: null,
-            total: { $sum: { $size: { $ifNull: ["$bookedBy", []] } } }
-          }
-        }
-      ])
-      result = [count[0]?.total || 0];
+      const eventsData = await fetchEventsByUid({ uid, fields: ["bookedBy"] });
+
+      let total = 0;
+      const events = eventsData?.events || [];
+
+      events.forEach((event) => {
+        total += (event.bookedBy || []).length;
+      });
+
+      result = [total];
       break;
     }
 
     // 14. Top events by registration
     case "top_event_registration": {
-      const aggResult = await Event.aggregate([
-        {
-          $match: {
-            uid,
-            bookedBy: { $ne: [] }
-          }
-        },
-        {
-          $project: {
-            bookedCount: { $size: { $ifNull: ["$bookedBy", []] } }
-          }
-        },
-        {
-          $sort: {
-            bookedCount: -1
-          }
-        },
-        {
-          $limit: numOfEntities
-        }
-      ]);
+      const eventsData = await fetchEventsByUid({
+        uid,
+        fields: ["bookedBy"]
+      });
 
-      result = aggResult.map(e => e.bookedCount);
+      const events = eventsData?.events || [];
+
+      const sorted = events
+        .map((event) => ({
+          bookedCount: (event.bookedBy || []).length
+        }))
+        .filter(e => e.bookedCount > 0)
+        .sort((a, b) => b.bookedCount - a.bookedCount)
+        .slice(0, numOfEntities);
+
+      result = sorted.map(e => e.bookedCount);
       break;
     }
 
     // 15. Cross campus events registrations
     case "cross_campus_events_registrations": {
-      const eventIds = await Event.find({ uid }).distinct("_id");
 
-      const count = await Ticket.countDocuments({
-        eventId: { $in: eventIds },
-        uid: { $ne: uid }
+      const eventsData = await fetchEventsByUid({
+        uid,
+        fields: ["bookedBy"]
       });
 
-      result = [count];
+      const events = eventsData?.events || [];
+
+      const eventIds = events.map(event => event._id);
+
+      const { count } = await fetchTicketsByEventIDsAndUID({
+        query: {
+          eventIds,
+          excludeUid: uid
+        },
+        fields: ["_id"]
+      });
+
+      result = [count || 0];
       break;
     }
 
+    // 16. Registered students
     case "category_event_combo": {
-
+      const eventsData = await fetchEventsByUid({
+        uid,
+        fields: ["primaryCategory"]
+      });
+      
+      const events = eventsData.events;
+      
+      const categoryEvents = {};
+      events.forEach(event => {
+        const category = event.primaryCategory;
+        if (category) {
+          if (!categoryEvents[category]) {
+            categoryEvents[category] = 0;
+          }
+          categoryEvents[category]++;
+        }
+      });
+      
+      const sorted = Object.entries(categoryEvents)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, numOfEntities);
+      
+      result = sorted.map(e => e[1]);
       break;
     }
 

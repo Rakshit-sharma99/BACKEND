@@ -217,8 +217,8 @@ function normalizeSeatGroups(seats = []) {
       type: String(group?.type || group?.ticketType || "").trim(),
       seatIds: Array.isArray(group?.seatIds)
         ? group.seatIds
-            .map((seatId) => String(seatId || "").trim())
-            .filter(Boolean)
+          .map((seatId) => String(seatId || "").trim())
+          .filter(Boolean)
         : [],
     }))
     .filter((group) => group.type && group.seatIds.length > 0);
@@ -2026,9 +2026,9 @@ const getMultipleTicketFieldsByIds = async (req, res) => {
 
     let query = Ticket.find(
       {
-        _id : {$in : ticketIds}
+        _id: { $in: ticketIds }
       });
-    
+
     const tickets = await query.select(projection);
 
     if (!tickets) {
@@ -2050,8 +2050,8 @@ const searchTickets = async (req, res) => {
 
     const event = await fetchEventData(
       {
-        id : eventId,
-        fields : [
+        id: eventId,
+        fields: [
           "bookedBy"
         ]
       }
@@ -2190,6 +2190,50 @@ const getPhysicalCopyOfTicket = async (req, res) => {
   }
 };
 
+const getTicketsByEventIDsAndUID = async (req, res) => {
+  try {
+    const { query, fields } = req.body;
+    const { eventIds, uid, excludeUid } = query;
+
+    if (!eventIds) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: "Event IDs is required." });
+    }
+
+    if (!fields || !Array.isArray(fields)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: "An array of fields is required." });
+    }
+
+    const projection = fields.join(" ");
+    let uidFilter = {};
+
+    if (uid) {
+      uidFilter.$eq = uid;
+    } else if (excludeUid) {
+      uidFilter.$ne = excludeUid;
+    }
+
+    const tickets = await Ticket.find({
+      eventId: { $in: eventIds },
+      ...(Object.keys(uidFilter).length && { uid: uidFilter })
+    }).select(projection);
+
+    if (!tickets.length) {
+      return res.status(StatusCodes.NOT_FOUND).json({ error: "Tickets not found." });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      tickets: tickets,
+      count: tickets.length
+    });
+
+  } catch (error) {
+    console.error("Error in getTicketsByEventIDs:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong while fetching tickets.");
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -2212,5 +2256,6 @@ module.exports = {
   addMetaDataToTickets,
   getMultipleTicketFieldsByIds,
   searchTickets,
-  getPhysicalCopyOfTicket
+  getPhysicalCopyOfTicket,
+  getTicketsByEventIDsAndUID
 };
