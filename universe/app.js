@@ -3,7 +3,6 @@ require("./config/kafka_producer");
 require("./config/kafka_listener");
 require("./config/snapshotCron");
 
-
 const cors = require("cors");
 const express = require("express");
 const admin = require("firebase-admin");
@@ -72,12 +71,18 @@ const communityMetaRouter = require("./routes/communityMetaRouter");
 const accessCodeRouter = require("./routes/accessRouter");
 
 app.set("trust proxy", 1);
-app.use(cors(
-  {
-    origin: ["http://localhost:5173", "https://macbease.com", "https://www.macbease.com", "https://admin.macbease.com", "https://www.admin.macbease.com"],
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://macbease.com",
+      "https://www.macbease.com",
+      "https://admin.macbease.com",
+      "https://www.admin.macbease.com",
+    ],
     credentials: true,
-  }
-));
+  }),
+);
 const pushRouter = require("./routes/pushRouter");
 app.use(helmet());
 app.use(express.json());
@@ -136,15 +141,20 @@ app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);
 
-app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter)
-app.use("/universe/api/v1/product", authenticate, productRouter)
-app.use("/universe/api/v1/order", authenticate, orderRouter)
+app.use("/universe/api/v1/chapterLeader", chapterLeaderRouter);
+app.use("/universe/api/v1/product", authenticate, productRouter);
+app.use("/universe/api/v1/order", authenticate, orderRouter);
 app.use("/universe/api/v1/push", authenticate, pushRouter);
 app.use("/universe/api/v1/layout", authenticate, layoutRouter);
 
 // admin routes
 app.use("/universe/api/v1/session", authenticate, checkAdmin, sessionRouter);
-app.use("/universe/api/v1/community-metadata", authenticate,checkAdmin, communityMetaRouter);
+app.use(
+  "/universe/api/v1/community-metadata",
+  authenticate,
+  checkAdmin,
+  communityMetaRouter,
+);
 app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
@@ -226,10 +236,9 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}.`);
+      console.log(`✅ Server is listening to port ${port}!`);
       require("./jobs/updateProgress");
     });
-
   } catch (error) {
     console.log(error);
   }
