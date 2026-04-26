@@ -112,7 +112,7 @@ app.use((req, res, next) => {
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // Allow only 10 requests per 15 minutes per IP
-  message: { error: "IP blocked" },
+  message: { error: "IP blocked." },
 });
 
 app.get("/universe/api/v1/hello", authLimiter, (req, res) => {
