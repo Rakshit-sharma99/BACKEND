@@ -21,9 +21,13 @@ const io = socketIo(server, {
   path: "/sere/socket.io",
   cors: {
     origin: [
-      "http://localhost:5173",
-      "https://app.macbease.com",
-      "https://macbease.com",
+        "http://localhost:5173",
+        "https://macbease.com",
+        "https://www.macbease.com",
+        "https://admin.macbease.com",
+        "https://www.admin.macbease.com",
+        "https://app.macbease.com",
+        "https://www.app.macbease.com"
     ],
     methods: ["GET", "POST"],
     credentials: true,

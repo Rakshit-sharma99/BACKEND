@@ -30,8 +30,12 @@ const authenticate = require("./middlewares/authentication");
 app.set("trust proxy", 1);
 const allowedOrigins = [
   "http://localhost:5173",
+  "https://macbease.com",
+  "https://www.macbease.com",
+  "https://admin.macbease.com",
+  "https://www.admin.macbease.com",
   "https://app.macbease.com",
-  "https://macbease.com"
+  "https://www.app.macbease.com"
 ];
 
 app.use(

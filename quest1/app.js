@@ -14,7 +14,29 @@ const app = express();
 const server = http.createServer(app);
 
 app.set("trust proxy", 1);
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://macbease.com",
+  "https://www.macbease.com",
+  "https://admin.macbease.com",
+  "https://www.admin.macbease.com",
+  "https://app.macbease.com",
+  "https://www.app.macbease.com"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+
 app.use(helmet());
 app.use(express.json());
 
