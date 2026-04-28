@@ -2017,11 +2017,10 @@ const editEventDetails = async (req, res) => {
     }
 
     const event = await Event.findById(eventId, { permissions: 1 }).lean();
-    const authorized = Array.isArray(event.permissions?.whoCanEditEvent)
-      ? event.permissions.whoCanEditEvent.includes(req.user.id) ||
-      req.user.role === "admin"
-      : false;
-
+    const authorized =
+      req.user.role === "admin" ||
+      (Array.isArray(event.permissions?.whoCanEditEvent) &&
+        event.permissions.whoCanEditEvent.includes(req.user.id));
     if (!authorized) {
       return res
         .status(StatusCodes.FORBIDDEN)
