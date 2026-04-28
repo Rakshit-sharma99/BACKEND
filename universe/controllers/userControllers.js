@@ -1878,13 +1878,18 @@ const getMemoryListUsers = async (req, res) => {
 const getSearchResults = async (req, res) => {
   try {
     let query = req.query.query?.trim() || "";
-    const key = req.query.key || "All"; // <= added
+    const key = req.query.key || "All";
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 12;
+    const skip = (page - 1) * limit;
     const MIN_SCORE = 0.5; // relevance threshold
 
     if (!query) return res.status(200).json({ success: true, results: [] });
 
+    const isFiltered = key !== "All";
+
     async function fetchClubs() {
-      return await Club.aggregate([
+      const pipeline = [
         {
           $search: {
             index: "default",
@@ -1915,17 +1920,25 @@ const getSearchResults = async (req, res) => {
             score: { $meta: "searchScore" },
           },
         },
-        { $sort: { score: -1, membersCount: -1 } },
-        { $limit: key === "club" ? 12 : 12 },
-      ]);
+        { $sort: { score: -1, membersCount: -1, _id: 1 } },
+      ];
+      if (isFiltered) {
+        pipeline.push({ $skip: skip }, { $limit: limit + 1 });
+      } else {
+        pipeline.push({ $limit: 12 });
+      }
+      return await Club.aggregate(pipeline);
     }
 
     async function fetchEvents() {
+      if (isFiltered) {
+        return fetchSearchedEvents(query, { page, limit });
+      }
       return fetchSearchedEvents(query);
     }
 
     async function fetchCommunities() {
-      return await Community.aggregate([
+      const pipeline = [
         {
           $search: {
             index: "default",
@@ -1958,13 +1971,18 @@ const getSearchResults = async (req, res) => {
             score: { $meta: "searchScore" },
           },
         },
-        { $sort: { score: -1 } },
-        { $limit: key === "community" ? 12 : 12 },
-      ]);
+        { $sort: { score: -1, _id: 1 } },
+      ];
+      if (isFiltered) {
+        pipeline.push({ $skip: skip }, { $limit: limit + 1 });
+      } else {
+        pipeline.push({ $limit: 12 });
+      }
+      return await Community.aggregate(pipeline);
     }
 
     async function fetchUsers() {
-      return await User.aggregate([
+      const pipeline = [
         {
           $search: {
             index: "default",
@@ -1997,12 +2015,20 @@ const getSearchResults = async (req, res) => {
             score: { $meta: "searchScore" },
           },
         },
-        { $sort: { score: -1 } },
-        { $limit: key === "user" ? 12 : 12 },
-      ]);
+        { $sort: { score: -1, _id: 1 } },
+      ];
+      if (isFiltered) {
+        pipeline.push({ $skip: skip }, { $limit: limit + 1 });
+      } else {
+        pipeline.push({ $limit: 12 });
+      }
+      return await User.aggregate(pipeline);
     }
 
     async function fetchCards() {
+      if (isFiltered) {
+        return fetchSearchedCards(query, { page, limit });
+      }
       return fetchSearchedCards(query);
     }
 
@@ -2015,23 +2041,41 @@ const getSearchResults = async (req, res) => {
       ["Cards", "All"].includes(key) ? fetchCards() : [],
     ]);
 
-    // default ALL search mode
-    const categoryBlocks = [
-      { type: "club", data: clubs, top: clubs[0]?.score || 0 },
-      { type: "event", data: events, top: events[0]?.score || 0 },
-      { type: "community", data: communities, top: communities[0]?.score || 0 },
-      { type: "user", data: users, top: users[0]?.score || 0 },
-      { type: "card", data: cards, top: cards[0]?.score || 0 },
-    ];
+    if (key === "All") {
+      // "All" mode: return top items from each category, ordered by highest-scoring category first
+      const categoryBlocks = [
+        { type: "club", data: clubs, top: clubs[0]?.score || 0 },
+        { type: "event", data: events, top: events[0]?.score || 0 },
+        {
+          type: "community",
+          data: communities,
+          top: communities[0]?.score || 0,
+        },
+        { type: "user", data: users, top: users[0]?.score || 0 },
+        { type: "card", data: cards, top: cards[0]?.score || 0 },
+      ];
 
-    categoryBlocks.sort((a, b) => b.top - a.top);
+      categoryBlocks.sort((a, b) => b.top - a.top);
 
-    const results = categoryBlocks.flatMap((c) =>
-      c.data
-        .filter((s) => s.score >= MIN_SCORE)
-        .slice(key === "All" ? -4 : -12),
-    );
-    return res.json({ success: true, results });
+      const results = categoryBlocks.flatMap((c) =>
+        c.data.filter((s) => s.score >= MIN_SCORE).slice(0, 4),
+      );
+      return res.json({ success: true, results, hasMore: false });
+    } else {
+      // Filtered mode: single-category with pagination
+      const dataMap = {
+        Clubs: clubs,
+        Events: events,
+        Communities: communities,
+        People: users,
+        Cards: cards,
+      };
+      const rawData = dataMap[key] || [];
+      const filtered = rawData.filter((s) => s.score >= MIN_SCORE);
+      const hasMore = filtered.length > limit;
+      const results = filtered.slice(0, limit);
+      return res.json({ success: true, results, hasMore, page });
+    }
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }

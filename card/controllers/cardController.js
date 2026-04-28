@@ -829,7 +829,8 @@ const getRandomCardsForFeed = async (req, res) => {
 
 const getSearchedCards = async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, limit = 12, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     const cards = await Card.aggregate([
       {
         $search: {
@@ -859,8 +860,9 @@ const getSearchedCards = async (req, res) => {
           score: { $meta: "searchScore" },
         },
       },
-      { $sort: { score: -1 } },
-      { $limit: 12 },
+      { $sort: { score: -1, _id: 1 } },
+      { $skip: skip },
+      { $limit: Number(limit) },
     ]);
 
     return res.status(StatusCodes.OK).json({ success: true, data: cards });

@@ -107,12 +107,12 @@ const EDIT_EVENT = {
  */
 
 const CREATE_MEMORY = {
-  EDIT_EVENT: {
+  CREATE_MEMORY: {
     topicSuffix: '_create_memory',
 
     validate: (data) => {
 
-      if (!data.memoryData || !typeof data.memoryData==='object') {
+      if (!data.memoryData || typeof data.memoryData !== 'object') {
         throw new Error('memoryData must be object');
       }
     },

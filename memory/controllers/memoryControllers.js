@@ -404,7 +404,7 @@ const getOthersMemories = async (req, res) => {
     const { userId } = req.query; // profile being viewed
     const viewerId = req.user.id; // logged-in user
 
-    if (!userId) {
+    if (!userId || userId === "undefined" || userId === "null") {
       return res
         .status(StatusCodes.BAD_REQUEST)
         .json({ msg: "userId is required." });
@@ -1550,6 +1550,127 @@ const getMemoryRequest = async (req, res) => {
   }
 }
 
+/**
+ * @desc    Get a lightweight month-by-month timeline index of the user's memories
+ * @route   GET /api/v1/getMemoryTimeline
+ * @access  Private
+ *
+ * Returns an array of { year, month, count } sorted newest-first,
+ * plus totalMemories. Used by the fast-scroll scrubber on the frontend.
+ */
+const getMemoryTimeline = async (req, res) => {
+  try {
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
+    const timeline = await Memory.aggregate([
+      // Match memories the user created or saved
+      {
+        $match: {
+          $or: [{ createdBy: userId }, { savedBy: userId }],
+        },
+      },
+      // Group by year and month of the user-chosen `date` field
+      {
+        $group: {
+          _id: {
+            year: { $year: "$date" },
+            month: { $month: "$date" },
+          },
+          count: { $sum: 1 },
+        },
+      },
+      // Sort newest-first
+      { $sort: { "_id.year": -1, "_id.month": -1 } },
+      // Reshape for clean output
+      {
+        $project: {
+          _id: 0,
+          year: "$_id.year",
+          month: "$_id.month",
+          count: 1,
+        },
+      },
+    ]);
+
+    const totalMemories = timeline.reduce((sum, t) => sum + t.count, 0);
+
+    return res.status(StatusCodes.OK).json({
+      timeline,
+      totalMemories,
+    });
+  } catch (error) {
+    console.error("Error fetching memory timeline:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Something went wrong while fetching the timeline.",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * @desc    Get paginated memories for a specific calendar month
+ * @route   GET /api/v1/getMemoriesByMonth?year=2025&month=11&page=1&limit=10
+ * @access  Private
+ *
+ * Used when the user scrubs to a specific month via the fast-scroll navigator.
+ * Returns memories within that month sorted newest-first with standard pagination.
+ */
+const getMemoriesByMonthPaginated = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const year = parseInt(req.query.year);
+    const month = parseInt(req.query.month); // 1-12
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    if (!year || !month || month < 1 || month > 12) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        msg: "Valid year and month (1-12) are required.",
+      });
+    }
+
+    // Build date range for the given calendar month
+    const startDate = new Date(year, month - 1, 1); // month is 0-indexed in JS Date
+    const endDate = new Date(year, month, 1); // first day of next month
+
+    // Fetch pinned memories to exclude (same pattern as getMemories)
+    const user = await fetchNativeUserData({
+      id: userId,
+      fields: ["pinnedMemories"],
+      callSign: "universe",
+    });
+
+    const query = {
+      $or: [{ createdBy: userId }, { savedBy: userId }],
+      date: { $gte: startDate, $lt: endDate },
+      _id: { $nin: user.pinnedMemories || [] },
+    };
+
+    const [data, totalInMonth] = await Promise.all([
+      Memory.find(query).sort({ date: -1 }).skip(skip).limit(limit).lean(),
+      Memory.countDocuments(query),
+    ]);
+
+    return res.status(StatusCodes.OK).json({
+      data,
+      pagination: {
+        page,
+        limit,
+        totalInMonth,
+        hasMore: skip + data.length < totalInMonth,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching memories by month:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Something went wrong while fetching memories for this month.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createMemory,
   getMemories,
@@ -1572,5 +1693,7 @@ module.exports = {
   handleTags, // this function is not used in router, but in event gallery
   getMemoryCount,
   insertNewFields,
-  getMemoryRequest
+  getMemoryRequest,
+  getMemoryTimeline,
+  getMemoriesByMonthPaginated,
 };

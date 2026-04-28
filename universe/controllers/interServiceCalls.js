@@ -321,7 +321,7 @@ const fetchCouponById = async (query) => {
   }
 };
 
-const fetchSearchedEvents = async (query) => {
+const fetchSearchedEvents = async (query, { page = 1, limit = 12 } = {}) => {
   try {
     if (!query) {
       return [];
@@ -330,7 +330,7 @@ const fetchSearchedEvents = async (query) => {
     const config = generateServiceToken();
 
     const response = await axios.get(
-      `http://event:5060/event/api/v1/getSearchedEvents?query=${query}`,
+      `http://event:5060/event/api/v1/getSearchedEvents?query=${query}&page=${page}&limit=${limit + 1}`,
       config,
     );
 
@@ -341,7 +341,7 @@ const fetchSearchedEvents = async (query) => {
   }
 };
 
-const fetchSearchedCards = async (query) => {
+const fetchSearchedCards = async (query, { page = 1, limit = 12 } = {}) => {
   try {
     if (!query) {
       return [];
@@ -350,7 +350,7 @@ const fetchSearchedCards = async (query) => {
     const config = generateServiceToken();
 
     const response = await axios.get(
-      `http://card:5030/card/api/v1/getSearchedCards?query=${query}`,
+      `http://card:5030/card/api/v1/getSearchedCards?query=${query}&page=${page}&limit=${limit + 1}`,
       config,
     );
 

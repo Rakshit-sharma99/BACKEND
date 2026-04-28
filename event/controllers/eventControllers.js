@@ -2870,7 +2870,7 @@ const addToGallery = async (req, res) => {
 
     // Check if user has bought a ticket for this event
     const hasTicket = await fetchTicketFieldsByQuery({
-      searchBy: { eventId: mongoose.Types.ObjectId(eventId), boughtBy: userId },
+      searchBy: { eventId: new mongoose.Types.ObjectId(eventId), boughtBy: userId },
       fields: ["boughtBy"],
       single: true,
     });
@@ -3551,7 +3551,8 @@ const toggleWaitlist = async (req, res) => {
 
 const getSearchedEvents = async (req, res) => {
   try {
-    const { query, limit = 12 } = req.query;
+    const { query, limit = 12, page = 1 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
     const events = await Event.aggregate([
       {
         $search: {
@@ -3623,7 +3624,8 @@ const getSearchedEvents = async (req, res) => {
           },
         },
       },
-      { $sort: { isFeatured: -1, score: -1, membersCount: -1, eventDate: -1 } },
+      { $sort: { isFeatured: -1, score: -1, membersCount: -1, eventDate: -1, _id: 1 } },
+      { $skip: skip },
       { $limit: Number(limit) },
     ]);
 

@@ -23,6 +23,8 @@ const {
   getMemoryCount,
   insertNewFields,
   getMemoryRequest,
+  getMemoryTimeline,
+  getMemoriesByMonthPaginated,
 } = require("../controllers/memoryControllers");
 
 router.post("/createMemory", createMemory);
@@ -46,5 +48,7 @@ router.get("/getCertificateMemories", getCertificateMemories);
 router.get("/getMemoryCount", getMemoryCount);
 router.post("/insertNewFields", insertNewFields);
 router.get("/getMemoryRequest", getMemoryRequest);
+router.get("/getMemoryTimeline", getMemoryTimeline);
+router.get("/getMemoriesByMonth", getMemoriesByMonthPaginated);
 
 module.exports = router;
