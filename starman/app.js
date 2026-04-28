@@ -13,8 +13,12 @@ const connectDB = require("./config/db");
 const { startRelayConsumer } = require("./handlers/relayConsumer");
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://app.macbease.com",
   "https://macbease.com",
+  "https://www.macbease.com",
+  "https://admin.macbease.com",
+  "https://www.admin.macbease.com",
+  "https://app.macbease.com",
+  "https://www.app.macbease.com"
 ];
 
 
