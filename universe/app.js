@@ -68,6 +68,8 @@ const seatLock = require("./sockets/seatLock");
 
 const sessionRouter = require("./routes/sessionRouter");
 const communityMetaRouter = require("./routes/communityMetaRouter");
+const clubMetaRouter = require("./routes/clubMetaRouter");
+const eventMetaRouter = require("./routes/eventMetaRouter");
 const accessCodeRouter = require("./routes/accessRouter");
 
 app.set("trust proxy", 1);
@@ -157,6 +159,8 @@ app.use(
   checkAdmin,
   communityMetaRouter,
 );
+app.use("/universe/api/v1/club-metadata", authenticate, checkAdmin, clubMetaRouter);
+app.use("/universe/api/v1/event-metadata", authenticate, checkAdmin, eventMetaRouter);
 app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
