@@ -255,6 +255,19 @@ const createMemory = async (req, res) => {
       console.error("user.activity publish failed:", kafkaErr.message);
     }
 
+    // Publish memory.created event for SERE proactive nudge tracking
+    try {
+      await sendKafkaMessage("MEMORY_CREATED", "memory", {
+        userId,
+        memoryId: memory._id.toString(),
+        type: memory.type,
+        uid: req.user.uid,
+        date: memory.date?.toISOString(),
+      });
+    } catch (kafkaErr) {
+      console.error("memory.created publish failed:", kafkaErr.message);
+    }
+
     return res.status(StatusCodes.CREATED).json({
       msg: "Memory added to your Memory Lane 🪐",
       memory,

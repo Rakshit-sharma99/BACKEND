@@ -92,6 +92,22 @@ const UserEngagementSchema = new mongoose.Schema(
     consecutiveIgnores: { type: Number, default: 0 },
     optedOut: { type: Boolean, default: false },
 
+    // Timezone (inferred from university location)
+    timezone: { type: String, default: "Asia/Kolkata" },
+
+    // Memory tracking (updated via memory.created Kafka event)
+    memoryCreatedToday: { type: Boolean, default: false },
+    lastMemoryDate: { type: Date },
+    memoryStreak: { type: Number, default: 0 },
+
+    // Proactive messaging state
+    lastProactiveNudgeAt: { type: Date },
+    proactiveNudgesSent: { type: Number, default: 0 },
+    proactiveNudgesOpened: { type: Number, default: 0 },
+    proactiveNudgesReplied: { type: Number, default: 0 },
+    consecutiveNudgeIgnores: { type: Number, default: 0 },
+    proactiveOptOut: { type: Boolean, default: false },
+
     // Onboarding checklist
     onboarding: { type: onboardingSchema, default: () => ({}) },
 

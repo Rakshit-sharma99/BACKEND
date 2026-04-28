@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SERE Debug Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--surface:#12121a;--surface2:#1a1a27;--surface3:#22223a;--border:#2a2a40;--text:#e4e4ed;--text2:#8888a4;--accent:#7c5cfc;--accent2:#a78bfa;--green:#34d399;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa;--cyan:#22d3ee;--font:'Inter',sans-serif;--mono:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-columns:340px 1fr;grid-template-rows:56px 1fr;height:100vh}
+header{grid-column:1/-1;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;z-index:10}
+header h1{font-size:16px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header .badge{font-size:10px;padding:3px 8px;border-radius:99px;background:rgba(124,92,252,.15);color:var(--accent2);font-weight:600;letter-spacing:.5px}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:16px}
+.main{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600}
+.card-body{padding:18px}
+label{display:block;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+input[type=text],select{width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border .2s}
+input:focus,select:focus{border-color:var(--accent)}
+.field{margin-bottom:14px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+.toggle-row span{font-size:12px;color:var(--text2)}
+.toggle{width:36px;height:20px;background:var(--surface3);border-radius:99px;position:relative;cursor:pointer;transition:background .2s}
+.toggle.on{background:var(--accent)}
+.toggle::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform .2s}
+.toggle.on::after{transform:translateX(16px)}
+.btn{padding:10px 18px;border:none;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:8px}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#6342e8);color:#fff;width:100%}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(124,92,252,.35)}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:6px}
+.btn-ghost{background:rgba(124,92,252,.1);color:var(--accent2)}
+.btn-ghost:hover{background:rgba(124,92,252,.2)}
+.btn-danger{background:rgba(248,113,113,.1);color:var(--red)}
+.btn-danger:hover{background:rgba(248,113,113,.2)}
+.section-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin:18px 0 10px;padding-left:2px}
+/* Pipeline */
+.pipeline{display:flex;align-items:center;gap:0;padding:20px 0}
+.pipe-node{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1}
+.pipe-dot{width:36px;height:36px;border-radius:50%;background:var(--surface3);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .4s}
+.pipe-dot.running{border-color:var(--blue);background:rgba(96,165,250,.15);animation:pulse 1.2s infinite}
+.pipe-dot.success{border-color:var(--green);background:rgba(52,211,153,.15)}
+.pipe-dot.failed{border-color:var(--red);background:rgba(248,113,113,.15)}
+.pipe-dot.skipped{border-color:var(--amber);background:rgba(251,191,36,.1)}
+.pipe-label{font-size:10px;font-weight:600;color:var(--text2);text-align:center}
+.pipe-latency{font-size:9px;font-family:var(--mono);color:var(--text2)}
+.pipe-connector{width:40px;height:2px;background:var(--border);margin-bottom:20px;transition:background .3s}
+.pipe-connector.active{background:var(--green)}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(96,165,250,.3)}50%{box-shadow:0 0 0 8px rgba(96,165,250,0)}}
+/* Console */
+.console{background:#08080d;border-radius:8px;font-family:var(--mono);font-size:12px;line-height:1.7;max-height:500px;overflow-y:auto;padding:14px;scroll-behavior:smooth}
+.console::-webkit-scrollbar{width:6px}
+.console::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px}
+.log{padding:2px 0;display:flex;gap:8px;animation:fadeIn .2s}
+.log .ts{color:var(--text2);min-width:80px;font-size:11px}
+.log .stage-tag{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;min-width:70px;text-align:center}
+.log .msg{flex:1;word-break:break-word}
+.log.info .stage-tag{background:rgba(96,165,250,.15);color:var(--blue)}
+.log.running .stage-tag{background:rgba(124,92,252,.15);color:var(--accent2)}
+.log.success .stage-tag{background:rgba(52,211,153,.15);color:var(--green)}
+.log.failed .stage-tag{background:rgba(248,113,113,.15);color:var(--red)}
+.log.skipped .stage-tag{background:rgba(251,191,36,.15);color:var(--amber)}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* Result card */
+.result-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px}
+.result-card h4{font-size:13px;margin-bottom:10px;color:var(--accent2)}
+.result-card .msg-preview{background:var(--surface3);border-radius:8px;padding:14px;font-size:14px;line-height:1.6;border-left:3px solid var(--accent)}
+.result-card .meta{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.result-card .meta span{font-size:11px;color:var(--text2);font-family:var(--mono)}
+/* History */
+.history-item{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:10px}
+.history-item:hover{background:var(--surface2)}
+.history-item:last-child{border-bottom:none}
+.history-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.history-dot.dispatched{background:var(--green)}
+.history-dot.generated{background:var(--blue)}
+.history-dot.expired{background:var(--text2)}
+.history-dot.cancelled_by_action{background:var(--amber)}
+.history-dot.failed{background:var(--red)}
+.history-text{font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.history-time{font-size:10px;color:var(--text2);font-family:var(--mono);flex-shrink:0}
+.actions-bar{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);flex-wrap:wrap}
+.empty{text-align:center;padding:24px;color:var(--text2);font-size:12px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <span style="font-size:20px">🛸</span>
+    <h1>SERE Debug Console</h1>
+    <span class="badge">SIMULATION MODE</span>
+    <div style="flex:1"></div>
+    <span style="font-size:11px;color:var(--text2);font-family:var(--mono)" id="clock"></span>
+  </header>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="section-title">Target User</div>
+    <div class="field">
+      <label>User ID</label>
+      <input type="text" id="userId" placeholder="ObjectId...">
+    </div>
+
+    <div class="section-title">Scheduler</div>
+    <div class="field">
+      <label>Frequency</label>
+      <select id="frequency">
+        <option value="5">Every 5 min</option>
+        <option value="15">Every 15 min</option>
+        <option value="30">Every 30 min</option>
+        <option value="60" selected>Every 1 hour</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Timezone Override</label>
+      <input type="text" id="timezone" value="Asia/Kolkata">
+    </div>
+    <div class="field">
+      <label>Mock Local Hour (0-23)</label>
+      <input type="text" id="mockHour" placeholder="Leave empty for real time">
+    </div>
+
+    <div class="section-title">Force Conditions</div>
+    <div class="toggle-row"><span>No memory today</span><div class="toggle on" data-key="forceNoMemoryToday"></div></div>
+    <div class="toggle-row"><span>Streak broken</span><div class="toggle" data-key="forceStreakBroken"></div></div>
+    <div class="toggle-row"><span>Dormant user</span><div class="toggle" data-key="forceDormant"></div></div>
+    <div class="toggle-row"><span>New user (< 2 days)</span><div class="toggle" data-key="forceNewUser"></div></div>
+    <div class="toggle-row"><span>New user (< 2 days)</span><div class="toggle" data-key="forceNewUser"></div></div>
+    <div class="toggle-row"><span>Skip eligibility</span><div class="toggle" data-key="skipEligibility"></div></div>
+    <div class="toggle-row"><span>Cooldown bypass</span><div class="toggle" data-key="cooldownBypass"></div></div>
+
+    <div class="section-title">Live Dispatch</div>
+    <div class="toggle-row"><span>Send to App (Actual)</span><div class="toggle" data-key="liveDispatch" style="border: 1px solid var(--green)"></div></div>
+
+    <div class="section-title">Fault Injection</div>
+    <div class="toggle-row"><span>Starman API failure</span><div class="toggle" data-key="injectStarmanFailure"></div></div>
+    <div class="toggle-row"><span>Push notification failure</span><div class="toggle" data-key="injectPushFailure"></div></div>
+
+    <div style="margin-top:24px">
+      <button class="btn btn-primary" onclick="runPipeline()">🚀 Trigger Pipeline</button>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn btn-sm btn-ghost" style="flex:1" onclick="loadEngagement()">📊 Load Profile</button>
+      <button class="btn btn-sm btn-ghost" style="flex:1" onclick="loadHistory()">📜 History</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-sm btn-danger" style="width:100%" onclick="cleanup()">🗑 Clean Debug Messages</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <!-- Pipeline Visualization -->
+    <div class="card">
+      <div class="card-header">⚡ Pipeline Status</div>
+      <div class="card-body">
+        <div class="pipeline">
+          <div class="pipe-node">
+            <div class="pipe-dot" id="dot-scheduler">📅</div>
+            <div class="pipe-label">Scheduler</div>
+            <div class="pipe-latency" id="lat-scheduler"></div>
+          </div>
+          <div class="pipe-connector" id="conn-1"></div>
+          <div class="pipe-node">
+            <div class="pipe-dot" id="dot-rule_engine">⚖️</div>
+            <div class="pipe-label">Rule Engine</div>
+            <div class="pipe-latency" id="lat-rule_engine"></div>
+          </div>
+          <div class="pipe-connector" id="conn-2"></div>
+          <div class="pipe-node">
+            <div class="pipe-dot" id="dot-message_creation">✍️</div>
+            <div class="pipe-label">Message</div>
+            <div class="pipe-latency" id="lat-message_creation"></div>
+          </div>
+          <div class="pipe-connector" id="conn-3"></div>
+          <div class="pipe-node">
+            <div class="pipe-dot" id="dot-dispatcher">📤</div>
+            <div class="pipe-label">Dispatcher</div>
+            <div class="pipe-latency" id="lat-dispatcher"></div>
+          </div>
+          <div class="pipe-connector" id="conn-4"></div>
+          <div class="pipe-node">
+            <div class="pipe-dot" id="dot-complete">✅</div>
+            <div class="pipe-label">Complete</div>
+            <div class="pipe-latency" id="lat-complete"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Console -->
+    <div class="card" style="flex:1">
+      <div class="card-header">
+        <span>🖥 Execution Console</span>
+        <div style="flex:1"></div>
+        <button class="btn btn-sm btn-ghost" onclick="exportLogs()">Export</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearConsole()">Clear</button>
+      </div>
+      <div class="console" id="console">
+        <div class="empty">Run the pipeline to see streaming logs here...</div>
+      </div>
+    </div>
+
+    <!-- Result Card -->
+    <div id="resultCard" style="display:none">
+      <div class="card">
+        <div class="card-header">💬 Generated Starman Message</div>
+        <div class="card-body">
+          <div class="result-card">
+            <div class="msg-preview" id="resultMessage"></div>
+            <div class="meta">
+              <span id="resultTone"></span>
+              <span id="resultTemplate"></span>
+              <span id="resultLatency"></span>
+              <span id="resultId"></span>
+            </div>
+          </div>
+        </div>
+        <div class="actions-bar">
+          <button class="btn btn-sm btn-ghost" onclick="replayLast()">🔄 Replay</button>
+          <button class="btn btn-sm btn-ghost" onclick="viewTemplates()">📋 View Templates</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Panel -->
+    <div id="historyPanel" style="display:none">
+      <div class="card">
+        <div class="card-header">📜 Recent Proactive Messages</div>
+        <div class="card-body" style="padding:0" id="historyList">
+          <div class="empty">No messages yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Engagement Panel -->
+    <div id="engagementPanel" style="display:none">
+      <div class="card">
+        <div class="card-header">📊 User Engagement Profile</div>
+        <div class="console" id="engagementData" style="max-height:300px"></div>
+      </div>
+    </div>
+
+    <!-- Templates Panel -->
+    <div id="templatesPanel" style="display:none">
+      <div class="card">
+        <div class="card-header">📋 Template Bank</div>
+        <div class="console" id="templatesData" style="max-height:400px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://10.68.102.235'; // ← Change this to your server IP
+const API = API_BASE + '/sere/debug';
+let logs = [];
+let lastProactiveId = null;
+
+// Clock
+setInterval(() => {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-US', {hour12:false}) + ' UTC' + (-(new Date().getTimezoneOffset()/60));
+}, 1000);
+
+// Toggle handling
+document.querySelectorAll('.toggle').forEach(el => {
+  el.addEventListener('click', () => el.classList.toggle('on'));
+});
+
+function getOverrides() {
+  const o = {};
+  document.querySelectorAll('.toggle').forEach(el => {
+    o[el.dataset.key] = el.classList.contains('on');
+  });
+  const tz = document.getElementById('timezone').value;
+  if (tz) o.timezoneOverride = tz;
+  const h = document.getElementById('mockHour').value;
+  if (h !== '') o.mockTimeHour = parseInt(h);
+  return o;
+}
+
+function resetPipeline() {
+  ['scheduler','rule_engine','message_creation','dispatcher','complete'].forEach(s => {
+    const d = document.getElementById('dot-'+s);
+    d.className = 'pipe-dot';
+    document.getElementById('lat-'+s).textContent = '';
+  });
+  for(let i=1;i<=4;i++) document.getElementById('conn-'+i).className='pipe-connector';
+}
+
+function updateNode(stage, status, latency) {
+  const dot = document.getElementById('dot-'+stage);
+  if (dot) dot.className = 'pipe-dot ' + status;
+  if (latency != null) {
+    const lat = document.getElementById('lat-'+stage);
+    if (lat) lat.textContent = latency + 'ms';
+  }
+  // Activate connectors
+  const stages = ['scheduler','rule_engine','message_creation','dispatcher','complete'];
+  const idx = stages.indexOf(stage);
+  if (idx > 0 && (status==='success'||status==='running')) {
+    document.getElementById('conn-'+idx).className = 'pipe-connector active';
+  }
+}
+
+function addLog(stage, status, message) {
+  const c = document.getElementById('console');
+  if (c.querySelector('.empty')) c.innerHTML = '';
+  const ts = new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const stageNames = {scheduler:'SCHED',rule_engine:'RULES',message_creation:'MSG',dispatcher:'DISP',complete:'DONE',error:'ERROR'};
+  const div = document.createElement('div');
+  div.className = 'log ' + status;
+  div.innerHTML = `<span class="ts">${ts}</span><span class="stage-tag">${stageNames[stage]||stage}</span><span class="msg">${escHtml(message)}</span>`;
+  c.appendChild(div);
+  c.scrollTop = c.scrollHeight;
+  logs.push({ts,stage,status,message});
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function clearConsole() {
+  document.getElementById('console').innerHTML = '<div class="empty">Console cleared</div>';
+  logs = [];
+}
+
+async function runPipeline() {
+  const userId = document.getElementById('userId').value.trim();
+  if (!userId) return alert('Enter a User ID');
+
+  resetPipeline();
+  clearConsole();
+  document.getElementById('resultCard').style.display = 'none';
+
+  addLog('scheduler','running','🚀 Pipeline triggered');
+
+  try {
+    const resp = await fetch(API + '/simulate/full-pipeline', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ userId, overrides: getOverrides() }),
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream:true});
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          addLog(evt.stage, evt.status, evt.message);
+          updateNode(evt.stage, evt.status, evt.data?.latencyMs);
+
+          if (evt.stage === 'complete' && evt.status === 'success' && evt.data) {
+            showResult(evt.data);
+          }
+        } catch(e) {}
+      }
+    }
+  } catch(e) {
+    addLog('error','failed','Network error: ' + e.message);
+  }
+}
+
+function showResult(data) {
+  lastProactiveId = data.proactiveMessageId;
+  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('resultMessage').textContent = data.messageText || '';
+  document.getElementById('resultTone').textContent = 'tone: ' + (data.tone || '');
+  document.getElementById('resultTemplate').textContent = 'template: ' + (data.templateKey || '');
+  document.getElementById('resultLatency').textContent = 'total: ' + (data.totalLatencyMs || 0) + 'ms';
+  document.getElementById('resultId').textContent = 'id: ' + (data.proactiveMessageId || '').slice(-8);
+}
+
+async function loadEngagement() {
+  const userId = document.getElementById('userId').value.trim();
+  if (!userId) return alert('Enter a User ID');
+  try {
+    const r = await fetch(API + '/user-engagement/' + userId);
+    const d = await r.json();
+    document.getElementById('engagementPanel').style.display = 'block';
+    document.getElementById('engagementData').textContent = JSON.stringify(d, null, 2);
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function loadHistory() {
+  const userId = document.getElementById('userId').value.trim();
+  if (!userId) return alert('Enter a User ID');
+  try {
+    const r = await fetch(API + '/proactive-messages/' + userId);
+    const msgs = await r.json();
+    const panel = document.getElementById('historyPanel');
+    const list = document.getElementById('historyList');
+    panel.style.display = 'block';
+    if (!msgs.length) { list.innerHTML = '<div class="empty">No proactive messages found</div>'; return; }
+    list.innerHTML = msgs.map(m => `
+      <div class="history-item" onclick="inspectMessage('${m._id}')">
+        <div class="history-dot ${m.status}"></div>
+        <div class="history-text">${escHtml(m.messageText||'')}</div>
+        <div class="history-time">${m.status} · ${new Date(m.createdAt).toLocaleTimeString('en-US',{hour12:false})}</div>
+      </div>`).join('');
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function cleanup() {
+  const userId = document.getElementById('userId').value.trim();
+  if (!userId) return alert('Enter a User ID');
+  if (!confirm('Delete debug messages for this user?')) return;
+  try {
+    const r = await fetch(API + '/proactive-messages/' + userId, {method:'DELETE'});
+    const d = await r.json();
+    addLog('scheduler','info','🗑 Cleaned up ' + d.deletedCount + ' debug messages');
+    loadHistory();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+async function replayLast() {
+  if (!lastProactiveId) return alert('No previous run to replay');
+  try {
+    const r = await fetch(API + '/replay/' + lastProactiveId, {method:'POST'});
+    const d = await r.json();
+    addLog('scheduler','info','🔄 Replay result:');
+    addLog('message_creation','info','Original: ' + d.original.messageText);
+    addLog('message_creation','success','Regenerated: ' + d.regenerated.messageText);
+    addLog('message_creation','info','New tone: ' + d.regenerated.tone + ' | Template: ' + d.regenerated.templateKey);
+  } catch(e) { addLog('error','failed','Replay error: '+e.message); }
+}
+
+async function viewTemplates() {
+  try {
+    const r = await fetch(API + '/templates');
+    const d = await r.json();
+    document.getElementById('templatesPanel').style.display = 'block';
+    document.getElementById('templatesData').textContent = JSON.stringify(d, null, 2);
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+function inspectMessage(id) {
+  lastProactiveId = id;
+  addLog('scheduler','info','Selected message: ' + id);
+}
+
+function exportLogs() {
+  const text = logs.map(l => `[${l.ts}] [${l.stage}] [${l.status}] ${l.message}`).join('\n');
+  const blob = new Blob([text], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sere_debug_' + Date.now() + '.log';
+  a.click();
+}
+</script>
+</body>
+</html>

@@ -30,6 +30,9 @@ function initSocket(io) {
       socket.handshake.auth?.token ||
       socket.handshake.query?.token;
 
+    console.log(`🔐 SERE Socket Auth: token present = ${!!token}, token length = ${token ? token.length : 0}`);
+    console.log(`🔐 SERE Socket Auth: ACCESS_TOKEN_SECRET present = ${!!process.env.ACCESS_TOKEN_SECRET}, secret length = ${process.env.ACCESS_TOKEN_SECRET ? process.env.ACCESS_TOKEN_SECRET.length : 0}`);
+
     if (!token) {
       return next(new Error("Authentication required"));
     }
@@ -46,8 +49,10 @@ function initSocket(io) {
       socket.uid = payload.uid;
       socket.callSign = payload.callSign;
 
+      console.log(`🔐 SERE Socket Auth: ✅ verified user ${payload.id}`);
       return next();
     } catch (err) {
+      console.error(`🔐 SERE Socket Auth: ❌ JWT error: ${err.name} — ${err.message}`);
       return next(new Error("Invalid or expired token"));
     }
   });

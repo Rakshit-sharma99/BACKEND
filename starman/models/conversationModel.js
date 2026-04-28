@@ -15,6 +15,7 @@ const messageSchema = new mongoose.Schema(
     role: { type: String, enum: ["user", "model"], required: true },
     text: { type: String, required: true },
     timestamp: { type: Date, default: Date.now },
+    buttons: { type: Array, default: [] },
   },
   { _id: false },
 );
@@ -40,6 +41,20 @@ const conversationSchema = new mongoose.Schema(
     lastActive: {
       type: Date,
       default: Date.now,
+    },
+
+    // Conversation origin — "user" (default) or "proactive" (Starman-initiated)
+    origin: {
+      type: String,
+      enum: ["user", "proactive"],
+      default: "user",
+    },
+
+    // Context for proactive conversations (only set when origin="proactive")
+    proactiveContext: {
+      type: { type: String },          // "memory_nudge", "reflection", etc.
+      proactiveMessageId: String,       // Reference to SERE ProactiveMessage._id
+      triggeredBy: String,              // "sere_scheduler"
     },
   },
   {

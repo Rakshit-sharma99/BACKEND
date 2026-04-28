@@ -11,6 +11,7 @@ const { initSocket } = require("./config/socket");
 const { setIO } = require("./services/liveNotificationDispatcher");
 const authenticate = require("./middlewares/authentication");
 const sereRouter = require("./routes/sereRouter");
+const debugRouter = require("./routes/debugRouter");
 const { startScheduler } = require("./engine/scheduler");
 const { startCondensationFlusher } = require("./engine/condensationFlusher");
 
@@ -39,19 +40,26 @@ const allowedOrigins = [
   "https://macbease.com",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    credentials: true,
-  }),
-);
-app.use(helmet());
+const globalCors = cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+});
+
+// Apply global CORS to everything EXCEPT /sere/debug (which has its own permissive CORS)
+app.use((req, res, next) => {
+  if (req.path.startsWith("/sere/debug")) return next();
+  globalCors(req, res, next);
+});
+app.use(helmet({
+  contentSecurityPolicy: false, // Allow debug console to load external fonts
+  crossOriginEmbedderPolicy: false,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -67,6 +75,9 @@ app.use((req, res, next) => {
 app.get("/sere/api/v1/hello", (req, res) => {
   res.send("🚀 SERE — Starman Engagement & Reminder Engine is alive!");
 });
+
+// Debug console (no auth, permissive CORS — developer-only)
+app.use("/sere/debug", cors({ origin: true, credentials: true }), debugRouter);
 
 // Protected routes
 app.use("/sere/api/v1", authenticate, sereRouter);

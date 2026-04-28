@@ -23,6 +23,9 @@ const {
   updateMyStarmanPersona,
   getSoul,
 } = require("../controllers/identityController");
+const {
+  createProactiveMessage,
+} = require("../controllers/proactiveController");
 
 // POST /starman/api/v1/chat – SSE streaming chat
 router.post("/chat", chat);
@@ -62,5 +65,8 @@ router.get("/conversations/:sessionId", getConversation);
 router.get("/identity/me", getMyIdentity);
 router.patch("/identity/starman", updateMyStarmanPersona);
 router.get("/identity/soul", getSoul);
+
+// Internal proactive message endpoint (SERE → Starman)
+router.post("/internal/proactive-message", createProactiveMessage);
 
 module.exports = router;

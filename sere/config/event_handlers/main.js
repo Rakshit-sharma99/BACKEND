@@ -4,6 +4,9 @@ const { streak_update } = require("./streak_update");
 const { query_deferred } = require("./query_deferred");
 const { answer_resolved } = require("./answer_resolved");
 const { live_notification } = require("./live_notification");
+const { memory_created } = require("./memory_created");
+const { proactive_opened } = require("./proactive_opened");
+const { proactive_replied } = require("./proactive_replied");
 
 /**
  * Handler registry — maps Kafka topic names to handler functions.
@@ -20,6 +23,10 @@ const handlers = {
   "query.deferred": query_deferred,
   "answer.resolved": answer_resolved,
   "live.notification": live_notification,
+  "memory.created": memory_created,
+  "proactive.opened": proactive_opened,
+  "proactive.replied": proactive_replied,
 };
 
 module.exports = { handlers };
+

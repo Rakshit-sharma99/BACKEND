@@ -164,6 +164,34 @@ const USER_ACTIVITY = {
   },
 };
 
+/**
+ * @typedef {Object} MEMORY_CREATED_PAYLOAD
+ * @property {string} userId
+ * @property {string} memoryId
+ * @property {string} type
+ * @property {string} uid
+ * @property {Date} date
+ */
+
+const MEMORY_CREATED = {
+  MEMORY_CREATED: {
+    topicSuffix: ".created",
+
+    validate: (data) => {
+      if (typeof data.userId !== "string") {
+        throw new Error("'userId' must be a string");
+      }
+      if (typeof data.memoryId !== "string") {
+        throw new Error("'memoryId' must be a string");
+      }
+    },
+
+    build: (payload) => ({
+      value: JSON.stringify(payload),
+    }),
+  },
+};
+
 module.exports = {
   ...UPDATE_USER_MEMORY_LIST,
   ...UPDATE_CLUB_MEMORY_LIST,
@@ -171,4 +199,5 @@ module.exports = {
   ...UPDATE_USER_MEMORY_NOTICE,
   ...UPDATE_USER_PINNED_MEMORY,
   ...USER_ACTIVITY,
+  ...MEMORY_CREATED,
 };

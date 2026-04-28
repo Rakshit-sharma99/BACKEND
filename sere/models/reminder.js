@@ -63,6 +63,8 @@ const ReminderSchema = new mongoose.Schema(
         "user_created",
         "re_engagement",
         "trending",
+        "memory_nudge",
+        "proactive_starman",
       ],
       required: true,
     },

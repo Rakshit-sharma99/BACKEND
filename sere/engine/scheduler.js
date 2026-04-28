@@ -20,6 +20,8 @@ const UserEngagement = require("../models/userEngagement");
 const Campaign = require("../models/campaign");
 const { runCronRules } = require("./rules");
 const { generateCampaignContent } = require("./contentGenerator");
+const { runMemoryNudgeCheck } = require("./memoryNudgeScheduler");
+const { dispatchPendingProactiveMessages, expireProactiveMessages } = require("./proactiveDispatcher");
 
 const UNIVERSE_URL =
   process.env.UNIVERSE_URL || "http://universe:5050/universe/api/v1";
@@ -229,18 +231,27 @@ async function resetDailyCounters() {
     { $set: { remindersSentToday: 0 } },
   );
   console.log(`🔄 SERE: reset daily counters for ${result.modifiedCount} users`);
+
+  // Reset memoryCreatedToday flag for all users
+  const memoryResult = await UserEngagement.updateMany(
+    { memoryCreatedToday: true },
+    { $set: { memoryCreatedToday: false } },
+  );
+  console.log(`🔄 SERE: reset memoryCreatedToday for ${memoryResult.modifiedCount} users`);
 }
 
 // ── Cron Setup ──
 
 function startScheduler() {
-  // Every 5 minutes: deliver, expire, campaigns
+  // Every 5 minutes: deliver, expire, campaigns, proactive messages
   cron.schedule("*/5 * * * *", async () => {
     console.log("⏰ SERE scheduler tick");
     try {
       await deliverDueReminders();
       await expireStaleReminders();
       await executeCampaigns();
+      await dispatchPendingProactiveMessages();
+      await expireProactiveMessages();
     } catch (error) {
       console.error("❌ SERE scheduler error:", error);
     }
@@ -252,6 +263,15 @@ function startScheduler() {
       await runCronRules();
     } catch (error) {
       console.error("❌ SERE cron rules error:", error);
+    }
+  });
+
+  // Every hour: run memory nudge check (timezone-cohort based)
+  cron.schedule("0 * * * *", async () => {
+    try {
+      await runMemoryNudgeCheck();
+    } catch (error) {
+      console.error("❌ SERE memory nudge error:", error);
     }
   });
 
