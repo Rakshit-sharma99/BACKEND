@@ -9,12 +9,14 @@
 const Redis = require("ioredis");
 
 let redis = null;
+let pubClient = null;
+let subClient = null;
 
 async function connectRedis() {
   const host = process.env.REDIS_HOST || "redis";
   const port = parseInt(process.env.REDIS_PORT) || 6379;
 
-  redis = new Redis({
+  const redisOptions = {
     host,
     port,
     retryStrategy(times) {
@@ -24,12 +26,24 @@ async function connectRedis() {
     },
     maxRetriesPerRequest: 3,
     lazyConnect: true,
-  });
+  };
+
+  redis = new Redis(redisOptions);
+  pubClient = new Redis(redisOptions);
+  subClient = new Redis(redisOptions);
 
   redis.on("connect", () => console.log("✅ SERE: Redis connected"));
   redis.on("error", (err) => console.error("❌ SERE Redis error:", err.message));
 
-  await redis.connect();
+  pubClient.on("error", (err) => console.error("❌ SERE Redis PubClient error:", err.message));
+  subClient.on("error", (err) => console.error("❌ SERE Redis SubClient error:", err.message));
+
+  await Promise.all([
+    redis.connect(),
+    pubClient.connect(),
+    subClient.connect(),
+  ]);
+  
   return redis;
 }
 
@@ -40,4 +54,11 @@ function getRedis() {
   return redis;
 }
 
-module.exports = { connectRedis, getRedis };
+function getPubSubClients() {
+  if (!pubClient || !subClient) {
+    throw new Error("SERE Redis pub/sub clients not initialized.");
+  }
+  return { pubClient, subClient };
+}
+
+module.exports = { connectRedis, getRedis, getPubSubClients };

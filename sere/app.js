@@ -6,7 +6,8 @@ const http = require("http");
 const socketIo = require("socket.io");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./db/connect");
-const { connectRedis } = require("./config/redis");
+const { connectRedis, getPubSubClients } = require("./config/redis");
+const { createAdapter } = require("@socket.io/redis-adapter");
 const { initSocket } = require("./config/socket");
 const { setIO } = require("./services/liveNotificationDispatcher");
 const authenticate = require("./middlewares/authentication");
@@ -93,8 +94,13 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
     console.log("✅ SERE: MongoDB connected");
 
-    // Connect to Redis (for presence tracking & condensation)
+    // Connect to Redis (for presence tracking, condensation, and pub/sub)
     await connectRedis();
+
+    // Attach the Redis Adapter to Socket.IO for multi-instance horizontal scaling
+    const { pubClient, subClient } = getPubSubClients();
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("✅ SERE: Socket.IO Redis Adapter configured");
 
     // Initialize Socket.IO with auth and presence handling
     initSocket(io);
