@@ -20,6 +20,7 @@ const live_notification = async (messageValue) => {
   try {
     const data = JSON.parse(messageValue);
 
+    console.log(`[DEBUG-PROD-LIVE] SERE: Kafka Consumer received [live.notification] for targetUserId: ${data.targetUserId}`);
     console.log(`📥 SERE: received [live.notification]`, {
       targetUserId: data.targetUserId,
       type: data.notification?.type,

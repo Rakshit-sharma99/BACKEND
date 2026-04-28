@@ -201,6 +201,7 @@ const markAsUnread = async (req, res) => {
     // ✅ Live notification → SERE (in-app heads-up banner)
     try {
       const { producer } = require("../config/kafka_producer");
+      console.log(`[DEBUG-PROD-LIVE] UNIVERSE: Emitting live.notification Kafka event for targetUserId: ${hisId}`);
       await producer.send({
         topic: "live.notification",
         messages: [
@@ -234,6 +235,7 @@ const markAsUnread = async (req, res) => {
           },
         ],
       });
+      console.log(`[DEBUG-PROD-LIVE] UNIVERSE: Successfully emitted live.notification for ${hisId}`);
     } catch (kafkaErr) {
       console.error("Live notification emit failed:", kafkaErr.message);
     }

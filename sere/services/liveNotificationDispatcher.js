@@ -40,6 +40,7 @@ async function dispatch(targetUserId, notification) {
 
   // 1. Check presence
   const online = await isUserOnline(targetUserId);
+  console.log(`[DEBUG-PROD-LIVE] SERE Dispatcher: checked presence for ${targetUserId}. Online: ${online}`);
   if (!online) {
     console.log(`⏸️ SERE: user ${targetUserId} offline, dropping live notification`);
     return false;
@@ -47,6 +48,7 @@ async function dispatch(targetUserId, notification) {
 
   // 2. Run condensation logic
   const { action } = await processCondensation(targetUserId, notification);
+  console.log(`[DEBUG-PROD-LIVE] SERE Dispatcher: condensation action for ${targetUserId}: ${action}`);
 
   if (action === "suppress") {
     console.log(
@@ -67,6 +69,7 @@ async function dispatch(targetUserId, notification) {
     receivedAt: Date.now(),
   };
 
+  console.log(`[DEBUG-PROD-LIVE] SERE Dispatcher: emitting "live:notification" via io.to(user:${targetUserId})`);
   io.to(`user:${targetUserId}`).emit("live:notification", payload);
 
   console.log(
