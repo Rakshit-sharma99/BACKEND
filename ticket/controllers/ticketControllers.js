@@ -501,6 +501,58 @@ async function validateTicketPurchaseAccess({
   }
 }
 
+function buildDiscountedBreakdown({
+  ticketPrice,
+  feePercent,
+  coupon,
+}) {
+  const baseAmount = Number(ticketPrice) || 0;
+  const platformFee =
+    feePercent > 0 ? roundCurrency((baseAmount * feePercent) / 100) : 0;
+  const grossCharge = roundCurrency(baseAmount + platformFee);
+
+  let finalCharge = grossCharge;
+
+  if (coupon) {
+    if (coupon.discountType === "flat") {
+      finalCharge = roundCurrency(grossCharge - (Number(coupon.discountValue) || 0));
+    } else if (coupon.discountType === "percentage") {
+      finalCharge = roundCurrency(
+        grossCharge - (grossCharge * (Number(coupon.discountValue) || 0)) / 100,
+      );
+    }
+  }
+
+  const finalChargeRupees = ceilCurrency(finalCharge);
+
+  if (grossCharge === 0) {
+    return {
+      grossChargeRupees: 0,
+      platformFeeRupees: 0,
+      clubNetCreditRupees: 0,
+      finalChargeRupees: 0,
+    };
+  }
+
+  const grossChargeRupees = ceilCurrency(grossCharge);
+  const proportionalPlatformFee = (platformFee / grossCharge) * finalChargeRupees;
+  const platformFeeRupees = Math.min(
+    finalChargeRupees,
+    ceilCurrency(proportionalPlatformFee),
+  );
+  const clubNetCreditRupees = Math.max(
+    0,
+    finalChargeRupees - platformFeeRupees,
+  );
+
+  return {
+    grossChargeRupees,
+    platformFeeRupees,
+    clubNetCreditRupees,
+    finalChargeRupees,
+  };
+}
+
 //Controller 1
 const generateTicket = async (req, res) => {
   const {
@@ -591,6 +643,8 @@ const generateTicket = async (req, res) => {
           "ticketTypes",
           "layoutId",
           "seatsBooked",
+          "platformFeeEnabled",
+          "platformFee",
           "uid",
           "universeMetaData",
         ],
@@ -620,6 +674,7 @@ const generateTicket = async (req, res) => {
       return {
         ...ticket,
         type: matchedTicketType?.type || ticket.type,
+        ticketPrice : matchedTicketType?.price,
         ticketMeta: matchedTicketType || null,
       };
     });
@@ -810,6 +865,7 @@ const generateTicket = async (req, res) => {
         eventId,
         paymentId: razorpay_payment_id || "free",
         amtPaid: ticketAmounts[index] || 0,
+        ticketPrice : ticket.ticketPrice || 0,
         boughtBy: req.user.id,
         generatedAt: new Date(),
         type: ticket.type,
