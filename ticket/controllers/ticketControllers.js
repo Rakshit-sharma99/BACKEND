@@ -501,6 +501,10 @@ async function validateTicketPurchaseAccess({
   }
 }
 
+function roundCurrency(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 //Controller 1
 const generateTicket = async (req, res) => {
   const {
@@ -591,6 +595,8 @@ const generateTicket = async (req, res) => {
           "ticketTypes",
           "layoutId",
           "seatsBooked",
+          "platformFeeEnabled",
+          "platformFee",
           "uid",
           "universeMetaData",
         ],
@@ -616,11 +622,24 @@ const generateTicket = async (req, res) => {
           throw createHttpError(`Ticket type "${ticket.type}" not found.`);
         }
       }
+      let feePercent = 0;
+
+      if (event?.platformFeeEnabled) {
+        feePercent = event.platformFee;
+      }
+
+      const finalPrice = matchedTicketType?.price ?? ticket.ticketPrice ?? 0;
+
+      const platformFee = feePercent > 0 ? roundCurrency((finalPrice * feePercent) / 100) : 0;
 
       return {
         ...ticket,
         type: matchedTicketType?.type || ticket.type,
+        ticketPrice: finalPrice,
         ticketMeta: matchedTicketType || null,
+        ...(event?.platformFeeEnabled && {
+          platformFee,
+        }),
       };
     });
 
@@ -810,6 +829,7 @@ const generateTicket = async (req, res) => {
         eventId,
         paymentId: razorpay_payment_id || "free",
         amtPaid: ticketAmounts[index] || 0,
+        ticketPrice: ticket.ticketPrice || 0,
         boughtBy: req.user.id,
         generatedAt: new Date(),
         type: ticket.type,
@@ -818,6 +838,7 @@ const generateTicket = async (req, res) => {
         couponId,
         uid: ticketUid,
         universeMetaData: ticketUniverseMetaData,
+        ...(ticket.platformFee && { platformFee: ticket.platformFee }),
       })),
       { session },
     );

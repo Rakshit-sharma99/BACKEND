@@ -42,6 +42,12 @@ const ticketSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    ticketPrice : {
+      type : Number,
+    },
+    platformFee : {
+      type : Number,
+    },
     status: {
       type: String,
       enum: ["redeemed", "active", "refunded", "expired"],
