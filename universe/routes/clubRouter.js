@@ -24,6 +24,7 @@ const {
   editProfile,
   addTeamMember,
   removeTeamMember,
+  editTeamMemberPosition,
   getClubsByTag,
   getLikeStatus,
   getLatestContent,
@@ -100,6 +101,7 @@ router.post("/removeGallery", removeGallery);
 router.post("/editProfile", editProfile);
 router.post("/addTeamMember", addTeamMember);
 router.post("/removeTeamMember", removeTeamMember);
+router.post("/editTeamMemberPosition", editTeamMemberPosition);
 router.get("/getClubsByTag", getClubsByTag);
 router.get("/getLikeStatus", getLikeStatus);
 router.get("/getLatestContent", getLatestContent);

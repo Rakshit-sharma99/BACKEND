@@ -1529,7 +1529,51 @@ const removeTeamMember = async (req, res) => {
   }
 };
 
-//Controller 20
+//Controller 20 - Edit Team Member Position
+const editTeamMemberPosition = async (req, res) => {
+  try {
+    const { clubId, userId, pos } = req.body;
+
+    if (!clubId || !userId || !pos) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("clubId, userId and pos are required.");
+    }
+
+    const isAuthorized = await checkAuthorization(clubId, req.user.id);
+    if (isAuthorized !== "Fully-authorized") {
+      return res
+        .status(StatusCodes.FORBIDDEN)
+        .send("You must be the main admin to edit team member positions.");
+    }
+
+    const club = await Club.findById(clubId, { team: 1 });
+    if (!club) {
+      return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
+    }
+
+    const teamMember = club.team.find((member) => member.id === userId);
+    if (!teamMember) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("User is not a team member.");
+    }
+
+    teamMember.pos = pos;
+    await club.save();
+
+    return res
+      .status(StatusCodes.OK)
+      .send("Team member position updated successfully.");
+  } catch (error) {
+    console.error("Error in editTeamMemberPosition:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("Something went wrong while updating the position.");
+  }
+};
+
+//Controller 21
 const getAllEvents = async (req, res) => {
   try {
     const { clubId } = req.query;
@@ -4709,6 +4753,7 @@ module.exports = {
   editProfile,
   addTeamMember,
   removeTeamMember,
+  editTeamMemberPosition,
   getClubsByTag,
   getLikeStatus,
   getLatestContent,
