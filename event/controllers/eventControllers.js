@@ -2017,11 +2017,15 @@ const editEventDetails = async (req, res) => {
     }
 
     const event = await Event.findById(eventId, { permissions: 1 }).lean();
-    const authorized =
-      req.user.role === "admin" ||
-      (Array.isArray(event.permissions?.whoCanEditEvent) &&
-        event.permissions.whoCanEditEvent.includes(req.user.id));
-    if (!authorized) {
+    const isAdmin = req.user?.role === "admin";
+
+    const canEdit = Array.isArray(event?.permissions?.whoCanEditEvent)
+      ? event.permissions.whoCanEditEvent.some(
+        (id) => id?.toString() === req.user?.id
+      )
+      : false;
+
+    if (!isAdmin && !canEdit) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ msg: "Unaccessible route." });
