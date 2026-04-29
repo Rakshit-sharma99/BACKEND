@@ -501,6 +501,10 @@ async function validateTicketPurchaseAccess({
   }
 }
 
+function roundCurrency(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
 //Controller 1
 const generateTicket = async (req, res) => {
   const {
