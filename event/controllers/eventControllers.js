@@ -571,6 +571,7 @@ const allowedStatuses = [
   "past and unclear",
   "past and clear",
   "postponed",
+  "expired"
 ];
 
 //Controller 4
