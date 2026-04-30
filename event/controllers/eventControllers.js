@@ -71,6 +71,53 @@ function normalizeTicketVisibility(visibility = {}) {
   };
 }
 
+function normalizeRequiredTicketTypes(ticketTypes) {
+  if (!Array.isArray(ticketTypes) || ticketTypes.length === 0) {
+    return {
+      error:
+        "At least one ticket type is required. Use price 0 for a free event.",
+    };
+  }
+
+  const normalizedTicketTypes = [];
+
+  for (const ticket of ticketTypes) {
+    const type = typeof ticket?.type === "string" ? ticket.type.trim() : "";
+    const priceEmpty =
+      ticket?.price === undefined ||
+      ticket?.price === null ||
+      (typeof ticket.price === "string" && ticket.price.trim() === "");
+    const availableEmpty =
+      ticket?.available === undefined ||
+      ticket?.available === null ||
+      (typeof ticket.available === "string" && ticket.available.trim() === "");
+    const price = Number(ticket?.price);
+    const available = Number(ticket?.available);
+
+    if (!type) {
+      return { error: "Ticket type name is required." };
+    }
+
+    if (priceEmpty || !Number.isFinite(price) || price < 0) {
+      return { error: "Ticket price must be 0 or more." };
+    }
+
+    if (availableEmpty || !Number.isFinite(available) || available <= 0) {
+      return { error: "Ticket availability must be greater than 0." };
+    }
+
+    normalizedTicketTypes.push({
+      ...ticket,
+      type,
+      price,
+      available,
+      visibility: normalizeTicketVisibility(ticket.visibility),
+    });
+  }
+
+  return { ticketTypes: normalizedTicketTypes };
+}
+
 async function ticketBuyResolver({
   accessLevel,
   clubId,
@@ -319,7 +366,19 @@ const createEvent = async (req, res) => {
       }
     }
 
-    const event = await Event.create({ ...req.body, uid: req.user.uid });
+    const ticketValidation = normalizeRequiredTicketTypes(req.body.ticketTypes);
+    if (ticketValidation.error) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: ticketValidation.error });
+    }
+
+    const event = await Event.create({
+      ...req.body,
+      ticketAvailable: true,
+      ticketTypes: ticketValidation.ticketTypes,
+      uid: req.user.uid,
+    });
 
     // Auto-trigger channel creation (fire-and-forget — don't block the response)
     createChannelForEvent(event._id).catch((channelErr) =>
@@ -1988,6 +2047,7 @@ const editEventDetails = async (req, res) => {
     const {
       url,
       description,
+      ticketAvailable,
       ticketTypes,
       place,
       eventManagerMail,
@@ -2006,6 +2066,7 @@ const editEventDetails = async (req, res) => {
     if (
       !url &&
       !description &&
+      ticketAvailable === undefined &&
       !ticketTypes &&
       !place &&
       eventManagerMail === undefined &&
@@ -2031,13 +2092,35 @@ const editEventDetails = async (req, res) => {
         .json({ msg: "Unaccessible route." });
     }
 
+    let normalizedTicketTypes;
+    if (ticketTypes !== undefined) {
+      const ticketValidation = normalizeRequiredTicketTypes(ticketTypes);
+      if (ticketValidation.error) {
+        return res
+          .status(StatusCodes.BAD_REQUEST)
+          .json({ message: ticketValidation.error });
+      }
+
+      normalizedTicketTypes = ticketValidation.ticketTypes;
+    }
+
+    const normalizedTicketAvailable =
+      ticketAvailable !== undefined || normalizedTicketTypes !== undefined
+        ? true
+        : undefined;
+
     // Update Event
     const updatedEvent = await Event.findByIdAndUpdate(
       eventId,
       {
         ...(url !== undefined && { url }),
         ...(description !== undefined && { description }),
-        ...(ticketTypes !== undefined && { ticketTypes }),
+        ...(normalizedTicketAvailable !== undefined && {
+          ticketAvailable: normalizedTicketAvailable,
+        }),
+        ...(normalizedTicketTypes !== undefined && {
+          ticketTypes: normalizedTicketTypes,
+        }),
         ...(place !== undefined && { place }),
         ...(eventManagerMail !== undefined && { eventManagerMail }),
         ...(eventManagerPhone !== undefined && { eventManagerPhone }),
@@ -2057,7 +2140,8 @@ const editEventDetails = async (req, res) => {
       newData: {
         url,
         description,
-        ticketTypes,
+        ticketAvailable: normalizedTicketAvailable,
+        ticketTypes: normalizedTicketTypes,
         place,
         eventManagerMail,
         eventManagerPhone,

@@ -74,7 +74,7 @@ const ASK_FOR_REVIEW = {
  * @typedef {Object} EDIT_EVENT_PAYLOAD
  * @property {string} clubId
  * @property {string} eventId
- * @property {{url: string,description: string,ticketTypes: array}} newData
+ * @property {{url: string,description: string,ticketAvailable: boolean,ticketTypes: array}} newData
  */
 
 const EDIT_EVENT = {

@@ -221,7 +221,7 @@ const eventSchema = new mongoose.Schema(
     postedBy: String,
 
     dl: { type: Boolean, default: false },
-    ticketAvailable: { type: Boolean, default: false },
+    ticketAvailable: { type: Boolean, default: true },
 
     ticketTypes: [
       {
