@@ -2134,21 +2134,25 @@ const editEventDetails = async (req, res) => {
       return res.status(404).json({ message: "Event not found" });
     }
 
-    await sendKafkaMessage("EDIT_EVENT", "universe", {
-      clubId,
-      eventId,
-      newData: {
-        url,
-        description,
-        ticketAvailable: normalizedTicketAvailable,
-        ticketTypes: normalizedTicketTypes,
-        place,
-        eventManagerMail,
-        eventManagerPhone,
-        extraFields,
-        extraFieldsRequired,
-      },
-    });
+    try {
+      await sendKafkaMessage("EDIT_EVENT", "universe", {
+        clubId,
+        eventId,
+        newData: {
+          url,
+          description,
+          ticketAvailable: normalizedTicketAvailable,
+          ticketTypes: normalizedTicketTypes,
+          place,
+          eventManagerMail,
+          eventManagerPhone,
+          extraFields,
+          extraFieldsRequired,
+        },
+      });
+    } catch (kafkaError) {
+      console.error("EDIT_EVENT kafka publish failed:", kafkaError.message);
+    }
 
     res
       .status(200)
