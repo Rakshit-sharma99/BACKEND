@@ -69,7 +69,9 @@ const {
   getEventsByFilters,
   addPaymentFieldToEvents,
   addModeFieldToEvents,
-  getEventsByUid
+  getEventsByUid,
+  updateEventExtraFields,
+  updateTicketTypeExtraFields
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
@@ -144,4 +146,7 @@ router.post("/getEventsByFilters", getEventsByFilters)
 router.get("/addPaymentFieldToEvents", addPaymentFieldToEvents)
 router.get("/addModeFieldToEvents", addModeFieldToEvents)
 router.get("/getEventsByUid", getEventsByUid)
+router.post("/updateEventExtraFields", updateEventExtraFields)
+router.post("/updateTicketTypeExtraFields", updateTicketTypeExtraFields)
 module.exports = router;
+

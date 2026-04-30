@@ -2331,7 +2331,7 @@ const addExtraFieldsToEvent = async (req, res) => {
           message: "Each extraField must contain fieldName and type.",
         });
       }
-      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum"];
+      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum", "Doc"];
       if (!allowedTypes.includes(field.type)) {
         return res.status(400).json({
           message: `Invalid type "${field.type
@@ -3532,10 +3532,32 @@ const addExtraFieldsToTicketType = async (req, res) => {
     const idx = event.ticketTypes.findIndex((t) => t.type === type);
 
     if (idx === -1) {
-      return res.status(404).json({
+      return res.status(StatusCodes.NOT_FOUND).json({
         success: false,
         message: "Ticket type not found inside ticketTypes.",
       });
+    }
+
+    if (!Array.isArray(extraFields) || extraFields.length === 0) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "extraFields must be a non-empty array." });
+    }
+
+    // Validate individual field structures
+    for (const field of extraFields) {
+      if (!field.fieldName || !field.type) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: "Each extraField must contain fieldName and type.",
+        });
+      }
+      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum", "Doc"];
+      if (!allowedTypes.includes(field.type)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
+        });
+      }
     }
 
     // 3️⃣ Update the values directly in the object
@@ -5015,6 +5037,142 @@ const getEventsByUid = async (req, res) => {
   }
 };
 
+const updateEventExtraFields = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized.",
+      });
+    }
+
+    const { eventId, extraFields } = req.body;
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    if (!event.extraFieldsRequired) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Event does not have extra fields required.",
+      });
+    }
+
+    if (!Array.isArray(extraFields)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "extraFields must be an array." });
+    }
+
+    // Validate individual field structures
+    for (const field of extraFields) {
+      if (!field.fieldName || !field.type) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: "Each extraField must contain fieldName and type.",
+        });
+      }
+      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum", "Doc"];
+      if (!allowedTypes.includes(field.type)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
+        });
+      }
+    }
+    if (extraFields.length === 0) {
+      event.extraFieldsRequired = false;
+      event.extraFields = undefined;
+    } else {
+      event.extraFieldsRequired = true;
+      event.extraFields = extraFields;
+
+    }
+
+    await event.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      event,
+    });
+  } catch (err) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
+const updateTicketTypeExtraFields = async (req, res) => {
+  try {
+    const { eventId, type, extraFields } = req.body;
+
+    const event = await Event.findById(eventId);
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    const idx = event.ticketTypes.findIndex((t) => t.type === type);
+
+    if (idx === -1) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Ticket type not found inside ticketTypes.",
+      });
+    }
+
+    if (!Array.isArray(extraFields)) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "extraFields must be an array." });
+    }
+
+    // Validate individual field structures
+    for (const field of extraFields) {
+      if (!field.fieldName || !field.type) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: "Each extraField must contain fieldName and type.",
+        });
+      }
+      const allowedTypes = ["String", "Number", "Boolean", "Date", "Enum", "Doc"];
+      if (!allowedTypes.includes(field.type)) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          message: `Invalid type "${field.type
+            }". Allowed types are: ${allowedTypes.join(", ")}`,
+        });
+      }
+    }
+
+    if (extraFields.length === 0) {
+      event.ticketTypes[idx].extraFieldsRequired = false;
+      event.ticketTypes[idx].extraFields = undefined;
+    } else {
+      event.ticketTypes[idx].extraFieldsRequired = true;
+      event.ticketTypes[idx].extraFields = extraFields;
+    }
+    await event.save();
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Extra fields updated successfully."
+    });
+  } catch (err) {
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+}
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -5084,5 +5242,7 @@ module.exports = {
   getEventsByFilters,
   addPaymentFieldToEvents,
   addModeFieldToEvents,
-  getEventsByUid
+  getEventsByUid,
+  updateEventExtraFields,
+  updateTicketTypeExtraFields
 };
