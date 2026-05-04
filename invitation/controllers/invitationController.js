@@ -185,6 +185,7 @@ const endorseInvitation = async (req, res) => {
 //Controller 5
 const acceptInvitation = async (req, res) => {
   const { invitationId } = req.query;
+  console.log(`[acceptInvitation] Received request for invitationId: ${invitationId}, user: ${req.user.id}`);
   try {
     let invitation = await Invitation.findById(invitationId, {
       sentBy: 1,
@@ -196,17 +197,41 @@ const acceptInvitation = async (req, res) => {
       sentByModel: 1,
       sentToModel: 1,
     });
+    
+    console.log(`[acceptInvitation] Fetched invitation: ${!!invitation}`);
+
     if (!invitation) {
+      console.log(`[acceptInvitation] Invitation not found`);
       return res.status(StatusCodes.NOT_FOUND).send("Invitation not found.");
     }
+    
     if (invitation.state !== "undecided") {
+      console.log(`[acceptInvitation] Invitation state is not undecided: ${invitation.state}`);
       return res
         .status(StatusCodes.OK)
         .send("Proposal has already been nullified.");
     }
-    if (
-      ![...invitation.cc, invitation.sentTo.toString()].includes(req.user.id)
-    ) {
+    
+    let allowedUsers = [...(invitation.cc || []), invitation.sentTo?.toString()];
+
+    if (req.query.clubId) {
+      const clubQuery = {
+        id: req.query.clubId,
+        fields: ["permissions", "mainAdmin"],
+        callSign: "universe"
+      };
+      const clubData = await fetchNativeClubData(clubQuery);
+      if (clubData) {
+        if (clubData.permissions && clubData.permissions.length > 0) {
+          allowedUsers.push(...clubData.permissions);
+        } else if (clubData.mainAdmin) {
+          allowedUsers.push(clubData.mainAdmin.toString());
+        }
+      }
+    }
+
+    if (!allowedUsers.includes(req.user.id)) {
+      console.log(`[acceptInvitation] User ${req.user.id} not authorized. Allowed:`, allowedUsers);
       return res
         .status(StatusCodes.BAD_REQUEST)
         .send("You are not authorized to reject this proposal.");
@@ -214,6 +239,8 @@ const acceptInvitation = async (req, res) => {
 
     invitation.state = "accepted";
     await invitation.save();
+    console.log(`[acceptInvitation] Invitation state updated to accepted`);
+    
     await sendKafkaMessage("SECONDARY_INVITATION_ACTION", "universe", {
       sentBy: invitation.sentBy.toString(),
       sentTo: invitation.sentTo.toString(),
@@ -244,11 +271,12 @@ const acceptInvitation = async (req, res) => {
       sentToModal: invitation.sentToModel,
     });
 
+    console.log(`[acceptInvitation] Successfully sent Kafka message for secondary invitation action`);
     return res
       .status(StatusCodes.OK)
-      .send("Proposal has been successfully declined.");
+      .send("Proposal has been successfully declined."); // Note: Original message said 'declined' here
   } catch (error) {
-    console.error(error);
+    console.error(`[acceptInvitation] Error:`, error);
     return res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .send("Something went wrong.");

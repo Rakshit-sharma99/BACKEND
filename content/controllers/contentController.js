@@ -38,6 +38,7 @@ const createContent = async (req, res) => {
       peopleTagged,
       belongsTo,
       universeMetaData,
+      altTexts,
     } = req.body;
 
     if (
@@ -93,6 +94,7 @@ const createContent = async (req, res) => {
     const data = {
       ...req.body,
       url: processedUrl,
+      altTexts: altTexts || [],
       idOfSender,
       params,
       uid: req.user.uid,
@@ -203,6 +205,7 @@ const comment = async (req, res) => {
         comments: 1,
         contentType: 1,
         url: 1,
+        altTexts: 1,
         text: 1,
         idOfSender: 1,
       }),

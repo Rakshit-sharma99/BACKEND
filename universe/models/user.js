@@ -317,7 +317,7 @@ const communityContributionSchema = new mongoose.Schema(
     contentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Content",
-      required: true,
+      required: false,
     },
   },
   { _id: false },

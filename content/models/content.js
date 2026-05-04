@@ -80,6 +80,10 @@ const contentSchema = new mongoose.Schema({
   url: {
     type: String,
   },
+  altTexts: {
+    type: [String],
+    default: [],
+  },
   c_url: {
     type: String,
   },

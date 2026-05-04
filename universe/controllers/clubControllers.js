@@ -239,60 +239,57 @@ const secondaryActionsForClubCreation = async (req, club, founder) => {
 
 //Controller 2
 const deleteClub = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
-    const { clubId } = req.body;
-    const id = req.user.id;
-    const isAuthorized = await checkAuthorization(clubId, id);
-    if (isAuthorized === "Fully-authorized") {
-      if (req.user.role === "admin") {
-        const deletedClub = await Club.findByIdAndRemove({ _id: clubId });
-        Admin.findById(req.user.id, (err, admin) => {
-          if (err) return console.error(err);
-          let clubs = admin.clubs;
-          clubs.filter((item) => {
-            item !== clubId;
-          });
-          admin.clubs = [];
-          admin.clubs = clubs;
-          admin.save((err, update) => {
-            if (err) return console.error(err);
-            return res
-              .status(StatusCodes.OK)
-              .send("Club was successfully deleted.");
-          });
-        });
+  try {
+    if (req.user.role === "admin" || req.user.role === "user") {
+      const { clubId } = req.body;
+      const id = req.user.id;
+      const isAuthorized = await checkAuthorization(clubId, id);
+
+      if (isAuthorized === "Fully-authorized") {
+        await Club.findByIdAndRemove({ _id: clubId });
+
+        if (req.user.role === "admin") {
+          await Admin.updateOne(
+            { _id: id },
+            { $pull: { clubs: { clubId: clubId } } },
+          );
+          return res
+            .status(StatusCodes.OK)
+            .send("Club was successfully deleted.");
+        }
+
+        if (req.user.role === "user") {
+          await User.updateOne(
+            { _id: id },
+            { $pull: { clubs: { clubId: clubId } } },
+          );
+          return res
+            .status(StatusCodes.OK)
+            .send("Club was successfully deleted.");
+        }
       }
-      if (req.user.role === "user") {
-        const deletedClub = await Club.findByIdAndRemove({ _id: clubId });
-        User.findById(req.user.id, (err, user) => {
-          if (err) return console.error(err);
-          let clubs = user.clubs;
-          clubs = clubs.filter((item) => {
-            item.clubId !== clubId;
-          });
-          user.clubs = [];
-          user.clubs = clubs;
-          user.save((err, update) => {
-            if (err) return console.error(err);
-            return res
-              .status(StatusCodes.OK)
-              .send("Club was successfully deleted.");
-          });
-        });
+
+      if (isAuthorized === "Authorized" || isAuthorized === "Not-authorized") {
+        return res
+          .status(StatusCodes.OK)
+          .send("You are not authorized to delete the club.");
       }
-    }
-    if (isAuthorized === "Authorized" || isAuthorized === "Not-authorized") {
+
+      if (isAuthorized === "Club not found") {
+        return res.status(StatusCodes.OK).send("No such club is active.");
+      }
+    } else {
       return res
         .status(StatusCodes.OK)
-        .send("You are not authorized to delete the club.");
+        .send(
+          "You are not authorized to access the route of deleting the club.",
+        );
     }
-    if (isAuthorized === "Club not found") {
-      return res.status(StatusCodes.OK).send("No such club is active.");
-    }
-  } else {
+  } catch (error) {
+    console.error("Error in deleteClub:", error);
     return res
-      .status(StatusCodes.OK)
-      .send("You are not authorized to access the route of deleting the club.");
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("An error occurred while deleting the club.");
   }
 };
 
@@ -563,67 +560,204 @@ const sendMemberEmail = async (user, club) => {
   });
 };
 
+// Function to send member removal email
+const sendMemberRemovalEmail = async (user, club) => {
+  const name = user.name;
+  const intro = [
+    `This is an update regarding your membership in the club ${club.name}.`,
+    "Your membership has been revoked by the club administrators. We appreciate the time you spent with the club and wish you the best. If you have any questions, please reach out to the club administration.",
+  ];
+  const outro =
+    "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+  const subject = "Club Membership Update";
+  const destination = [user.email];
+
+  const { ses, params } = await sendMail(
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+  );
+  ses.sendEmail(params, (err) => {
+    if (err) {
+      console.error("Error sending removal email:", err);
+    }
+  });
+};
+
+// Function to send admin promotion email
+const sendAdminPromotionEmail = async (user, club) => {
+  const name = user.name;
+  const intro = [
+    `Congratulations! You have been promoted to an admin in the club ${club.name}.`,
+    "As an admin, you now have elevated privileges to manage the club, organize events, and guide the club. We trust you will use these tools responsibly to help the club thrive.",
+  ];
+  const outro =
+    "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+  const subject = "Club Admin Promotion";
+  const destination = [user.email];
+
+  const { ses, params } = await sendMail(
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+  );
+  ses.sendEmail(params, (err) => {
+    if (err) {
+      console.error("Error sending admin promotion email:", err);
+    }
+  });
+};
+
+// Function to send admin demotion email
+const sendAdminDemotionEmail = async (user, club) => {
+  const name = user.name;
+  const intro = [
+    `This is an update regarding your role in the club ${club.name}.`,
+    "Your admin privileges have been revoked by the club administration. You are now a regular member of the club. If you have any questions, please reach out to the club administrators.",
+  ];
+  const outro =
+    "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+  const subject = "Club Role Update";
+  const destination = [user.email];
+
+  const { ses, params } = await sendMail(
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+  );
+  ses.sendEmail(params, (err) => {
+    if (err) {
+      console.error("Error sending admin demotion email:", err);
+    }
+  });
+};
+
+// Function to send core team promotion email
+const sendCoreTeamPromotionEmail = async (user, club, position) => {
+  const name = user.name;
+  const intro = [
+    `Congratulations! You have been promoted to the core team of the club ${club.name}.`,
+    `You have been assigned the position of ${position}. As a core team member, you'll play a vital role in shaping the club's future and leading its initiatives. We are excited to see what you will accomplish!`,
+  ];
+  const outro =
+    "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+  const subject = "Club Core Team Promotion";
+  const destination = [user.email];
+
+  const { ses, params } = await sendMail(
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+  );
+  ses.sendEmail(params, (err) => {
+    if (err) {
+      console.error("Error sending core team promotion email:", err);
+    }
+  });
+};
+
+// Function to send core team demotion email
+const sendCoreTeamDemotionEmail = async (user, club) => {
+  const name = user.name;
+  const intro = [
+    `This is an update regarding your role in the club ${club.name}.`,
+    "You have been removed from the core team by the club administration. Your role has been reverted to an admin. We appreciate your contributions to the core team. If you have any questions, please reach out to the club administrators.",
+  ];
+  const outro =
+    "This email contains privileged and confidential information intended solely for the use of the individual or entity named. If you are not the intended recipient, please notify the sender immediately and delete this message from your system. Unauthorized use, dissemination, or copying is strictly prohibited.";
+  const subject = "Club Role Update";
+  const destination = [user.email];
+
+  const { ses, params } = await sendMail(
+    name,
+    intro,
+    outro,
+    subject,
+    destination,
+  );
+  ses.sendEmail(params, (err) => {
+    if (err) {
+      console.error("Error sending core team demotion email:", err);
+    }
+  });
+};
+
 //Controller 6
 const removeAsMember = async (req, res) => {
-  if (req.user.role === "admin" || req.user.role === "user") {
-    const { clubId, userId } = req.body;
-    const id = req.user.id;
-    const isAuthorized = await checkAuthorization(clubId, id);
-    if (isAuthorized === "Fully-authorized") {
-      Club.findById(clubId, (err, club) => {
-        if (err) return console.error(err);
-        User.findById(userId, (err, user) => {
-          if (err) return console.error(err);
-          let clubs = user.clubs;
-          clubs = clubs.filter((item) => {
-            item !== clubId;
-          });
-          user.clubs = [];
-          user.clubs = clubs;
-          user.save();
-        });
-        let clubMembers = club.members;
-        let clubAdmins = club.adminId;
-        let clubTeam = club.team;
-        clubMembers = clubMembers.filter((item) => item !== userId);
-        clubAdmins = clubAdmins.filter((item) => item !== userId);
-        let teamArr = [];
-        for (let i = 0; i < clubTeam.length; i++) {
-          if (clubTeam[i].id !== userId) {
-            teamArr.push(clubTeam[i]);
-          }
+  try {
+    if (req.user.role === "admin" || req.user.role === "user") {
+      const { clubId, userId } = req.body;
+      const id = req.user.id;
+
+      const isAuthorized = await checkAuthorization(clubId, id);
+
+      if (isAuthorized === "Fully-authorized") {
+        const club = await Club.findById(clubId);
+        if (!club) {
+          return res.status(StatusCodes.OK).send("No such club is active.");
         }
-        club.members = [];
-        club.members = clubMembers;
-        club.adminId = [];
-        club.adminId = clubAdmins;
-        club.team = [];
-        club.team = teamArr;
+
+        // Use updateOne to pull the club from the user's clubs array without triggering full document validation
+        const removedUser = await User.findById(userId, { name: 1, email: 1 });
+        await User.updateOne(
+          { _id: userId },
+          { $pull: { clubs: { clubId: clubId } } },
+        );
+
+        club.members = club.members.filter(
+          (item) => item.toString() !== userId.toString(),
+        );
+        club.adminId = club.adminId.filter(
+          (item) => item.toString() !== userId.toString(),
+        );
+        club.team = club.team.filter(
+          (item) => item.id && item.id.toString() !== userId.toString(),
+        );
+
         let len = club.xAxisData.length;
-        let lastElement = club.xAxisData[len - 1];
+        let lastElement = len > 0 ? club.xAxisData[len - 1] : 0;
         let newElement = lastElement - 1;
         club.xAxisData.push(newElement);
         club.yAxisData.push(new Date());
-        club.save((err, update) => {
-          if (err) return console.error(err);
-          return res
-            .status(StatusCodes.OK)
-            .send("Successfully removed the member of the club.");
-        });
-      });
-    }
-    if (isAuthorized === "Not-authorized") {
+
+        await club.save();
+
+        if (removedUser && req.user.id.toString() !== userId.toString()) {
+          sendMemberRemovalEmail(removedUser, club);
+        }
+
+        return res
+          .status(StatusCodes.OK)
+          .send("Successfully removed the member of the club.");
+      }
+
+      if (isAuthorized === "Not-authorized") {
+        return res
+          .status(StatusCodes.OK)
+          .send("You are not authorized to remove members from the club.");
+      }
+
+      if (isAuthorized === "Club not found") {
+        return res.status(StatusCodes.OK).send("No such club is active.");
+      }
+    } else {
       return res
         .status(StatusCodes.OK)
         .send("You are not authorized to remove members from the club.");
     }
-    if (isAuthorized === "Club not found") {
-      return res.status(StatusCodes.OK).send("No such club is active.");
-    }
-  } else {
+  } catch (error) {
+    console.error("Error in removeAsMember:", error);
     return res
-      .status(StatusCodes.OK)
-      .send("You are not authorized to remove members from the club.");
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("An error occurred while removing the member.");
   }
 };
 
@@ -652,7 +786,11 @@ const addAdmin = async (req, res) => {
       name: 1,
       secondaryImg: 1,
     });
-    const userInfo = await User.findById(userId, { pushToken: 1 });
+    const userInfo = await User.findById(userId, {
+      pushToken: 1,
+      name: 1,
+      email: 1,
+    });
     if (!club) {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
@@ -663,6 +801,7 @@ const addAdmin = async (req, res) => {
       body: `You were promoted to admin post in ${club.name}`,
       url: `https://macbease.com/app/club/${clubId}`,
     });
+    sendAdminPromotionEmail(userInfo, club);
     await club.save();
     return res.status(StatusCodes.OK).send("Admin successfully added");
   } catch (error) {
@@ -694,6 +833,11 @@ const removeAdmin = async (req, res) => {
       club.adminId = club.adminId.filter(
         (adminId) => adminId.toString() !== userId.toString(),
       );
+
+      const demotedUser = await User.findById(userId, { name: 1, email: 1 });
+      if (demotedUser && req.user.id.toString() !== userId.toString()) {
+        sendAdminDemotionEmail(demotedUser, club);
+      }
 
       await club.save();
       return res
@@ -1401,6 +1545,7 @@ const editProfile = async (req, res) => {
       "tags",
       "featuringImg",
       "secondaryImg",
+      "scope",
     ];
 
     const updateData = {};
@@ -1459,7 +1604,7 @@ const addTeamMember = async (req, res) => {
       name: 1,
       secondaryImg: 1,
     });
-    const userInfo = await User.findById(id, { pushToken: 1 });
+    const userInfo = await User.findById(id, { pushToken: 1, name: 1, email: 1 });
     if (!club) {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
@@ -1471,6 +1616,9 @@ const addTeamMember = async (req, res) => {
       body: `You were promoted to ${pos} in ${club.name}`,
       url: `https://macbease.com/app/club/${clubId}`,
     });
+    
+    sendCoreTeamPromotionEmail(userInfo, club, pos);
+    
     return res.status(StatusCodes.OK).send("Successfully added to the team!");
   } catch (error) {
     console.error(error);
@@ -1510,6 +1658,11 @@ const removeTeamMember = async (req, res) => {
 
       // Remove the team member
       club.team = club.team.filter((member) => member.id !== id);
+
+      const demotedUser = await User.findById(id, { name: 1, email: 1 });
+      if (demotedUser && req.user.id.toString() !== id.toString()) {
+        sendCoreTeamDemotionEmail(demotedUser, club);
+      }
 
       await club.save();
 
@@ -1845,6 +1998,8 @@ const getClubProfile = async (req, res) => {
       featuringImg: 1,
       motto: 1,
       hiddenTags: 1,
+      scope: 1,
+      uid: 1,
     });
     return res.status(StatusCodes.OK).json(club);
   } catch (error) {
@@ -1950,11 +2105,12 @@ const getClubBio = async (req, res) => {
     };
     const teamDetails = await Promise.all(
       club.team.map(async (member) => {
-        const user = await User.findById(member.id, { name: 1, image: 1 });
+        const user = await User.findById(member.id, { name: 1, image: 1, universeMetaData: 1 });
         return {
           ...member,
           name: user?.name || "Unknown",
           image: user?.image || null,
+          universeMetaData: user?.universeMetaData || null,
         };
       }),
     );
@@ -2866,7 +3022,7 @@ const getEveryoneOfClub = async (req, res) => {
       const allUserIds = [...members, ...team.map((t) => t.id)];
       const users = await User.find(
         { _id: { $in: allUserIds } },
-        { name: 1, image: 1, pushToken: 1, course: 1 },
+        { name: 1, image: 1, pushToken: 1, course: 1, universeMetaData: 1 },
       ).lean();
       const userMap = users.reduce((acc, user) => {
         acc[user._id] = user;
@@ -3078,6 +3234,7 @@ const addProposal = async (req, res) => {
       state: proposal.state,
       subject: proposal.subject,
       senderMetaData,
+      universeMetaData: proposal.universeMetaData || null,
     };
     club.proposalHistory.push(obj);
     club.undecidedProposals.push(proposalId);
@@ -3133,7 +3290,7 @@ const fetchProposals = async (req, res) => {
       const proposalIds = proposals.map((item) => item.id);
       const proposalsDoc = await fetchInvitationById({
         id: proposalIds,
-        select: ["endorsedBy", "expiration"],
+        select: ["endorsedBy", "expiration", "universeMetaData"],
       });
       const proposalsDocMap = (proposalsDoc || []).reduce((acc, doc) => {
         acc[doc._id.toString()] = doc;
@@ -3146,6 +3303,7 @@ const fetchProposals = async (req, res) => {
             ...proposal,
             endorsedBy: proposalData.endorsedBy,
             expiration: proposalData.expiration,
+            universeMetaData: proposalData.universeMetaData || proposal.universeMetaData || null,
           };
         }
         return proposal;
@@ -3174,27 +3332,57 @@ const fetchProposals = async (req, res) => {
 // Controller 52
 const changeProposalStatus = async (req, res) => {
   const { proposalId, clubId, status } = req.body;
+  console.log(
+    `[changeProposalStatus] Received request for proposalId: ${proposalId}, clubId: ${clubId}, status: ${status}`,
+  );
   try {
     if (!["accepted", "rejected"].includes(status)) {
+      console.log(`[changeProposalStatus] Invalid status provided: ${status}`);
       return res.status(StatusCodes.BAD_REQUEST).send("Invalid status.");
     }
     const proposal = await fetchInvitationById({
       id: proposalId,
       select: ["sentTo", "cc"],
     });
-    if (![...proposal.cc, proposal.sentTo.toString()].includes(req.user.id)) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .send("You are not authorized to reject this proposal.");
+    console.log(`[changeProposalStatus] Fetched proposal:`, proposal);
+
+    if (!proposal) {
+      console.log(
+        `[changeProposalStatus] Proposal not found from fetchInvitationById`,
+      );
+      return res.status(StatusCodes.NOT_FOUND).send("Proposal not found.");
     }
+
     const club = await Club.findById(clubId, {
       undecidedProposals: 1,
       proposalHistory: 1,
       notifications: 1,
+      permissions: 1,
+      mainAdmin: 1,
     });
+    console.log(`[changeProposalStatus] Fetched club. Found: ${!!club}`);
+
     if (!club) {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
+
+    let allowedUsers = [...(proposal.cc || []), proposal.sentTo?.toString()];
+    if (club.permissions && club.permissions.length > 0) {
+      allowedUsers.push(...club.permissions);
+    } else if (club.mainAdmin) {
+      allowedUsers.push(club.mainAdmin.toString());
+    }
+
+    if (!allowedUsers.includes(req.user.id)) {
+      console.log(
+        `[changeProposalStatus] User ${req.user.id} not authorized. Allowed users:`,
+        allowedUsers,
+      );
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .send("You are not authorized to reject this proposal.");
+    }
+
     club.undecidedProposals = club.undecidedProposals.filter(
       (id) => id !== proposalId,
     );
@@ -3207,14 +3395,23 @@ const changeProposalStatus = async (req, res) => {
         break;
       }
     }
+
+    console.log(
+      `[changeProposalStatus] Matched proposal in history: ${!!matchedProposal}`,
+    );
+
     if (!matchedProposal) {
-      return res.status(StatusCodes.NOT_FOUND).send("Proposal not found.");
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .send("Proposal not found in club history.");
     }
+
     const userDetails = await User.findById(req.user.id, {
       name: 1,
       image: 1,
       _id: 0,
     });
+
     const notice = {
       uid: new Date().toISOString() + `${proposalId}`,
       title: "Decision made",
@@ -3225,8 +3422,11 @@ const changeProposalStatus = async (req, res) => {
       name: userDetails.name,
       image: userDetails.image,
     };
+
     club.notifications.unshift(notice);
-    club.save();
+    await club.save();
+
+    console.log(`[changeProposalStatus] Successfully saved club updates.`);
     return res
       .status(StatusCodes.OK)
       .send("Proposal status successfully modified.");
@@ -3657,7 +3857,7 @@ const getProposalsFromIds = async (req, res) => {
     // Fetch invitations only for relevant proposals
     const invitations = await fetchInvitationById({
       id: proposalIds,
-      select: ["endorsedBy", "expiration"],
+      select: ["endorsedBy", "expiration", "universeMetaData"],
     });
 
     // Convert to map for quick lookup

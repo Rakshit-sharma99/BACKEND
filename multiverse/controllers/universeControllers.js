@@ -489,6 +489,40 @@ const getUniverseByCallSign = async (req, res) => {
   }
 };
 
+const getUniversesByIds = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "An array of universe IDs is required",
+      });
+    }
+
+    // Cap to prevent abuse
+    const cappedIds = ids.slice(0, 50);
+
+    const universes = await Universe.find(
+      { $or: [{ _id: { $in: cappedIds } }, { callSign: { $in: cappedIds } }] },
+      { name: 1, callSign: 1, location: 1, logo: 1, logoKey: 1, lat: 1, lng: 1 },
+    ).lean();
+
+    return res.status(200).json({
+      success: true,
+      data: universes,
+    });
+  } catch (err) {
+    console.error("Get Universes By IDs Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch universes by IDs",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
   createUniverse,
   editUniverse,
@@ -498,4 +532,5 @@ module.exports = {
   getAllowedDomains,
   getEnrichedUniverseData,
   getUniverseByCallSign,
+  getUniversesByIds,
 };

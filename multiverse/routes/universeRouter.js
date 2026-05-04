@@ -11,6 +11,7 @@ const {
   getAllowedDomains,
   getEnrichedUniverseData,
   getUniverseByCallSign,
+  getUniversesByIds,
 } = require("../controllers/universeControllers");
 
 const {
@@ -28,4 +29,5 @@ router.get("/getPopularUniverses", getPopularUniverses);
 router.get("/getAllowedDomains", authenticate, getAllowedDomains);
 router.get("/getEnrichedUniverseData", getEnrichedUniverseData);
 router.get("/getUniverseByCallSign", getUniverseByCallSign);
+router.post("/getUniversesByIds", getUniversesByIds);
 module.exports = router;

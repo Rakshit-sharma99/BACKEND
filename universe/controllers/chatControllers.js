@@ -167,11 +167,11 @@ const markAsUnread = async (req, res) => {
     matchedItem.state = "unread";
     chatRooms.unshift(matchedItem);
 
-    // ✅ Minimal mutation instead of reset
-    user.markModified("chatRooms");
-    user.chatRooms = chatRooms;
-
-    await user.save();
+    // ✅ Surgical update instead of .save()
+    await User.updateOne(
+      { _id: hisId },
+      { $set: { chatRooms: chatRooms } }
+    );
 
     // ✅ Dynamic Island update (safe check)
     if (
@@ -265,8 +265,8 @@ const markAsRead = async (req, res) => {
         .send("Invalid or missing doc_id.");
     }
 
-    // ✅ Fetch user
-    const user = await User.findById(myId);
+    // ✅ Fetch user chatRooms only
+    const user = await User.findById(myId, { chatRooms: 1 });
 
     if (!user) {
       return res
@@ -291,11 +291,11 @@ const markAsRead = async (req, res) => {
     matchedItem.state = "read";
     chatRooms.unshift(matchedItem);
 
-    // ✅ Minimal mutation
-    user.chatRooms = chatRooms;
-    user.markModified("chatRooms");
-
-    await user.save();
+    // ✅ Surgical update instead of .save()
+    await User.updateOne(
+      { _id: myId },
+      { $set: { chatRooms: chatRooms } }
+    );
 
     return res
       .status(StatusCodes.OK)
