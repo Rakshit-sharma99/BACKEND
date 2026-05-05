@@ -626,27 +626,15 @@ const searchContentByTag = async (req, res) => {
   }
 
   try {
-    const lemmatizedTags = lemmatize([query]);
-    const allTags = await fetchRelatedTags(lemmatizedTags);
-    const regexTags = allTags.map((tag) => new RegExp(tag, "i"));
-
+    const regex = new RegExp(query.trim(), "i");
     const pipeline = [
       {
         $match: {
-          tags: { $in: regexTags },
+          $or: [{ title: { $regex: regex } }, { text: { $regex: regex } }],
         },
       },
-      {
-        $group: {
-          _id: "$_id",
-          doc: { $first: "$$ROOT" }, // de-duplicate by _id
-        },
-      },
-      {
-        $replaceRoot: {
-          newRoot: "$doc",
-        },
-      },
+      { $sort: { timeStamp: -1 } },
+      { $limit: 30 },
       {
         $addFields: {
           commentsNum: { $size: "$comments" },
@@ -657,9 +645,6 @@ const searchContentByTag = async (req, res) => {
         $project: {
           vector: 0,
         },
-      },
-      {
-        $limit: 30, // safeguard limit
       },
     ];
 
@@ -965,7 +950,10 @@ const getContentForLanding = async (req, res) => {
           timeStamp: { $lt: parsedCursor },
           $or: [
             { contentType: { $in: ["image", "video"] } },
-            { contentType: "text", "externalSourceMetaData.relayedBy": "starman-bot" },
+            {
+              contentType: "text",
+              "externalSourceMetaData.relayedBy": "starman-bot",
+            },
           ],
           ...universeFilter,
         },
@@ -997,7 +985,10 @@ const getContentForLanding = async (req, res) => {
                 timeStamp: { $lt: parsedCursor },
                 $or: [
                   { contentType: { $in: ["image", "video"] } },
-                  { contentType: "text", "externalSourceMetaData.relayedBy": "starman-bot" },
+                  {
+                    contentType: "text",
+                    "externalSourceMetaData.relayedBy": "starman-bot",
+                  },
                 ],
                 ...universeFilter,
               },
@@ -1054,7 +1045,10 @@ const getContentForLanding = async (req, res) => {
             timeStamp: { $lt: parsedCursor },
             $or: [
               { contentType: { $in: ["image", "video"] } },
-              { contentType: "text", "externalSourceMetaData.relayedBy": "starman-bot" },
+              {
+                contentType: "text",
+                "externalSourceMetaData.relayedBy": "starman-bot",
+              },
             ],
             ...universeFilter,
           },
@@ -1103,10 +1097,7 @@ const getContentForLanding = async (req, res) => {
       const newIds = finalFeed.map((c) => c._id.toString());
       const pipeline = redis.pipeline();
       pipeline.sadd(`seen_content:${userId}:${feedScopeKey}`, ...newIds);
-      pipeline.expire(
-        `seen_content:${userId}:${feedScopeKey}`,
-        60 * 60 * 24,
-      );
+      pipeline.expire(`seen_content:${userId}:${feedScopeKey}`, 60 * 60 * 24);
       await pipeline.exec();
     }
 
@@ -1850,7 +1841,9 @@ const editComment = async (req, res) => {
     content.comments[commentIndex] = targetComment;
     await content.save();
 
-    return res.status(StatusCodes.OK).json({ message: "Comment successfully updated." });
+    return res
+      .status(StatusCodes.OK)
+      .json({ message: "Comment successfully updated." });
   } catch (error) {
     console.error("Error in editComment:", error);
     return res
@@ -1880,7 +1873,10 @@ const deleteComment = async (req, res) => {
 
     const commentIndex = content.comments.findIndex((c) => c.cid === cid);
     if (commentIndex === -1) {
-      console.log("deleteComment comment not found in content.comments. available cids:", content.comments.map(c => c.cid));
+      console.log(
+        "deleteComment comment not found in content.comments. available cids:",
+        content.comments.map((c) => c.cid),
+      );
       return res.status(StatusCodes.NOT_FOUND).send("Comment not found.");
     }
 
@@ -1888,7 +1884,9 @@ const deleteComment = async (req, res) => {
     console.log("deleteComment targetComment found:", targetComment);
 
     if (targetComment._id !== userId && !isAdmin) {
-      console.log(`deleteComment unauthorized. targetComment._id: ${targetComment._id}, userId: ${userId}`);
+      console.log(
+        `deleteComment unauthorized. targetComment._id: ${targetComment._id}, userId: ${userId}`,
+      );
       return res
         .status(StatusCodes.FORBIDDEN)
         .send("You are not authorized to delete this comment.");
@@ -1898,7 +1896,9 @@ const deleteComment = async (req, res) => {
     await content.save();
 
     console.log("deleteComment successfully completed.");
-    return res.status(StatusCodes.OK).json({ message: "Comment successfully deleted." });
+    return res
+      .status(StatusCodes.OK)
+      .json({ message: "Comment successfully deleted." });
   } catch (error) {
     console.error("Error in deleteComment:", error);
     return res
@@ -1928,7 +1928,7 @@ const deleteReply = async (req, res) => {
     }
 
     const targetComment = content.comments[commentIndex];
-    
+
     if (!targetComment.replies) {
       return res.status(StatusCodes.NOT_FOUND).send("Reply not found.");
     }
@@ -1948,7 +1948,11 @@ const deleteReply = async (req, res) => {
       } else {
         const user_query = { id: userId, fields: ["name", "pushToken"] };
         const user = await fetchUserData(user_query);
-        if (user && (user.name === targetReply.name || user.pushToken === targetReply.pushToken)) {
+        if (
+          user &&
+          (user.name === targetReply.name ||
+            user.pushToken === targetReply.pushToken)
+        ) {
           isAuthorized = true;
         }
       }
@@ -1963,7 +1967,9 @@ const deleteReply = async (req, res) => {
     targetComment.replies.splice(replyIndex, 1);
     await content.save();
 
-    return res.status(StatusCodes.OK).json({ message: "Reply successfully deleted." });
+    return res
+      .status(StatusCodes.OK)
+      .json({ message: "Reply successfully deleted." });
   } catch (error) {
     console.error("Error in deleteReply:", error);
     return res

@@ -17,6 +17,7 @@ const { default: mongoose } = require("mongoose");
 const {
   fetchSearchedEvents,
   fetchSearchedCards,
+  fetchSearchedContents,
   getMemoryCount,
   fetchAllowedDomains,
   fetchMultipleAssets,
@@ -2032,13 +2033,21 @@ const getSearchResults = async (req, res) => {
       return fetchSearchedCards(query);
     }
 
+    async function fetchContents() {
+      if (isFiltered) {
+        return fetchSearchedContents(query, { page, limit });
+      }
+      return fetchSearchedContents(query);
+    }
+
     // fetch based on key mode
-    const [clubs, events, communities, users, cards] = await Promise.all([
+    const [clubs, events, communities, users, cards, contents] = await Promise.all([
       ["Clubs", "All"].includes(key) ? fetchClubs() : [],
       ["Events", "All"].includes(key) ? fetchEvents() : [],
       ["Communities", "All"].includes(key) ? fetchCommunities() : [],
       ["People", "All"].includes(key) ? fetchUsers() : [],
       ["Cards", "All"].includes(key) ? fetchCards() : [],
+      ["Content"].includes(key) ? fetchContents() : [],
     ]);
 
     if (key === "All") {
@@ -2069,6 +2078,7 @@ const getSearchResults = async (req, res) => {
         Communities: communities,
         People: users,
         Cards: cards,
+        Content: contents,
       };
       const rawData = dataMap[key] || [];
       const filtered = rawData.filter((s) => s.score >= MIN_SCORE);

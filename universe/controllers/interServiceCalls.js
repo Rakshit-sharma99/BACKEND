@@ -2,6 +2,15 @@ const jwt = require("jsonwebtoken");
 const axios = require("axios");
 const { query } = require("express");
 
+const CONTENT_SERVICE_URL = process.env.CONTENT_SERVICE_URL || "http://content:5000";
+const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || "http://card:5030";
+const EVENT_SERVICE_URL = process.env.EVENT_SERVICE_URL || "http://event:5060";
+const MAP_SERVICE_URL = process.env.MAP_SERVICE_URL || "http://map:7050";
+const MULTIVERSE_SERVICE_URL = process.env.MULTIVERSE_URL || "http://multiverse:5020";
+const COUPON_SERVICE_URL = process.env.COUPON_SERVICE_URL || "http://coupon:7020";
+const MEMORY_SERVICE_URL = process.env.MEMORY_SERVICE_URL || "http://memory:7030";
+const TICKET_SERVICE_URL = process.env.TICKET_SERVICE_URL || "http://ticket:6000";
+
 const generateServiceToken = () => {
   const token = jwt.sign(
     {
@@ -35,7 +44,7 @@ const fetchContent = async (query) => {
       params.append("select", query.select.trim());
     }
 
-    const url = `http://content:5000/content/api/v1/getContent?${params.toString()}`;
+    const url = `${CONTENT_SERVICE_URL}/content/api/v1/getContent?${params.toString()}`;
 
     const contentData = await axios.get(url, config);
 
@@ -74,7 +83,7 @@ const fetchMultipleContents = async (query) => {
       body.userId = query.userId;
     }
 
-    const url = `http://content:5000/content/api/v1/getMultipleContents`;
+    const url = `${CONTENT_SERVICE_URL}/content/api/v1/getMultipleContents`;
 
     const contentData = await axios.post(url, body, config);
 
@@ -92,7 +101,7 @@ const fetchMultipleAssets = async (query) => {
     const config = generateServiceToken();
     const body = { ids: query.ids };
 
-    const url = `http://map:7050/map/api/v1/asset/getMultipleAssets`;
+    const url = `${MAP_SERVICE_URL}/map/api/v1/asset/getMultipleAssets`;
     const assetData = await axios.post(url, body, config);
 
     return assetData.data.data;
@@ -127,7 +136,7 @@ const searchContentsFromIds = async (query) => {
       body.search = query.search.trim();
     }
 
-    const url = `http://content:5000/content/api/v1/searchContentFromIds`;
+    const url = `${CONTENT_SERVICE_URL}/content/api/v1/searchContentFromIds`;
 
     const contentData = await axios.post(url, body, config);
 
@@ -145,7 +154,7 @@ const searchCardsFromTags = async (query) => {
 
     const body = { tag: query };
 
-    const url = `http://card:5030/card/api/v1/getCardsFromTag`;
+    const url = `${CARD_SERVICE_URL}/card/api/v1/getCardsFromTag`;
 
     const cardsData = await axios.post(url, body, config);
 
@@ -181,7 +190,7 @@ const fetchEventData = async (query) => {
 
     const config = generateServiceToken();
     const eventData = await axios.post(
-      "http://event:5060/event/api/v1/getEventFieldsById",
+      `${EVENT_SERVICE_URL}/event/api/v1/getEventFieldsById`,
       query,
       config,
     );
@@ -209,7 +218,7 @@ const verifyTicketPurchaseAccess = async ({
 
     const config = generateServiceToken();
     const response = await axios.post(
-      "http://event:5060/event/api/v1/canBuyTicket",
+      `${EVENT_SERVICE_URL}/event/api/v1/canBuyTicket`,
       {
         eventId,
         ticketType,
@@ -240,7 +249,7 @@ const updateEventLayout = async ({ eventId, layoutId }) => {
 
     const config = generateServiceToken();
     const response = await axios.post(
-      "http://event:5060/event/api/v1/setEventLayout",
+      `${EVENT_SERVICE_URL}/event/api/v1/setEventLayout`,
       {
         eventId,
         layoutId,
@@ -266,7 +275,7 @@ const fetchPastEvents = async ({
     const config = generateServiceToken();
 
     const response = await axios.post(
-      "http://event:5060/event/api/v1/getPastEvents",
+      `${EVENT_SERVICE_URL}/event/api/v1/getPastEvents`,
       {
         monthsAgo,
         daysAgo,
@@ -293,7 +302,7 @@ const fetchEventGallery = async (eventIds) => {
     const config = generateServiceToken();
 
     const response = await axios.post(
-      "http://event:5060/event/api/v1/getEventGallery",
+      `${EVENT_SERVICE_URL}/event/api/v1/getEventGallery`,
       { eventIds },
       config,
     );
@@ -312,7 +321,7 @@ const fetchCouponById = async (query) => {
     }
     const config = generateServiceToken();
     const couponData = await axios.get(
-      `http://coupon:7020/coupon/api/v1/getCouponById?couponId=${query.couponId}&eventId=${query.eventId}&userId=${query.userId}`,
+      `${COUPON_SERVICE_URL}/coupon/api/v1/getCouponById?couponId=${query.couponId}&eventId=${query.eventId}&userId=${query.userId}`,
       config,
     );
     return couponData.data.coupons;
@@ -330,7 +339,7 @@ const fetchSearchedEvents = async (query, { page = 1, limit = 12 } = {}) => {
     const config = generateServiceToken();
 
     const response = await axios.get(
-      `http://event:5060/event/api/v1/getSearchedEvents?query=${query}&page=${page}&limit=${limit + 1}`,
+      `${EVENT_SERVICE_URL}/event/api/v1/getSearchedEvents?query=${query}&page=${page}&limit=${limit + 1}`,
       config,
     );
 
@@ -350,7 +359,7 @@ const fetchSearchedCards = async (query, { page = 1, limit = 12 } = {}) => {
     const config = generateServiceToken();
 
     const response = await axios.get(
-      `http://card:5030/card/api/v1/getSearchedCards?query=${query}&page=${page}&limit=${limit + 1}`,
+      `${CARD_SERVICE_URL}/card/api/v1/getSearchedCards?query=${query}&page=${page}&limit=${limit + 1}`,
       config,
     );
 
@@ -370,7 +379,7 @@ const getMemoryCount = async (query) => {
     const config = generateServiceToken();
 
     const res = await axios.get(
-      `http://memory:7030/memory/api/v1/getMemoryCount?userId=${query}`,
+      `${MEMORY_SERVICE_URL}/memory/api/v1/getMemoryCount?userId=${query}`,
       config,
     );
 
@@ -399,7 +408,7 @@ const fetchTicketFieldsByQuery = async (query) => {
     const config = generateServiceToken();
 
     const response = await axios.post(
-      `http://ticket:6000/ticket/api/v1/getTicketFieldsByQuery`,
+      `${TICKET_SERVICE_URL}/ticket/api/v1/getTicketFieldsByQuery`,
       {
         searchBy,
         fields,
@@ -436,7 +445,7 @@ const fetchFeaturedEvent = async (query) => {
 
     const config = generateServiceToken();
     const eventData = await axios.post(
-      "http://event:5060/event/api/v1/getFeaturedEvents",
+      `${EVENT_SERVICE_URL}/event/api/v1/getFeaturedEvents`,
       query,
       config,
     );
@@ -454,7 +463,7 @@ const fetchAllowedDomains = async (universeId) => {
 
     const params = new URLSearchParams({ universeId });
 
-    const url = `http://multiverse:5020/multiverse/api/v1/universe/getAllowedDomains?${params.toString()}`;
+    const url = `${MULTIVERSE_SERVICE_URL}/multiverse/api/v1/universe/getAllowedDomains?${params.toString()}`;
 
     const response = await axios.get(url, config);
 
@@ -476,7 +485,7 @@ const fetchSearchedProfileFacets = async (query) => {
     const config = generateServiceToken();
     const body = { metaQuery: query, limit: 50 };
     
-    const url = `http://map:7050/map/api/v1/nodes/metaSearchProfileFacets`;
+    const url = `${MAP_SERVICE_URL}/map/api/v1/nodes/metaSearchProfileFacets`;
     const response = await axios.post(url, body, config);
     
     return response.data;
@@ -489,7 +498,7 @@ const fetchSearchedProfileFacets = async (query) => {
 const registerCustomUniverse = async (customUniverse, userId) => {
   try {
     const config = generateServiceToken();
-    const multiverseUrl = process.env.MULTIVERSE_URL || "http://multiverse:5020";
+    const multiverseUrl = MULTIVERSE_SERVICE_URL;
     
     await axios.post(
       `${multiverseUrl}/multiverse/api/v1/universe/createCustomUniverse`,
@@ -511,7 +520,7 @@ const registerCustomUniverse = async (customUniverse, userId) => {
 const fetchAssetCategories = async () => {
   try {
     const config = generateServiceToken();
-    const url = `http://map:7050/map/api/v1/asset/getAssetCategories`;
+    const url = `${MAP_SERVICE_URL}/map/api/v1/asset/getAssetCategories`;
     const response = await axios.get(url, config);
     return response.data.data || [];
   } catch (error) {
@@ -526,7 +535,7 @@ const fetchTrendingEvents = async ({ limit = 6 }) => {
 
     // 1. Fetch live (featured) events
     const liveRes = await axios.post(
-      "http://event:5060/event/api/v1/getFeaturedEvents",
+      `${EVENT_SERVICE_URL}/event/api/v1/getFeaturedEvents`,
       {
         fields: [
           "name",
@@ -552,7 +561,7 @@ const fetchTrendingEvents = async ({ limit = 6 }) => {
     if (events.length < limit) {
       const needed = limit - events.length;
       const pastRes = await axios.post(
-        "http://event:5060/event/api/v1/getPastEvents",
+        `${EVENT_SERVICE_URL}/event/api/v1/getPastEvents`,
         {
           daysAgo: 30,
           projection: "name url description place startTime endTime eventDate eventEndDate status belongsTo tags primaryCategory",
@@ -585,7 +594,7 @@ const fetchTrendingCards = async ({ tags, limit = 6 }) => {
 
     if (Array.isArray(tags) && tags.length > 0) {
       const cardsRes = await axios.post(
-        "http://card:5030/card/api/v1/getCardsFromTag",
+        `${CARD_SERVICE_URL}/card/api/v1/getCardsFromTag`,
         { tag: tags },
         config,
       );
@@ -597,7 +606,7 @@ const fetchTrendingCards = async ({ tags, limit = 6 }) => {
       const needed = limit - cards.length;
       try {
         const randomRes = await axios.get(
-          `http://card:5030/card/api/v1/getRandomCards?size=${needed * 2}`,
+          `${CARD_SERVICE_URL}/card/api/v1/getRandomCards?size=${needed * 2}`,
           config
         );
         const randomCards = Array.isArray(randomRes.data) ? randomRes.data : [];
@@ -620,6 +629,32 @@ const fetchTrendingCards = async ({ tags, limit = 6 }) => {
   }
 };
 
+const fetchSearchedContents = async (query, { page = 1, limit = 12 } = {}) => {
+  try {
+    if (!query) return [];
+
+    const config = generateServiceToken();
+
+    const response = await axios.get(
+      `${CONTENT_SERVICE_URL}/content/api/v1/searchContentByTag?query=${encodeURIComponent(query)}`,
+      config,
+    );
+
+    const results = response.data?.actualContent || [];
+
+    // Apply pagination on the returned results
+    const skip = (page - 1) * limit;
+    return results.slice(skip, skip + limit + 1).map((item) => ({
+      ...item,
+      type: "content",
+      score: 1, // tag-match score placeholder
+    }));
+  } catch (error) {
+    console.error("Error fetching searched contents:", error.message);
+    return [];
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -633,6 +668,7 @@ module.exports = {
   fetchCouponById,
   fetchSearchedEvents,
   fetchSearchedCards,
+  fetchSearchedContents,
   getMemoryCount,
   fetchTicketFieldsByQuery,
   fetchFeaturedEvent,

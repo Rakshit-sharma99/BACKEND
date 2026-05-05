@@ -4,8 +4,12 @@ const { getMessaging } = require("firebase-admin/messaging");
 const schedule = require("node-schedule");
 const nlp = require("compromise");
 
+const UNIVERSE_SERVICE_URL = process.env.UNIVERSE_SERVICE_URL || "http://universe:5050";
+const BAG_SERVICE_URL = process.env.BAG_SERVICE_URL || "http://bag:5090";
+const CARD_SERVICE_URL = process.env.CARD_SERVICE_URL || "http://card:5030";
+
 const services = {
-  universe: "universe:5050",
+  universe: UNIVERSE_SERVICE_URL.replace("http://", ""),
 };
 
 const generateServiceToken = () => {
@@ -35,7 +39,7 @@ const fetchUserData = async (query) => {
     }
     const config = generateServiceToken();
     const userData = await axios.post(
-      "http://universe:5050/universe/api/v1/user/getUserFieldsById",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/user/getUserFieldsById`,
       query,
       config
     );
@@ -80,7 +84,7 @@ const fetchClubData = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://universe:5050/universe/api/v1/club/getClubFieldsById",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/club/getClubFieldsById`,
       query,
       config
     );
@@ -116,7 +120,7 @@ const fetchClubsRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const clubData = await axios.post(
-      "http://universe:5050/universe/api/v1/club/getClubsRecommendation",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/club/getClubsRecommendation`,
       query,
       config
     );
@@ -137,7 +141,7 @@ const fetchCommunityData = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://universe:5050/universe/api/v1/community/getCommunityFieldsById",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/community/getCommunityFieldsById`,
       query,
       config
     );
@@ -173,7 +177,7 @@ const fetchCommunitiesRecommendations = async (query) => {
     }
     const config = generateServiceToken();
     const communityData = await axios.post(
-      "http://universe:5050/universe/api/v1/community/getCommunitiesRecommendation",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/community/getCommunitiesRecommendation`,
       query,
       config
     );
@@ -286,12 +290,13 @@ const fetchRelatedTags = async (tag) => {
   try {
     const config = generateServiceToken();
     const tags = await axios.get(
-      `http://bag:5090/bag/api/v1/masterSearch?tag=${tag}`,
+      `${BAG_SERVICE_URL}/bag/api/v1/masterSearch?tag=${tag}`,
       config
     );
     return tags.data;
   } catch (error) {
-    console.log(error);
+    console.log("Error in fetchRelatedTags:", error.message);
+    return [];
   }
 };
 
@@ -300,7 +305,7 @@ const fetchCardsFromIds = async ({ ids, select }) => {
     const config = generateServiceToken();
     const body = { ids, select };
     const cards = await axios.post(
-      `http://card:5030/card/api/v1/getCardsByIds`,
+      `${CARD_SERVICE_URL}/card/api/v1/getCardsByIds`,
       body,
       config
     );
@@ -315,7 +320,7 @@ const fetchRandomCardsForFeed = async () => {
   try {
     const config = generateServiceToken();
     const cards = await axios.get(
-      `http://card:5030/card/api/v1/getRandomCardsForFeed`,
+      `${CARD_SERVICE_URL}/card/api/v1/getRandomCardsForFeed`,
       config
     );
     return cards.data;
@@ -330,7 +335,7 @@ const checkUserBookmarks = async ({ userId, contentIds }) => {
     const config = generateServiceToken();
     const body = { userId, contentIds };
     const bookmarksResponse = await axios.post(
-      `http://universe:5050/universe/api/v1/user/checkBookmarks`,
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/user/checkBookmarks`,
       body,
       config
     );
@@ -346,7 +351,7 @@ const fetchMultipleUserProfiles = async (ids) => {
     if (!Array.isArray(ids) || ids.length === 0) return [];
     const config = generateServiceToken();
     const response = await axios.post(
-      "http://universe:5050/universe/api/v1/user/fetchMultipleProfiles",
+      `${UNIVERSE_SERVICE_URL}/universe/api/v1/user/fetchMultipleProfiles`,
       { ids },
       config
     );
