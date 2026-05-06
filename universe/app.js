@@ -82,7 +82,7 @@ app.use(
       "https://admin.macbease.com",
       "https://www.admin.macbease.com",
       "https://app.macbease.com",
-      "https://www.app.macbease.com"
+      "https://www.app.macbease.com",
     ],
     credentials: true,
   }),
@@ -159,8 +159,18 @@ app.use(
   checkAdmin,
   communityMetaRouter,
 );
-app.use("/universe/api/v1/club-metadata", authenticate, checkAdmin, clubMetaRouter);
-app.use("/universe/api/v1/event-metadata", authenticate, checkAdmin, eventMetaRouter);
+app.use(
+  "/universe/api/v1/club-metadata",
+  authenticate,
+  checkAdmin,
+  clubMetaRouter,
+);
+app.use(
+  "/universe/api/v1/event-metadata",
+  authenticate,
+  checkAdmin,
+  eventMetaRouter,
+);
 app.use("/universe/api/v1/accessCode", authenticate, accessCodeRouter);
 
 app.use((req, res) => {
@@ -242,7 +252,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}!`);
+      console.log(`✅ Server is listening to port ${port}.`);
       require("./jobs/updateProgress");
     });
   } catch (error) {
