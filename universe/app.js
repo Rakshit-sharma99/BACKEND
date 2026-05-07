@@ -82,7 +82,7 @@ app.use(
       "https://admin.macbease.com",
       "https://www.admin.macbease.com",
       "https://app.macbease.com",
-      "https://www.app.macbease.com",
+      "https://www.app.macbease.com"
     ],
     credentials: true,
   }),
