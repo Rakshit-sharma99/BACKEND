@@ -65,6 +65,8 @@ services:
     profiles: ["all", "question"]
   starman:
     profiles: ["all", "starman"]
+  mou:
+    profiles: ["all", "mou"]
 
   # Core infrastructure services
   kafka:

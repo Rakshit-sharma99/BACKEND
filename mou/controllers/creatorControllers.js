@@ -153,11 +153,8 @@ const downloadMOUDocument = async (req, res) => {
 // GET /mou/api/v1/club/:clubId/mous
 const getClubMOUs = async (req, res) => {
   try {
-    console.log("get");
     const { clubId } = req.params;
     const { page = 1, limit = 10 } = req.query;
-
-    console.log(req.user);
 
     if (!mongoose.Types.ObjectId.isValid(clubId)) {
       return res
@@ -167,8 +164,9 @@ const getClubMOUs = async (req, res) => {
 
     // Role check: Only macbease admin or club main admin
     if (req.user.role !== "admin") {
-      const clubsCount = await mongoose.connection.db.collection("clubs").countDocuments();
-      console.log(`[getClubMOUs] Total clubs in DB: ${clubsCount}`);
+      const clubsCount = await mongoose.connection.db
+        .collection("clubs")
+        .countDocuments();
 
       const club = await mongoose.connection.db
         .collection("clubs")
