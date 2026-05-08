@@ -449,6 +449,22 @@ services:
       - app-network
     restart: unless-stopped
 
+  mou:
+    build:
+      context: ./mou
+      dockerfile: Dockerfile
+    image: spargens/mou
+    env_file:
+      - ./env/mou/.env
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
   social-claw:
     build:
       context: ./social-claw

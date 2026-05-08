@@ -71,12 +71,15 @@ const {
   addModeFieldToEvents,
   getEventsByUid,
   updateEventExtraFields,
-  updateTicketTypeExtraFields
+  updateTicketTypeExtraFields,
+  updateMouStatus
 } = require("../controllers/eventControllers");
 
 const eventFunnelRoutes = require("./eventfunnelRoutes");
 
 router.use("/funnel", eventFunnelRoutes);
+
+router.patch("/internal/mou-status", updateMouStatus);
 
 router.post("/createEvent", createEvent);
 router.get("/getAllEvents", getAllEvents);

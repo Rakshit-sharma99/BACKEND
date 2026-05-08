@@ -569,6 +569,16 @@ const eventSchema = new mongoose.Schema(
       trim: true,
     },
 
+    mouStatus: {
+      type: String,
+      enum: ['pending', 'sent', 'signed', 'not_required'],
+      default: 'pending'
+    },
+    mouId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MOU'
+    },
+
     universeMetaData: UniverseMetaDataSchema,
   },
   {

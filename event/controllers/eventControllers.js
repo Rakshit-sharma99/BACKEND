@@ -32,6 +32,7 @@ const { default: mongoose } = require("mongoose");
 const axios = require("axios");
 const { createChannelForEvent } = require("./channelControllers");
 const OpenAI = require("openai");
+const jwt = require("jsonwebtoken");
 
 const openai = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
@@ -379,6 +380,40 @@ const createEvent = async (req, res) => {
       ticketTypes: ticketValidation.ticketTypes,
       uid: req.user.uid,
     });
+    
+    console.log(`✅  [EVENT API] Event created successfully: ${event._id}`);
+
+    // Auto-create MOU draft in mou service via internal API call
+    try {
+      console.log(`⏳  [EVENT API] Notifying MOU service to create draft for event ${event._id}...`);
+      const internalToken = jwt.sign(
+        { role: "internal", service: "event" },
+        process.env.ACCESS_TOKEN_SECRET,
+        { expiresIn: "5m" }
+      );
+
+      const mouResponse = await axios.post("http://mou:5065/mou/api/v1/admin/internal/draft", {
+        eventId: event._id,
+        clubId: event.belongsTo.id,
+        creatorId: req.user.id,
+        eventName: event.name,
+        clubName: event.belongsTo.name,
+        creatorName: req.user.name || "Event Creator",
+        creatorEmail: req.user.email || "dummy@example.com",
+        universityId: event.belongsTo.universeId
+      }, {
+        headers: { Authorization: `Bearer ${internalToken}` }
+      });
+      
+      console.log(`✅  [EVENT API] MOU Draft created with ID: ${mouResponse.data.mou._id}`);
+      
+      // Save MOU ID back to event
+      event.mouId = mouResponse.data.mou._id;
+      await event.save();
+    } catch (mouErr) {
+      console.error("❌ [EVENT API] Failed to auto-create MOU draft:", mouErr.message);
+      // Non-blocking, continue with event creation
+    }
 
     // Auto-trigger channel creation (fire-and-forget — don't block the response)
     createChannelForEvent(event._id).catch((channelErr) =>
@@ -5173,6 +5208,42 @@ const updateTicketTypeExtraFields = async (req, res) => {
   }
 }
 
+const updateMouStatus = async (req, res) => {
+  try {
+    const { eventId, mouStatus, mouId } = req.body;
+
+    if (!eventId || !mouStatus) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "eventId and mouStatus are required."
+      });
+    }
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found."
+      });
+    }
+
+    event.mouStatus = mouStatus;
+    if (mouId) {
+      event.mouId = mouId;
+    }
+
+    // Optionally update event.status to featured or active if mouStatus becomes "signed"
+    // Though the prompt says "admin will manually change event status to featured", we just update mouStatus here.
+    
+    await event.save();
+
+    return res.status(StatusCodes.OK).json({ success: true, message: "MOU status updated successfully" });
+  } catch (error) {
+    console.error("updateMouStatus error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -5244,5 +5315,6 @@ module.exports = {
   addModeFieldToEvents,
   getEventsByUid,
   updateEventExtraFields,
-  updateTicketTypeExtraFields
+  updateTicketTypeExtraFields,
+  updateMouStatus
 };
