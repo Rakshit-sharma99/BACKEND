@@ -28,7 +28,7 @@ jobs:
 
           SERVICES=(
             badge bag blog card content event invitation ipls itinerary
-            joinLink macbease_content multiverse offer org project quest
+            joinLink macbease_content mou multiverse offer org project quest
             refund resource ticket tile universe unsorted memory overlay
             coupon map starman question knowledge credit sere quest1 social-claw
           ) 
