@@ -42,28 +42,65 @@ jobs:
             fi
           done
 
-      - name: Stop existing containers
+      - name: Snapshot current state (for rollback)
         run: |
-          echo "=== Stopping existing stack ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml down || true
+          echo "=== Snapshotting currently running containers ==="
+          docker ps --format '{{.Names}}' > /tmp/running_containers.txt || true
+          echo "Currently running:"
+          cat /tmp/running_containers.txt || echo "(none)"
 
-      - name: Build and Deploy
+      - name: Build images (old containers still serving traffic)
         run: |
           set -e
-          echo "=== Building & Deploying ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+          echo "=== Building images — backend is still live ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
 
-      - name: Verify deployment
+      - name: Deploy with fast swap
+        id: deploy
         run: |
+          set -e
+          echo "=== Swapping to new containers ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+      - name: Health check
+        id: healthcheck
+        run: |
+          echo "=== Waiting for services to stabilize ==="
+          sleep 15
+
           echo "=== Running containers ==="
-          docker compose ps
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
           echo "=== Health checks ==="
-          curl -s -o /dev/null -w "bag → %{http_code}\n" http://localhost:5090/bag/api/v1/hello || true
-          curl -s -o /dev/null -w "universe → %{http_code}\n" http://localhost:5050/universe/api/v1/hello || true
+          FAILED=0
+          for endpoint in \
+            "http://localhost/content/api/v1/hello" \
+            "http://localhost/universe/api/v1/hello"; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$endpoint" || echo "000")
+            echo "$endpoint → $STATUS"
+            if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "❌ Health check failed!"
+            exit 1
+          fi
+
+          echo "✅ All health checks passed"
+
+      - name: Rollback on failure
+        if: failure() && (steps.deploy.outcome == 'failure' || steps.healthcheck.outcome == 'failure')
+        run: |
+          echo "=== Attempting rollback — restarting containers ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml restart || true
+          echo "=== Post-rollback container status ==="
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
       - name: Cleanup unused Docker resources
+        if: success()
         run: |
-          echo "=== Cleaning up unused Docker resources ==="
+          echo "=== Cleaning up old images ==="
           docker image prune -f
