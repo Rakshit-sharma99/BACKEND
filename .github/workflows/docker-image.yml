@@ -49,18 +49,90 @@ jobs:
           echo "Currently running:"
           cat /tmp/running_containers.txt || echo "(none)"
 
-      - name: Build images (old containers still serving traffic)
+      - name: Detect changed services
+        id: changes
         run: |
           set -e
-          echo "=== Building images — backend is still live ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build
+          echo "=== Detecting changed services ==="
 
-      - name: Deploy with fast swap
+          # All buildable service directories (must match docker-compose.yml service contexts)
+          ALL_SERVICES=(
+            ipls universe multiverse content card event bag badge offer quest
+            invitation itinerary joinLink tiles org unsorted ticket refund blog
+            coupon memory overlay map starman credit question knowledge sere mou
+            social-claw quest1
+          )
+
+          # Get changed files since last successful deploy
+          # Use HEAD~1 for the diff (the commit that triggered this run)
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_BUILD")
+
+          if [ "$CHANGED_FILES" = "FULL_BUILD" ]; then
+            echo "⚠️ Cannot determine diff — will build all services"
+            CHANGED_SERVICES="${ALL_SERVICES[*]}"
+          else
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            CHANGED_SERVICES=""
+            for SERVICE in "${ALL_SERVICES[@]}"; do
+              # Check if any file in this service's directory changed
+              if echo "$CHANGED_FILES" | grep -q "^${SERVICE}/"; then
+                CHANGED_SERVICES="$CHANGED_SERVICES $SERVICE"
+              fi
+            done
+          fi
+
+          # Also check for infra changes (docker-compose, deploy/, etc.)
+          INFRA_CHANGED=false
+          if echo "$CHANGED_FILES" | grep -qE "^(docker-compose|deploy/|Dockerfile)"; then
+            INFRA_CHANGED=true
+            echo "⚠️ Infrastructure files changed — will rebuild all services"
+            CHANGED_SERVICES="${ALL_SERVICES[*]}"
+          fi
+
+          CHANGED_SERVICES=$(echo "$CHANGED_SERVICES" | xargs) # trim whitespace
+          echo "Services to build: ${CHANGED_SERVICES:-none}"
+          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
+          echo "infra_changed=$INFRA_CHANGED" >> $GITHUB_OUTPUT
+
+      - name: Build changed images (old containers still serving traffic)
+        id: build
+        run: |
+          set -e
+          export DOCKER_BUILDKIT=1
+          export COMPOSE_DOCKER_CLI_BUILD=1
+
+          CHANGED="${{ steps.changes.outputs.changed_services }}"
+
+          if [ -z "$CHANGED" ]; then
+            echo "✅ No services changed — skipping build"
+            exit 0
+          fi
+
+          echo "=== Building: $CHANGED ==="
+          echo "=== Old containers are still serving traffic ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml build $CHANGED
+
+      - name: Deploy changed services
         id: deploy
         run: |
           set -e
-          echo "=== Swapping to new containers ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          CHANGED="${{ steps.changes.outputs.changed_services }}"
+          INFRA="${{ steps.changes.outputs.infra_changed }}"
+
+          if [ -z "$CHANGED" ] && [ "$INFRA" != "true" ]; then
+            echo "✅ Nothing to deploy"
+            exit 0
+          fi
+
+          if [ "$INFRA" = "true" ] || [ -z "$CHANGED" ]; then
+            echo "=== Full deploy (infra changed) ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+          else
+            echo "=== Deploying only changed services: $CHANGED ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps $CHANGED
+          fi
 
       - name: Health check
         id: healthcheck
