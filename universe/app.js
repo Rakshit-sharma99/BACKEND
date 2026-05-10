@@ -82,7 +82,7 @@ app.use(
       "https://admin.macbease.com",
       "https://www.admin.macbease.com",
       "https://app.macbease.com",
-      "https://www.app.macbease.com"
+      "https://www.app.macbease.com",
     ],
     credentials: true,
   }),
@@ -252,7 +252,7 @@ const start = async () => {
       });
     });
     server.listen(port, () => {
-      console.log(`✅ Server is listening to port ${port}!`);
+      console.log(`✅ Server is listening to port ${port}.`);
       require("./jobs/updateProgress");
     });
   } catch (error) {
