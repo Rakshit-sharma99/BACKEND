@@ -92,6 +92,10 @@ jobs:
           fi
 
           CHANGED_SERVICES=$(echo "$CHANGED_SERVICES" | xargs) # trim whitespace
+          
+          # Map 'tiles' directory name to 'tile' service name
+          CHANGED_SERVICES=$(echo "$CHANGED_SERVICES" | sed 's/\btiles\b/tile/g')
+          
           echo "Services to build: ${CHANGED_SERVICES:-none}"
           echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
           echo "infra_changed=$INFRA_CHANGED" >> $GITHUB_OUTPUT
