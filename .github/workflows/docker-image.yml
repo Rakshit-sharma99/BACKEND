@@ -60,7 +60,7 @@ jobs:
             ipls universe multiverse content card event bag badge offer quest
             invitation itinerary joinLink tiles org unsorted ticket refund blog
             coupon memory overlay map starman credit question knowledge sere mou
-            social-claw quest1
+            social-claw quest1 
           )
 
           # Get changed files since last successful deploy
