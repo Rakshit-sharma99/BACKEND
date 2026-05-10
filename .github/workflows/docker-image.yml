@@ -28,9 +28,9 @@ jobs:
 
           SERVICES=(
             badge bag blog card content event invitation ipls itinerary
-            joinLink macbease_content mou multiverse offer org project quest
+            joinLink macbease_content multiverse offer org project quest
             refund resource ticket tile universe unsorted memory overlay
-            coupon map starman question knowledge credit sere quest1 social-claw 
+            coupon map starman question knowledge credit sere quest1 social-claw
           ) 
 
           for SERVICE in "${SERVICES[@]}"; do
@@ -42,141 +42,28 @@ jobs:
             fi
           done
 
-      - name: Snapshot current state (for rollback)
+      - name: Stop existing containers
         run: |
-          echo "=== Snapshotting currently running containers ==="
-          docker ps --format '{{.Names}}' > /tmp/running_containers.txt || true
-          echo "Currently running:"
-          cat /tmp/running_containers.txt || echo "(none)"
+          echo "=== Stopping existing stack ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml down || true
 
-      - name: Detect changed services
-        id: changes
+      - name: Build and Deploy
         run: |
           set -e
-          echo "=== Detecting changed services ==="
+          echo "=== Building & Deploying ==="
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
-          # All buildable service directories (must match docker-compose.yml service contexts)
-          ALL_SERVICES=(
-            ipls universe multiverse content card event bag badge offer quest
-            invitation itinerary joinLink tiles org unsorted ticket refund blog
-            coupon memory overlay map starman credit question knowledge sere mou
-            social-claw quest1 
-          )
-
-          # Get changed files since last successful deploy
-          # Use HEAD~1 for the diff (the commit that triggered this run)
-          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_BUILD")
-
-          if [ "$CHANGED_FILES" = "FULL_BUILD" ]; then
-            echo "⚠️ Cannot determine diff — will build all services"
-            CHANGED_SERVICES="${ALL_SERVICES[*]}"
-          else
-            echo "Changed files:"
-            echo "$CHANGED_FILES"
-
-            CHANGED_SERVICES=""
-            for SERVICE in "${ALL_SERVICES[@]}"; do
-              # Check if any file in this service's directory changed
-              if echo "$CHANGED_FILES" | grep -q "^${SERVICE}/"; then
-                CHANGED_SERVICES="$CHANGED_SERVICES $SERVICE"
-              fi
-            done
-          fi
-
-          # Also check for infra changes (docker-compose, deploy/, etc.)
-          INFRA_CHANGED=false
-          if echo "$CHANGED_FILES" | grep -qE "^(docker-compose|deploy/|Dockerfile)"; then
-            INFRA_CHANGED=true
-            echo "⚠️ Infrastructure files changed — will rebuild all services"
-            CHANGED_SERVICES="${ALL_SERVICES[*]}"
-          fi
-
-          CHANGED_SERVICES=$(echo "$CHANGED_SERVICES" | xargs) # trim whitespace
-          
-          # Map 'tiles' directory name to 'tile' service name
-          CHANGED_SERVICES=$(echo "$CHANGED_SERVICES" | sed 's/\btiles\b/tile/g')
-          
-          echo "Services to build: ${CHANGED_SERVICES:-none}"
-          echo "changed_services=$CHANGED_SERVICES" >> $GITHUB_OUTPUT
-          echo "infra_changed=$INFRA_CHANGED" >> $GITHUB_OUTPUT
-
-      - name: Build changed images (old containers still serving traffic)
-        id: build
+      - name: Verify deployment
         run: |
-          set -e
-          export DOCKER_BUILDKIT=1
-          export COMPOSE_DOCKER_CLI_BUILD=1
-
-          CHANGED="${{ steps.changes.outputs.changed_services }}"
-
-          if [ -z "$CHANGED" ]; then
-            echo "✅ No services changed — skipping build"
-            exit 0
-          fi
-
-          echo "=== Building: $CHANGED ==="
-          echo "=== Old containers are still serving traffic ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml build $CHANGED
-
-      - name: Deploy changed services
-        id: deploy
-        run: |
-          set -e
-          CHANGED="${{ steps.changes.outputs.changed_services }}"
-          INFRA="${{ steps.changes.outputs.infra_changed }}"
-
-          if [ -z "$CHANGED" ] && [ "$INFRA" != "true" ]; then
-            echo "✅ Nothing to deploy"
-            exit 0
-          fi
-
-          if [ "$INFRA" = "true" ] || [ -z "$CHANGED" ]; then
-            echo "=== Full deploy (infra changed) ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-          else
-            echo "=== Deploying only changed services: $CHANGED ==="
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --no-deps $CHANGED
-          fi
-
-      - name: Health check
-        id: healthcheck
-        run: |
-          echo "=== Waiting for services to stabilize ==="
-          sleep 15
-
           echo "=== Running containers ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
+          docker compose ps
           docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
 
           echo "=== Health checks ==="
-          FAILED=0
-          for endpoint in \
-            "http://localhost/content/api/v1/hello" \
-            "http://localhost/universe/api/v1/hello"; do
-            STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$endpoint" || echo "000")
-            echo "$endpoint → $STATUS"
-            if [ "$STATUS" -lt 200 ] || [ "$STATUS" -ge 400 ]; then
-              FAILED=1
-            fi
-          done
-
-          if [ "$FAILED" -eq 1 ]; then
-            echo "❌ Health check failed!"
-            exit 1
-          fi
-
-          echo "✅ All health checks passed"
-
-      - name: Rollback on failure
-        if: failure() && (steps.deploy.outcome == 'failure' || steps.healthcheck.outcome == 'failure')
-        run: |
-          echo "=== Attempting rollback — restarting containers ==="
-          docker compose -f docker-compose.yml -f docker-compose.prod.yml restart || true
-          echo "=== Post-rollback container status ==="
-          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          curl -s -o /dev/null -w "bag → %{http_code}\n" http://localhost:5090/bag/api/v1/hello || true
+          curl -s -o /dev/null -w "universe → %{http_code}\n" http://localhost:5050/universe/api/v1/hello || true
 
       - name: Cleanup unused Docker resources
-        if: success()
         run: |
-          echo "=== Cleaning up old images ==="
+          echo "=== Cleaning up unused Docker resources ==="
           docker image prune -f
