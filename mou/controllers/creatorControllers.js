@@ -1,8 +1,10 @@
 const MOU = require("../models/mou");
 const { StatusCodes } = require("http-status-codes");
 const docusign = require("../config/docusign");
-const { getPresignedUrl } = require("../config/s3");
+const { getPresignedUrl, uploadMOUToS3 } = require("../config/s3");
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
+const axios = require("axios");
 
 // GET /mou/api/v1/event/:eventId
 const getMOUByEventId = async (req, res) => {
@@ -87,7 +89,7 @@ const generateSigningUrl = async (req, res) => {
       signerEmail: mou.creatorEmail || "dummy@example.com",
       signerName: mou.creatorName || "Event Creator",
       clientUserId: mou.creatorId.toString(),
-      returnUrl: returnUrl || "macbease://mou-callback",
+      returnUrl: returnUrl || "https://macbease.com/mou-callback",
     });
 
     res
@@ -98,6 +100,67 @@ const generateSigningUrl = async (req, res) => {
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)
       .json({ success: false, error: error.message });
+  }
+};
+
+/**
+ * Mark the MOU as signed by the creator explicitly.
+ * Used by the frontend immediately after intercepting the success redirect.
+ */
+const markCreatorSigned = async (req, res) => {
+  try {
+    const { mouId } = req.params;
+    
+    const mou = await MOU.findById(mouId);
+    if (!mou) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, error: "MOU not found" });
+    }
+
+    if (mou.status !== "signed") {
+      mou.status = "signed";
+      mou.history.push({
+        action: "signed_by_creator",
+        actorRole: "creator",
+        timestamp: new Date()
+      });
+      
+      // Try to download the PDF, though it may not be "completed" by all signers yet
+      try {
+          const pdfBuffer = await docusign.getSignedDocument(mou.docusign.envelopeId);
+          const s3Key = `mou/${mou.eventId}_${Date.now()}.pdf`;
+          await uploadMOUToS3(pdfBuffer, s3Key);
+          mou.docusign.documentS3Key = s3Key;
+      } catch(s3Err) {
+          console.error("Error uploading to S3 during creator signature (expected if envelope not fully completed)", s3Err.message);
+      }
+
+      await mou.save();
+
+      // notify event service
+      try {
+          const internalToken = jwt.sign(
+              { role: "internal", service: "mou" },
+              process.env.ACCESS_TOKEN_SECRET,
+              { expiresIn: "5m" }
+          );
+          
+          await axios.patch("http://event:5060/event/api/v1/internal/mou-status", {
+              eventId: mou.eventId,
+              mouStatus: "signed",
+              mouId: mou._id
+          }, {
+              headers: { Authorization: `Bearer ${internalToken}` }
+          });
+          console.log(`📡 Event service notified about MOU signed for event ${mou.eventId}`);
+      } catch(notifyErr) {
+          console.error("Error notifying event service about MOU signed", notifyErr.message);
+      }
+    }
+
+    res.status(StatusCodes.OK).json({ success: true, mou });
+  } catch (error) {
+    console.error("Error marking creator signed", error);
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, error: error.message });
   }
 };
 
@@ -220,4 +283,5 @@ module.exports = {
   generateSigningUrl,
   downloadMOUDocument,
   getClubMOUs,
+  markCreatorSigned,
 };

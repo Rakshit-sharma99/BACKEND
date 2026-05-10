@@ -456,6 +456,8 @@ services:
     image: spargens/mou
     env_file:
       - ./env/mou/.env
+    volumes:
+      - ./env/mou/keys/docusign-private.key:/app/keys/docusign-private.key:ro
     depends_on:
       kafka:
         condition: service_healthy

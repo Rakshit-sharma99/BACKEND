@@ -1,4 +1,6 @@
 const docusign = require("docusign-esign");
+const fs = require("fs");
+const path = require("path");
 
 let dsApiClient = null;
 let tokenExpiresAt = 0;
@@ -19,27 +21,39 @@ async function getDocuSignClient() {
   dsApiClient.setOAuthBasePath(
     process.env.DOCUSIGN_BASE_URL.includes("demo")
       ? "account-d.docusign.com"
-      : "account.docusign.com"
+      : "account.docusign.com",
   );
 
-  // Decode the RSA private key from base64 env var (handles newlines in Docker)
-  const privateKey = process.env.DOCUSIGN_PRIVATE_KEY.replace(/\\n/g, "\n");
+  // Read the RSA private key from the mounted key file
+  const keyPath =
+    process.env.DOCUSIGN_PRIVATE_KEY_PATH ||
+    path.join(__dirname, "..", "keys", "docusign-private.key");
+  const privateKey = fs.readFileSync(keyPath, "utf8");
 
-  const results = await dsApiClient.requestJWTUserToken(
-    process.env.DOCUSIGN_INTEGRATION_KEY,
-    process.env.DOCUSIGN_USER_ID,
-    ["signature", "impersonation"],
-    Buffer.from(privateKey),
-    3600 // 1 hour token lifetime
-  );
+  try {
+    const results = await dsApiClient.requestJWTUserToken(
+      process.env.DOCUSIGN_INTEGRATION_KEY,
+      process.env.DOCUSIGN_USER_ID,
+      ["signature", "impersonation"],
+      Buffer.from(privateKey),
+      3600, // 1 hour token lifetime
+    );
 
-  const accessToken = results.body.access_token;
-  tokenExpiresAt = now + results.body.expires_in;
+    const accessToken = results.body.access_token;
+    tokenExpiresAt = now + results.body.expires_in;
 
-  dsApiClient.addDefaultHeader("Authorization", `Bearer ${accessToken}`);
+    dsApiClient.addDefaultHeader("Authorization", `Bearer ${accessToken}`);
 
-  console.log("✅ DocuSign API client authenticated via JWT Grant");
-  return dsApiClient;
+    console.log("✅ DocuSign API client authenticated via JWT Grant");
+    return dsApiClient;
+  } catch (error) {
+    if (error.response && error.response.data) {
+      console.error("❌ DocuSign JWT Auth Error:", error.response.data);
+    } else {
+      console.error("❌ DocuSign JWT Auth Error:", error.message);
+    }
+    throw error;
+  }
 }
 
 /**
@@ -60,15 +74,43 @@ async function getEnvelopesApi() {
  * @param {object} params.tabValues - Key-value pairs for template tab pre-fill
  * @returns {string} envelopeId
  */
-async function createEnvelope({ signerEmail, signerName, clientUserId, tabValues }) {
+async function createEnvelope({
+  signerEmail,
+  signerName,
+  clientUserId,
+  tabValues,
+}) {
   const envelopesApi = await getEnvelopesApi();
   const accountId = process.env.DOCUSIGN_ACCOUNT_ID;
 
-  // Build text tabs from tabValues
-  const textTabs = Object.entries(tabValues).map(([tabLabel, value]) => ({
-    tabLabel,
-    value: String(value),
-  }));
+  console.log("🔍 [DocuSign] createEnvelope called with:");
+  console.log("   signerEmail:", signerEmail);
+  console.log("   signerName:", signerName);
+  console.log("   clientUserId:", clientUserId);
+  console.log("   tabValues:", JSON.stringify(tabValues, null, 2));
+
+  // Build text tabs for club_representative
+  const clubRepTextTabs = [
+    { tabLabel: "opted_plan", value: tabValues.opted_plan || " " },
+    { tabLabel: "organizer_designation", value: tabValues.organizer_designation || " " },
+    { tabLabel: "event_name", value: tabValues.event_name || "" },
+    { tabLabel: "club_name", value: tabValues.club_name || "" },
+    { tabLabel: "macbease_name", value: process.env.MACBEASE_SIGNATORY_NAME || "Macbease" },
+    { tabLabel: "macbease_designation", value: process.env.MACBEASE_SIGNATORY_DESIGNATION || "Platform Administrator" },
+  ]
+    .filter((t) => t.value.trim() !== "")
+    .map((t) => ({ ...t, locked: "true" }));
+
+  // Build numerical tabs for club_representative
+  const clubRepNumericalTabs = [
+    { tabLabel: "commission_rate", value: tabValues.commission_rate || "", numericalValue: tabValues.commission_rate || "" },
+    { tabLabel: "platform_fee", value: tabValues.platform_fee || "", numericalValue: tabValues.platform_fee || "" },
+  ]
+    .filter((t) => t.value.trim() !== "")
+    .map((t) => ({ ...t, locked: "true" }));
+
+  console.log("🔍 [DocuSign] clubRepTextTabs:", JSON.stringify(clubRepTextTabs, null, 2));
+  console.log("🔍 [DocuSign] clubRepNumericalTabs:", JSON.stringify(clubRepNumericalTabs, null, 2));
 
   const envelopeDefinition = {
     templateId: process.env.DOCUSIGN_TEMPLATE_ID,
@@ -76,15 +118,26 @@ async function createEnvelope({ signerEmail, signerName, clientUserId, tabValues
       {
         email: signerEmail,
         name: signerName,
-        roleName: "Signer", // must match the role name in the DocuSign template
-        clientUserId, // enables embedded signing
+        roleName: "club_representative",
+        clientUserId,
         tabs: {
-          textTabs,
+          textTabs: clubRepTextTabs.length > 0 ? clubRepTextTabs : undefined,
+          numericalTabs: clubRepNumericalTabs.length > 0 ? clubRepNumericalTabs : undefined,
         },
       },
+      {
+        email: process.env.MACBEASE_ADMIN_EMAIL || "support@macbease.com",
+        name: "Macbease",
+        roleName: "macbease_admin",
+      },
     ],
-    status: "sent", // "sent" = immediately available for signing
+    status: "sent",
   };
+
+  console.log(
+    "🔍 [DocuSign] Full envelopeDefinition:",
+    JSON.stringify(envelopeDefinition, null, 2),
+  );
 
   const result = await envelopesApi.createEnvelope(accountId, {
     envelopeDefinition,
@@ -105,7 +158,10 @@ async function createEnvelope({ signerEmail, signerName, clientUserId, tabValues
  * @param {string} params.returnUrl - Deep link URL after signing
  * @returns {string} signingUrl
  */
-async function getSigningUrl(envelopeId, { signerEmail, signerName, clientUserId, returnUrl }) {
+async function getSigningUrl(
+  envelopeId,
+  { signerEmail, signerName, clientUserId, returnUrl },
+) {
   const envelopesApi = await getEnvelopesApi();
   const accountId = process.env.DOCUSIGN_ACCOUNT_ID;
 
@@ -117,11 +173,18 @@ async function getSigningUrl(envelopeId, { signerEmail, signerName, clientUserId
     clientUserId,
   };
 
-  const result = await envelopesApi.createRecipientView(accountId, envelopeId, {
-    recipientViewRequest,
-  });
-
-  return result.url;
+  try {
+    const result = await envelopesApi.createRecipientView(accountId, envelopeId, {
+      recipientViewRequest,
+    });
+    return result.url;
+  } catch (err) {
+    console.error(
+      "❌ [DocuSign] Failed to get signing URL:",
+      err.response ? JSON.stringify(err.response.data || err.response.body) : err.message
+    );
+    throw err;
+  }
 }
 
 /**
@@ -138,7 +201,7 @@ async function getSignedDocument(envelopeId) {
   const documentBuffer = await envelopesApi.getDocument(
     accountId,
     envelopeId,
-    "combined"
+    "combined",
   );
 
   return documentBuffer;
