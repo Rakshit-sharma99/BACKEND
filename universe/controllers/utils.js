@@ -1850,6 +1850,16 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
   return result;
 }
 
+const containsRestrictedWords = (text) => {
+  if (!text) return false;
+  // Normalize string: remove all non-alphanumeric characters and convert to lowercase
+  const normalizedText = text.toLowerCase().replace(/[^a-z0-9]/g, "");
+  
+  // Array of restricted base words
+  const restrictedWords = ["macbease"];
+  
+  return restrictedWords.some((word) => normalizedText.includes(word));
+};
 
 module.exports = {
   sendMail,
@@ -1877,5 +1887,6 @@ module.exports = {
   fetchBags,
   fetchRightSequence,
   sendOnboardingMail,
-  resolveMetricValue
+  resolveMetricValue,
+  containsRestrictedWords
 };

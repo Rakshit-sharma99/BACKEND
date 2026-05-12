@@ -15,6 +15,7 @@ const {
   updateUserIP,
   fetchJoinLinkById,
   fetchBags,
+  containsRestrictedWords,
 } = require("./utils");
 
 const STOP_WORDS = new Set([
@@ -115,6 +116,11 @@ const createCommunity = async (req, res) => {
       universeMetaData,
       scope,
     } = req.body;
+
+    if (containsRestrictedWords(title)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ error: "The provided title contains restricted words and cannot be used." });
+    }
+
     const creatorId = req.user.id;
     const createdOn = new Date();
 

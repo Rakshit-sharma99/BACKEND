@@ -336,6 +336,18 @@ const assetItemSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {},
   },
+  reactions: {
+    type: Map,
+    of: Number,
+    default: {},
+  },
+  reactedBy: [
+    {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      emoji: String,
+      reactedAt: { type: Date, default: Date.now },
+    },
+  ],
 });
 
 const userSchema = new mongoose.Schema(

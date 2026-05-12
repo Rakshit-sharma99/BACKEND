@@ -152,6 +152,10 @@ const clubSchema = new mongoose.Schema(
         type: [String],
         default: [],
       },
+      whoCanAccessWallet: {
+        type: [String],
+        default: [],
+      },
     },
     memoryRequests: {
       type: Array,

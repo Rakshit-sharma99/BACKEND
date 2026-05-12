@@ -1882,8 +1882,22 @@ const getSearchResults = async (req, res) => {
     const key = req.query.key || "All";
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
-    const skip = (page - 1) * limit;
     const MIN_SCORE = 0.5; // relevance threshold
+
+    let seenIds = [];
+    if (req.query.seenIds) {
+      try {
+        const parsed = JSON.parse(req.query.seenIds);
+        if (Array.isArray(parsed)) seenIds = parsed;
+      } catch (e) {
+        seenIds = req.query.seenIds.split(",");
+      }
+    }
+    const validSeenIds = seenIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    const skip = validSeenIds.length > 0 ? 0 : (page - 1) * limit;
 
     if (!query) return res.status(200).json({ success: true, results: [] });
 
@@ -1910,6 +1924,7 @@ const getSearchResults = async (req, res) => {
             },
           },
         },
+        { $match: { _id: { $nin: validSeenIds } } },
         { $addFields: { membersCount: { $size: "$members" } } },
         {
           $project: {
@@ -1933,9 +1948,13 @@ const getSearchResults = async (req, res) => {
 
     async function fetchEvents() {
       if (isFiltered) {
-        return fetchSearchedEvents(query, { page, limit });
+        return fetchSearchedEvents(query, {
+          page: validSeenIds.length > 0 ? 1 : page,
+          limit,
+          seenIds,
+        });
       }
-      return fetchSearchedEvents(query);
+      return fetchSearchedEvents(query, { seenIds });
     }
 
     async function fetchCommunities() {
@@ -1963,6 +1982,7 @@ const getSearchResults = async (req, res) => {
             },
           },
         },
+        { $match: { _id: { $nin: validSeenIds } } },
         {
           $project: {
             title: 1,
@@ -2005,6 +2025,7 @@ const getSearchResults = async (req, res) => {
             },
           },
         },
+        { $match: { _id: { $nin: validSeenIds } } },
         {
           $project: {
             name: 1,
@@ -2028,27 +2049,59 @@ const getSearchResults = async (req, res) => {
 
     async function fetchCards() {
       if (isFiltered) {
-        return fetchSearchedCards(query, { page, limit });
+        return fetchSearchedCards(query, {
+          page: validSeenIds.length > 0 ? 1 : page,
+          limit,
+          seenIds,
+        });
       }
-      return fetchSearchedCards(query);
+      return fetchSearchedCards(query, { seenIds });
     }
 
     async function fetchContents() {
       if (isFiltered) {
-        return fetchSearchedContents(query, { page, limit });
+        return fetchSearchedContents(query, {
+          page: validSeenIds.length > 0 ? 1 : page,
+          limit,
+          seenIds,
+        });
       }
-      return fetchSearchedContents(query);
+      return fetchSearchedContents(query, { seenIds });
     }
 
     // fetch based on key mode
-    const [clubs, events, communities, users, cards, contents] = await Promise.all([
-      ["Clubs", "All"].includes(key) ? fetchClubs() : [],
-      ["Events", "All"].includes(key) ? fetchEvents() : [],
-      ["Communities", "All"].includes(key) ? fetchCommunities() : [],
-      ["People", "All"].includes(key) ? fetchUsers() : [],
-      ["Cards", "All"].includes(key) ? fetchCards() : [],
-      ["Content"].includes(key) ? fetchContents() : [],
-    ]);
+    let [clubs, events, communities, users, cards, contents] =
+      await Promise.all([
+        ["Clubs", "All"].includes(key) ? fetchClubs() : [],
+        ["Events", "All"].includes(key) ? fetchEvents() : [],
+        ["Communities", "All"].includes(key) ? fetchCommunities() : [],
+        ["People", "All"].includes(key) ? fetchUsers() : [],
+        ["Cards", "All"].includes(key) ? fetchCards() : [],
+        ["Content"].includes(key) ? fetchContents() : [],
+      ]);
+
+    const deduplicate = (arr) => {
+      if (!arr || !Array.isArray(arr)) return [];
+      const seen = new Set();
+      return arr.filter((item) => {
+        const id = item._id
+          ? item._id.toString()
+          : item.id
+            ? item.id.toString()
+            : null;
+        if (!id) return true;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+    };
+
+    clubs = deduplicate(clubs);
+    events = deduplicate(events);
+    communities = deduplicate(communities);
+    users = deduplicate(users);
+    cards = deduplicate(cards);
+    contents = deduplicate(contents);
 
     if (key === "All") {
       // "All" mode: return top items from each category, ordered by highest-scoring category first
@@ -3488,7 +3541,11 @@ const getTrendingSearches = async (req, res) => {
     // ── Club / Community ───────────────────────────────────────────────
     if (filter === "club") {
       const clubs = await Club.aggregate([
-        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        {
+          $addFields: {
+            membersCount: { $size: { $ifNull: ["$members", []] } },
+          },
+        },
         { $sort: { membersCount: -1 } },
         { $limit: LIMIT },
         {
@@ -3504,12 +3561,18 @@ const getTrendingSearches = async (req, res) => {
         },
       ]);
 
-      return res.status(StatusCodes.OK).json({ success: true, filter, data: clubs });
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, filter, data: clubs });
     }
 
     if (filter === "community") {
       const communities = await Community.aggregate([
-        { $addFields: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        {
+          $addFields: {
+            membersCount: { $size: { $ifNull: ["$members", []] } },
+          },
+        },
         { $sort: { membersCount: -1 } },
         { $limit: LIMIT },
         {
@@ -3626,6 +3689,169 @@ const getTrendingSearches = async (req, res) => {
   }
 };
 
+// ==================== ASSET REACTION CONTROLLERS ====================
+
+/**
+ * React to an asset with an emoji.
+ * POST /user/reactToAsset
+ * Body: { ownerUserId, vicinityAssetId, emoji }
+ *
+ * Toggle behaviour:
+ *  - If user already reacted with the SAME emoji → unreact (remove)
+ *  - If user already reacted with a DIFFERENT emoji → switch
+ *  - If user has no reaction → add
+ */
+const reactToAsset = async (req, res) => {
+  try {
+    const { ownerUserId, vicinityAssetId, emoji } = req.body;
+    const reactorId = req.user.id;
+
+    if (!ownerUserId || !vicinityAssetId || !emoji) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          message: "ownerUserId, vicinityAssetId, and emoji are required.",
+        });
+    }
+
+    const owner = await User.findById(ownerUserId, { vicinityAsset: 1 });
+    if (!owner) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Asset owner not found." });
+    }
+
+    const asset = owner.vicinityAsset.id(vicinityAssetId);
+    if (!asset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Asset not found." });
+    }
+
+    // Initialise reactions map if it doesn't exist yet
+    if (!asset.reactions) {
+      asset.reactions = new Map();
+    }
+
+    // Check if user already reacted with THIS SPECIFIC emoji
+    const existingIdx = (asset.reactedBy || []).findIndex(
+      (r) => String(r.userId) === String(reactorId) && r.emoji === emoji,
+    );
+
+    if (existingIdx >= 0) {
+      // Same emoji again → toggle off (unreact)
+      const oldCount = asset.reactions.get(emoji) || 0;
+      if (oldCount <= 1) {
+        asset.reactions.delete(emoji);
+      } else {
+        asset.reactions.set(emoji, oldCount - 1);
+      }
+
+      asset.reactedBy.splice(existingIdx, 1);
+
+      await owner.save();
+      return res
+        .status(StatusCodes.OK)
+        .json({ success: true, action: "unreacted" });
+    }
+
+    // Add new reaction
+    const currentCount = asset.reactions.get(emoji) || 0;
+    asset.reactions.set(emoji, currentCount + 1);
+    asset.reactedBy.push({
+      userId: reactorId,
+      emoji,
+      reactedAt: new Date(),
+    });
+
+    await owner.save();
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ success: true, action: "reacted" });
+  } catch (error) {
+    console.error("Error in reactToAsset:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        message: "Something went wrong while reacting to asset.",
+      });
+  }
+};
+
+/**
+ * Get aggregated reactions for an asset.
+ * GET /user/getAssetReactions?ownerUserId=xxx&vicinityAssetId=yyy
+ */
+const getAssetReactions = async (req, res) => {
+  try {
+    const { ownerUserId, vicinityAssetId } = req.query;
+    const callerId = req.user?.id;
+
+    if (!ownerUserId || !vicinityAssetId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({
+          success: false,
+          message: "ownerUserId and vicinityAssetId are required.",
+        });
+    }
+
+    const owner = await User.findById(ownerUserId, { vicinityAsset: 1 }).lean();
+    if (!owner) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Asset owner not found." });
+    }
+
+    const asset = (owner.vicinityAsset || []).find(
+      (a) => String(a._id) === String(vicinityAssetId),
+    );
+
+    if (!asset) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ success: false, message: "Asset not found." });
+    }
+
+    // Build reactions object from the Map
+    const reactions =
+      asset.reactions instanceof Map
+        ? Object.fromEntries(asset.reactions)
+        : asset.reactions || {};
+
+    const totalCount = Object.values(reactions).reduce((sum, c) => sum + c, 0);
+
+    // Find calling user's reaction
+    let userReaction = null;
+    if (callerId && Array.isArray(asset.reactedBy)) {
+      const entry = asset.reactedBy.find(
+        (r) => String(r.userId) === String(callerId),
+      );
+      if (entry) {
+        userReaction = entry.emoji;
+      }
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      reactions,
+      totalCount,
+      userReaction,
+    });
+  } catch (error) {
+    console.error("Error in getAssetReactions:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({
+        success: false,
+        message: "Something went wrong while fetching reactions.",
+      });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -3633,6 +3859,8 @@ module.exports = {
   saveUserAsset,
   editUserAsset,
   deleteUserAsset,
+  reactToAsset,
+  getAssetReactions,
   getUser,
   updateUser,
   deleteUser,

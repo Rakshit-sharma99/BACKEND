@@ -73,6 +73,8 @@ const {
   checkUserChannelRole,
   getRecommendedProfiles,
   getTrendingSearches,
+  reactToAsset,
+  getAssetReactions,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -139,6 +141,8 @@ router.post("/deleteUserAsset", deleteUserAsset);
 router.get("/getUserAssets", getUserAssets);
 router.get("/getAssetSuggestions", getAssetSuggestions);
 router.get("/getUserAssetById", getUserAssetById);
+router.post("/reactToAsset", reactToAsset);
+router.get("/getAssetReactions", getAssetReactions);
 router.get("/searchUsersByFacet", searchUsersByFacet);
 router.get("/getAlumniByCompany", getAlumniByCompany);
 

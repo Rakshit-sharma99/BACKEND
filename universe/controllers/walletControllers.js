@@ -176,7 +176,12 @@ const getWallet = async (req, res) => {
         .json({ success: false, message: "You are not authorized to access this wallet." });
     }
 
-    if (actor.role !== "admin" && !isClubAdmin(club, actor.id)) {
+    const hasWalletAccess =
+      actor.role === "admin" ||
+      isClubAdmin(club, actor.id) ||
+      club.permissions?.whoCanAccessWallet?.includes(actor.id);
+
+    if (!hasWalletAccess) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ success: false, message: "You are not authorized for this wallet action." });
@@ -203,9 +208,13 @@ const getWallet = async (req, res) => {
           canView: true,
           canPurchase: actor.role === "admin" || canDispatchAwards(club, actor.id),
           canWithdraw:
-            actor.role === "admin" || club.mainAdmin?.toString() === actor.id,
+            actor.role === "admin" ||
+            club.mainAdmin?.toString() === actor.id ||
+            club.permissions?.whoCanAccessWallet?.includes(actor.id),
           canManageBank:
-            actor.role === "admin" || club.mainAdmin?.toString() === actor.id,
+            actor.role === "admin" ||
+            club.mainAdmin?.toString() === actor.id ||
+            club.permissions?.whoCanAccessWallet?.includes(actor.id),
         },
       },
     });
@@ -247,7 +256,12 @@ const getWalletTransactions = async (req, res) => {
         .json({ success: false, message: "You are not authorized to access this wallet." });
     }
 
-    if (actor.role !== "admin" && !isClubAdmin(club, actor.id)) {
+    const hasWalletAccess =
+      actor.role === "admin" ||
+      isClubAdmin(club, actor.id) ||
+      club.permissions?.whoCanAccessWallet?.includes(actor.id);
+
+    if (!hasWalletAccess) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ success: false, message: "You are not authorized for this wallet action." });
@@ -354,7 +368,12 @@ const patchBankAccount = async (req, res) => {
         .json({ success: false, message: "You are not authorized to access this wallet." });
     }
 
-    if (actor.role !== "admin" && club.mainAdmin?.toString() !== actor.id) {
+    const hasWalletAccess =
+      actor.role === "admin" ||
+      club.mainAdmin?.toString() === actor.id ||
+      club.permissions?.whoCanAccessWallet?.includes(actor.id);
+
+    if (!hasWalletAccess) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ success: false, message: "You are not authorized for this wallet action." });
@@ -679,7 +698,12 @@ const createWithdrawal = async (req, res) => {
         .json({ success: false, message: "You are not authorized to access this wallet." });
     }
 
-    if (actor.role !== "admin" && club.mainAdmin?.toString() !== actor.id) {
+    const hasWalletAccess =
+      actor.role === "admin" ||
+      club.mainAdmin?.toString() === actor.id ||
+      club.permissions?.whoCanAccessWallet?.includes(actor.id);
+
+    if (!hasWalletAccess) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ success: false, message: "You are not authorized for this wallet action." });
@@ -894,7 +918,12 @@ const getWithdrawals = async (req, res) => {
         .json({ success: false, message: "You are not authorized to access this wallet." });
     }
 
-    if (actor.role !== "admin" && !isClubAdmin(club, actor.id)) {
+    const hasWalletAccess =
+      actor.role === "admin" ||
+      isClubAdmin(club, actor.id) ||
+      club.permissions?.whoCanAccessWallet?.includes(actor.id);
+
+    if (!hasWalletAccess) {
       return res
         .status(StatusCodes.FORBIDDEN)
         .json({ success: false, message: "You are not authorized for this wallet action." });

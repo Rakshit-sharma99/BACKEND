@@ -830,7 +830,11 @@ const getRandomCardsForFeed = async (req, res) => {
 const getSearchedCards = async (req, res) => {
   try {
     const { query, limit = 12, page = 1 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    let validSeenIds = [];
+    if (req.query.seenIds) {
+      validSeenIds = req.query.seenIds.split(',').filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+    }
+    const skip = validSeenIds.length > 0 ? 0 : (parseInt(page) - 1) * parseInt(limit);
     const cards = await Card.aggregate([
       {
         $search: {
@@ -849,6 +853,7 @@ const getSearchedCards = async (req, res) => {
           },
         },
       },
+      { $match: { _id: { $nin: validSeenIds } } },
       {
         $project: {
           value: 1,

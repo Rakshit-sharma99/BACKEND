@@ -14,6 +14,7 @@ const {
   generateUri,
   fetchInvitationById,
   fetchItineraryFromIds,
+  containsRestrictedWords,
 } = require("../controllers/utils");
 const mongoose = require("mongoose");
 const { getPushTokens } = require("./userControllers");
@@ -111,6 +112,13 @@ const createClub = async (req, res) => {
     }
 
     const safePayload = sanitizeClubPayload(req.body);
+
+    if (containsRestrictedWords(safePayload.name)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error:
+          "The provided name contains restricted words and cannot be used.",
+      });
+    }
 
     const club = await Club.create({
       ...safePayload,
@@ -1604,7 +1612,11 @@ const addTeamMember = async (req, res) => {
       name: 1,
       secondaryImg: 1,
     });
-    const userInfo = await User.findById(id, { pushToken: 1, name: 1, email: 1 });
+    const userInfo = await User.findById(id, {
+      pushToken: 1,
+      name: 1,
+      email: 1,
+    });
     if (!club) {
       return res.status(StatusCodes.NOT_FOUND).send("Club not found.");
     }
@@ -1616,9 +1628,9 @@ const addTeamMember = async (req, res) => {
       body: `You were promoted to ${pos} in ${club.name}`,
       url: `https://macbease.com/app/club/${clubId}`,
     });
-    
+
     sendCoreTeamPromotionEmail(userInfo, club, pos);
-    
+
     return res.status(StatusCodes.OK).send("Successfully added to the team!");
   } catch (error) {
     console.error(error);
@@ -2105,7 +2117,11 @@ const getClubBio = async (req, res) => {
     };
     const teamDetails = await Promise.all(
       club.team.map(async (member) => {
-        const user = await User.findById(member.id, { name: 1, image: 1, universeMetaData: 1 });
+        const user = await User.findById(member.id, {
+          name: 1,
+          image: 1,
+          universeMetaData: 1,
+        });
         return {
           ...member,
           name: user?.name || "Unknown",
@@ -2511,9 +2527,13 @@ const getStatus = async (req, res) => {
         req.user.id,
       ),
       isChatModerator: club.permissions.chatModerators.includes(req.user.id),
-      canSendNotifications: club.permissions.whoCanSendNotifications.includes(
-        req.user.id,
-      ),
+      canSendNotifications:
+        club.permissions.whoCanSendNotifications?.includes(req.user.id) ||
+        false,
+      canDispatchAwards:
+        club.permissions.whoCanDispatchAwards?.includes(req.user.id) || false,
+      canAccessWallet:
+        club.permissions.whoCanAccessWallet?.includes(req.user.id) || false,
       undecidedProposals: club.undecidedProposals.length,
     });
   } catch (error) {
@@ -3223,6 +3243,14 @@ const addProposal = async (req, res) => {
       name: 1,
     });
     const proposal = await fetchInvitationById({ id: proposalId });
+
+    if (!proposal) {
+      return res.status(404).json({
+        success: false,
+        message: "Proposal not found or invitation service is unreachable",
+      });
+    }
+
     const senderMetaData = await User.findById(proposal.sentBy, {
       name: 1,
       image: 1,
@@ -3303,7 +3331,10 @@ const fetchProposals = async (req, res) => {
             ...proposal,
             endorsedBy: proposalData.endorsedBy,
             expiration: proposalData.expiration,
-            universeMetaData: proposalData.universeMetaData || proposal.universeMetaData || null,
+            universeMetaData:
+              proposalData.universeMetaData ||
+              proposal.universeMetaData ||
+              null,
           };
         }
         return proposal;
@@ -4220,6 +4251,7 @@ const getClubPermissions = async (req, res) => {
       ...(permissions.whoCanAcceptProposals || []),
       ...(permissions.chatModerators || []),
       ...(permissions.whoCanSendNotifications || []),
+      ...(permissions.whoCanAccessWallet || []),
     ];
 
     const uniqueUserIds = [...new Set(allUserIds.map((id) => id.toString()))];
@@ -4298,6 +4330,7 @@ const assignDefaultPermissions = async (req, res) => {
         whoCanSendNotifications: club.adminId || [],
         whoCanAcceptProposals: club.mainAdmin ? [club.mainAdmin] : [],
         whoCanDispatchAwards: club.mainAdmin ? [club.mainAdmin] : [],
+        whoCanAccessWallet: club.mainAdmin ? [club.mainAdmin] : [],
       };
       return club.save();
     });
@@ -4342,6 +4375,7 @@ const updateClubPermission = async (req, res) => {
       "chatModerators",
       "whoCanSendNotifications",
       "whoCanDispatchAwards",
+      "whoCanAccessWallet",
     ];
     if (!validKeys.includes(permissionKey)) {
       return res.status(400).json({ message: "Invalid permission key" });

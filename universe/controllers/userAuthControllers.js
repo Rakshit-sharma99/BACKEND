@@ -11,6 +11,7 @@ const {
   fetchOrgData,
   createNewOrg,
   sendOnboardingMail,
+  containsRestrictedWords,
 } = require("../controllers/utils");
 const { OpenAI } = require("openai");
 const { default: mongoose } = require("mongoose");
@@ -170,6 +171,11 @@ const registerUser = async (req, res) => {
       universe,
       customUniverse,
     } = req.body;
+
+    if (containsRestrictedWords(name)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "The provided name contains restricted words and cannot be used." });
+    }
+
     const hasUniverse = Object.prototype.hasOwnProperty.call(req.body, "universe");
     const effectiveCustomUniverse = hasUniverse ? null : customUniverse;
     /* ---------- Platform ---------- */
@@ -748,6 +754,11 @@ const pushToken = async (req, res) => {
 //function to check for availability of username
 const userNameAvailable = async (req, res) => {
   const { userName, email, reg, profession, college } = req.query;
+
+  if (containsRestrictedWords(userName)) {
+    return res.status(StatusCodes.OK).send("name contains restricted words");
+  }
+  
   const nameExists = await User.findOne({ name: userName }, { _id: 1 });
   const emailExists = await User.findOne({ email: email }, { _id: 1 });
   if (college === "Lovely Professional University") {

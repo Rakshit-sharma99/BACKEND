@@ -330,7 +330,7 @@ const fetchCouponById = async (query) => {
   }
 };
 
-const fetchSearchedEvents = async (query, { page = 1, limit = 12 } = {}) => {
+const fetchSearchedEvents = async (query, { page = 1, limit = 12, seenIds = [] } = {}) => {
   try {
     if (!query) {
       return [];
@@ -338,10 +338,12 @@ const fetchSearchedEvents = async (query, { page = 1, limit = 12 } = {}) => {
 
     const config = generateServiceToken();
 
-    const response = await axios.get(
-      `${EVENT_SERVICE_URL}/event/api/v1/getSearchedEvents?query=${query}&page=${page}&limit=${limit + 1}`,
-      config,
-    );
+    let url = `${EVENT_SERVICE_URL}/event/api/v1/getSearchedEvents?query=${query}&page=${page}&limit=${limit + 1}`;
+    if (seenIds && seenIds.length > 0) {
+      url += `&seenIds=${seenIds.join(',')}`;
+    }
+
+    const response = await axios.get(url, config);
 
     return response.data.data;
   } catch (error) {
@@ -350,7 +352,7 @@ const fetchSearchedEvents = async (query, { page = 1, limit = 12 } = {}) => {
   }
 };
 
-const fetchSearchedCards = async (query, { page = 1, limit = 12 } = {}) => {
+const fetchSearchedCards = async (query, { page = 1, limit = 12, seenIds = [] } = {}) => {
   try {
     if (!query) {
       return [];
@@ -358,10 +360,12 @@ const fetchSearchedCards = async (query, { page = 1, limit = 12 } = {}) => {
 
     const config = generateServiceToken();
 
-    const response = await axios.get(
-      `${CARD_SERVICE_URL}/card/api/v1/getSearchedCards?query=${query}&page=${page}&limit=${limit + 1}`,
-      config,
-    );
+    let url = `${CARD_SERVICE_URL}/card/api/v1/getSearchedCards?query=${query}&page=${page}&limit=${limit + 1}`;
+    if (seenIds && seenIds.length > 0) {
+      url += `&seenIds=${seenIds.join(',')}`;
+    }
+
+    const response = await axios.get(url, config);
 
     return response.data.data;
   } catch (error) {
@@ -629,21 +633,23 @@ const fetchTrendingCards = async ({ tags, limit = 6 }) => {
   }
 };
 
-const fetchSearchedContents = async (query, { page = 1, limit = 12 } = {}) => {
+const fetchSearchedContents = async (query, { page = 1, limit = 12, seenIds = [] } = {}) => {
   try {
     if (!query) return [];
 
     const config = generateServiceToken();
 
-    const response = await axios.get(
-      `${CONTENT_SERVICE_URL}/content/api/v1/searchContentByTag?query=${encodeURIComponent(query)}`,
-      config,
-    );
+    let url = `${CONTENT_SERVICE_URL}/content/api/v1/searchContentByTag?query=${encodeURIComponent(query)}`;
+    if (seenIds && seenIds.length > 0) {
+      url += `&seenIds=${seenIds.join(',')}`;
+    }
+
+    const response = await axios.get(url, config);
 
     const results = response.data?.actualContent || [];
 
     // Apply pagination on the returned results
-    const skip = (page - 1) * limit;
+    const skip = seenIds && seenIds.length > 0 ? 0 : (page - 1) * limit;
     return results.slice(skip, skip + limit + 1).map((item) => ({
       ...item,
       type: "content",

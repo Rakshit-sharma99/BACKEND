@@ -3702,7 +3702,12 @@ const toggleWaitlist = async (req, res) => {
 const getSearchedEvents = async (req, res) => {
   try {
     const { query, limit = 12, page = 1 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    let validSeenIds = [];
+    if (req.query.seenIds) {
+      validSeenIds = req.query.seenIds.split(',').filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+    }
+    const skip = validSeenIds.length > 0 ? 0 : (parseInt(page) - 1) * parseInt(limit);
+
     const events = await Event.aggregate([
       {
         $search: {
@@ -3748,6 +3753,7 @@ const getSearchedEvents = async (req, res) => {
           },
         },
       },
+      { $match: { _id: { $nin: validSeenIds } } },
       { $addFields: { membersCount: { $size: "$bookedBy" } } },
       {
         $project: {

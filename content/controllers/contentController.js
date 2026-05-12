@@ -625,15 +625,21 @@ const searchContentByTag = async (req, res) => {
     return res.status(StatusCodes.BAD_REQUEST).send("Query is required.");
   }
 
+  let validSeenIds = [];
+  if (req.query.seenIds) {
+    validSeenIds = req.query.seenIds.split(',').filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+  }
+
   try {
     const regex = new RegExp(query.trim(), "i");
     const pipeline = [
       {
         $match: {
           $or: [{ title: { $regex: regex } }, { text: { $regex: regex } }],
+          _id: { $nin: validSeenIds },
         },
       },
-      { $sort: { timeStamp: -1 } },
+      { $sort: { timeStamp: -1, _id: 1 } },
       { $limit: 30 },
       {
         $addFields: {
