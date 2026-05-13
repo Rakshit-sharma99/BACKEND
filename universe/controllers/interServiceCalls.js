@@ -661,10 +661,26 @@ const fetchSearchedContents = async (query, { page = 1, limit = 12, seenIds = []
   }
 };
 
+const fetchAssetByPayloadType = async (payloadType) => {
+  try {
+    if (!payloadType) return null;
+
+    const config = generateServiceToken();
+    const url = `${MAP_SERVICE_URL}/map/api/v1/asset/getAssetByPayloadType?payloadType=${payloadType}`;
+    const response = await axios.get(url, config);
+
+    return response.data?.asset || null;
+  } catch (error) {
+    console.error("Error in fetchAssetByPayloadType:", error.message);
+    return null;
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
   fetchMultipleAssets,
+  fetchAssetByPayloadType,
   searchContentsFromIds,
   searchCardsFromTags,
   fetchEventData,

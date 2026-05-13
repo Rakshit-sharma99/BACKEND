@@ -17,6 +17,7 @@ const {
   bulkUpdateTags,
   getMultipleAssets,
   getAssetCategories,
+  getAssetByPayloadType,
   searchAssets,
 } = require("../controllers/assetControllers");
 
@@ -40,5 +41,6 @@ router.get("/getMovieDetails", getMovieDetails);
 
 router.post("/getMultipleAssets", getMultipleAssets);
 router.get("/getAssetCategories", getAssetCategories);
+router.get("/getAssetByPayloadType", getAssetByPayloadType);
 
 module.exports = router;

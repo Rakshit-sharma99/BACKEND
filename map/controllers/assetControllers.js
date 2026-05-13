@@ -916,6 +916,47 @@ const getAssetCategories = async (req, res) => {
   }
 };
 
+/**
+ * Find the first asset template that supports a given payload type.
+ * Used by the universe service when auto-creating an asset for a user.
+ */
+const getAssetByPayloadType = async (req, res) => {
+  try {
+    const { payloadType } = req.query;
+
+    if (!payloadType) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "payloadType query parameter is required.",
+      });
+    }
+
+    const asset = await Asset.findOne({
+      "payloadConfig.requiresPayload": true,
+      "payloadConfig.allowedPayloadTypes": payloadType,
+    }).lean();
+
+    if (!asset) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: `No asset template found for payload type: ${payloadType}`,
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      asset,
+    });
+  } catch (error) {
+    console.error("Error in getAssetByPayloadType:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "An error occurred while fetching asset by payload type.",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createAsset,
   editAsset,
@@ -924,6 +965,7 @@ module.exports = {
   getMultipleAssets,
   getAllAssetsByType,
   getAssetCategories,
+  getAssetByPayloadType,
   searchSongs,
   getSongRecommendations,
   searchBooks,

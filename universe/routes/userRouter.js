@@ -60,6 +60,7 @@ const {
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
   saveUserAsset,
+  savePayloadToMyAsset,
   editUserAsset,
   deleteUserAsset,
   getAssetSuggestions,
@@ -136,6 +137,7 @@ router.post("/checkBookmarks", checkBookmarks);
 router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
 router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
 router.post("/saveUserAsset", saveUserAsset);
+router.post("/savePayloadToMyAsset", savePayloadToMyAsset);
 router.post("/editUserAsset", editUserAsset);
 router.post("/deleteUserAsset", deleteUserAsset);
 router.get("/getUserAssets", getUserAssets);

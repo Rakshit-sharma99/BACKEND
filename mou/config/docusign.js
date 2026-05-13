@@ -92,25 +92,44 @@ async function createEnvelope({
   // Build text tabs for club_representative
   const clubRepTextTabs = [
     { tabLabel: "opted_plan", value: tabValues.opted_plan || " " },
-    { tabLabel: "organizer_designation", value: tabValues.organizer_designation || " " },
+    {
+      tabLabel: "organizer_designation",
+      value: tabValues.organizer_designation || " ",
+    },
     { tabLabel: "event_name", value: tabValues.event_name || "" },
     { tabLabel: "club_name", value: tabValues.club_name || "" },
-    { tabLabel: "macbease_name", value: process.env.MACBEASE_SIGNATORY_NAME || "Macbease" },
-    { tabLabel: "macbease_designation", value: process.env.MACBEASE_SIGNATORY_DESIGNATION || "Platform Administrator" },
+    {
+      tabLabel: "macbease_name",
+      value: process.env.MACBEASE_SIGNATORY_NAME || "Macbease",
+    },
+    {
+      tabLabel: "macbease_designation",
+      value:
+        process.env.MACBEASE_SIGNATORY_DESIGNATION || "Platform Administrator",
+    },
   ]
     .filter((t) => t.value.trim() !== "")
     .map((t) => ({ ...t, locked: "true" }));
 
-  // Build numerical tabs for club_representative
-  const clubRepNumericalTabs = [
-    { tabLabel: "commission_rate", value: tabValues.commission_rate || "", numericalValue: tabValues.commission_rate || "" },
-    { tabLabel: "platform_fee", value: tabValues.platform_fee || "", numericalValue: tabValues.platform_fee || "" },
+  // Build number tabs for club_representative
+  const clubRepNumberTabs = [
+    {
+      tabLabel: "commission_rate",
+      value: String(tabValues.commission_rate || ""),
+    },
+    { tabLabel: "platform_fee", value: String(tabValues.platform_fee || "") },
   ]
     .filter((t) => t.value.trim() !== "")
     .map((t) => ({ ...t, locked: "true" }));
 
-  console.log("🔍 [DocuSign] clubRepTextTabs:", JSON.stringify(clubRepTextTabs, null, 2));
-  console.log("🔍 [DocuSign] clubRepNumericalTabs:", JSON.stringify(clubRepNumericalTabs, null, 2));
+  console.log(
+    "🔍 [DocuSign] clubRepTextTabs:",
+    JSON.stringify(clubRepTextTabs, null, 2),
+  );
+  console.log(
+    "🔍 [DocuSign] clubRepNumberTabs:",
+    JSON.stringify(clubRepNumberTabs, null, 2),
+  );
 
   const envelopeDefinition = {
     templateId: process.env.DOCUSIGN_TEMPLATE_ID,
@@ -122,7 +141,8 @@ async function createEnvelope({
         clientUserId,
         tabs: {
           textTabs: clubRepTextTabs.length > 0 ? clubRepTextTabs : undefined,
-          numericalTabs: clubRepNumericalTabs.length > 0 ? clubRepNumericalTabs : undefined,
+          numberTabs:
+            clubRepNumberTabs.length > 0 ? clubRepNumberTabs : undefined,
         },
       },
       {
@@ -174,14 +194,20 @@ async function getSigningUrl(
   };
 
   try {
-    const result = await envelopesApi.createRecipientView(accountId, envelopeId, {
-      recipientViewRequest,
-    });
+    const result = await envelopesApi.createRecipientView(
+      accountId,
+      envelopeId,
+      {
+        recipientViewRequest,
+      },
+    );
     return result.url;
   } catch (err) {
     console.error(
       "❌ [DocuSign] Failed to get signing URL:",
-      err.response ? JSON.stringify(err.response.data || err.response.body) : err.message
+      err.response
+        ? JSON.stringify(err.response.data || err.response.body)
+        : err.message,
     );
     throw err;
   }

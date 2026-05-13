@@ -2763,6 +2763,43 @@ const saveUserAsset = async (req, res) => {
   }
 };
 
+const savePayloadToMyAsset = async (req, res) => {
+  try {
+    const { payloadType, payloadItem, sourceAssetId, sourceUserId } = req.body;
+    const userId = req.user.id;
+
+    if (!payloadType || !payloadItem) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: "Missing required fields: payloadType and payloadItem.",
+      });
+    }
+
+    const validTypes = ["book", "movie", "audio"];
+    if (!validTypes.includes(payloadType)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        error: `Invalid payloadType. Must be one of: ${validTypes.join(", ")}`,
+      });
+    }
+
+    const { savePayloadToAsset } = require("../services/assetSaveService");
+
+    const result = await savePayloadToAsset(userId, payloadType, payloadItem, {
+      sourceAssetId,
+      sourceUserId,
+    });
+
+    return res.status(StatusCodes.OK).json(result);
+  } catch (error) {
+    console.error("Error in savePayloadToMyAsset:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      error: "Something went wrong while saving the payload.",
+    });
+  }
+};
+
 const editUserAsset = async (req, res) => {
   try {
     const { assetId, updates, assets } = req.body;
@@ -3857,6 +3894,7 @@ module.exports = {
   getUserAssets,
   getUserAssetById,
   saveUserAsset,
+  savePayloadToMyAsset,
   editUserAsset,
   deleteUserAsset,
   reactToAsset,
