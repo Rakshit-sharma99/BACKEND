@@ -565,6 +565,17 @@ services:
       - app-network
     restart: unless-stopped
 
+  discovery:
+    build:
+      context: ./discovery
+      dockerfile: Dockerfile
+    image: spargens/discovery
+    env_file:
+      - ./env/discovery/.env
+    networks:
+      - app-network
+    restart: unless-stopped
+
 volumes:
   kafka-data:
   social-claw-data:

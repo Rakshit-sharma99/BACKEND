@@ -1,0 +1,25 @@
+{
+  "name": "discovery",
+  "version": "1.0.0",
+  "description": "Privacy-first contact discovery service for Macbease Memory Lane",
+  "main": "app.js",
+  "scripts": {
+    "start": "nodemon -L app.js"
+  },
+  "author": "Ayush",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.1.0",
+    "http": "^0.0.1-security",
+    "http-status-codes": "^2.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "kafkajs": "^2.2.4",
+    "mongoose": "^8.15.0",
+    "nodemon": "^3.1.11"
+  }
+}

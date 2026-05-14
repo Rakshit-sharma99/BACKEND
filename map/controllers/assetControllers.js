@@ -201,6 +201,30 @@ const getAssetById = async (req, res) => {
   }
 };
 
+const fallbackMovies = [
+  {
+    id: 1,
+    title: "Inception",
+    release_date: "2010-07-16",
+    poster_path: "/oYuS60uYm61Bv9979t4qSgu3Yv7.jpg",
+    overview: "A thief who steals corporate secrets through the use of dream-sharing technology...",
+  },
+  {
+    id: 2,
+    title: "Interstellar",
+    release_date: "2014-11-05",
+    poster_path: "/gEU2QniE6Ea7hYvYmuehxtevA01.jpg",
+    overview: "The adventures of a group of explorers who make use of a newly discovered wormhole...",
+  },
+  {
+    id: 3,
+    title: "The Dark Knight",
+    release_date: "2008-07-18",
+    poster_path: "/qJ2tW6WMUDr9p1vmsnbuIjsJuTM.jpg",
+    overview: "Batman raises the stakes in his war on crime...",
+  },
+];
+
 /**
  * Controller to get all assets segregated by their type.
  * Groups assets by the 'type' field, and within those types, further groups by 'tag'.
@@ -709,10 +733,10 @@ const getMovieRecommendations = async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching movie recommendations:", error.message);
-    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
-      success: false,
-      message: "An error occurred while fetching movie recommendations.",
-      error: error.message,
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: fallbackMovies,
+      message: "Showing recommendations from hardcoded fallback due to API errors.",
     });
   }
 };

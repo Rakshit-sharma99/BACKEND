@@ -606,6 +606,17 @@ const userSchema = new mongoose.Schema(
       ref: "Org",
     },
 
+    phone: {
+      type: String,
+      unique: true,
+      sparse: true, // sparse index allows multiple nulls
+    },
+
+    isPhoneVerified: {
+      type: Boolean,
+      default: false,
+    },
+
     appVersion: {
       type: String,
     },

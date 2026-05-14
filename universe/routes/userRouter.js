@@ -44,6 +44,7 @@ const {
   saveInterest,
   insertNewFields,
   getMemoryListUsers,
+  removeUserFromMemoryList,
   getSearchResults,
   getTuners,
   getMemoryListRecommendation,
@@ -59,6 +60,8 @@ const {
   checkBookmarks,
   sendProfessionalEmailOTP,
   verifyProfessionalEmailOTP,
+  sendPhoneOTP,
+  verifyPhoneOTP,
   saveUserAsset,
   savePayloadToMyAsset,
   editUserAsset,
@@ -121,6 +124,7 @@ router.get("/getContentTeamAdmins", getContentTeamAdmins);
 router.post("/saveInterest", saveInterest);
 router.post("/insertNewFields", insertNewFields);
 router.get("/getMemoryListUsers", getMemoryListUsers);
+router.post("/removeUserFromMemoryList", removeUserFromMemoryList);
 router.get("/getSearchResults", getSearchResults);
 router.get("/getTuners", getTuners);
 router.get("/getMemoryListRecommendation", getMemoryListRecommendation);
@@ -136,6 +140,10 @@ router.get("/getBookmarks", getBookmarks);
 router.post("/checkBookmarks", checkBookmarks);
 router.post("/sendProfessionalEmailOTP", sendProfessionalEmailOTP);
 router.post("/verifyProfessionalEmailOTP", verifyProfessionalEmailOTP);
+
+router.post("/sendPhoneOTP", sendPhoneOTP);
+router.post("/verifyPhoneOTP", verifyPhoneOTP);
+
 router.post("/saveUserAsset", saveUserAsset);
 router.post("/savePayloadToMyAsset", savePayloadToMyAsset);
 router.post("/editUserAsset", editUserAsset);

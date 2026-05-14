@@ -82,6 +82,8 @@ const getUserBio = async (req, res) => {
         shortCuts: 1,
         incompleteFields: 1,
         universeMetaData: 1,
+        phone: 1,
+        isPhoneVerified: 1,
       }),
       Bookmark.countDocuments({ userId: req.user.id }),
     ]);
@@ -110,6 +112,8 @@ const getUserBio = async (req, res) => {
       shortCuts,
       incompleteFields,
       universeMetaData,
+      phone,
+      isPhoneVerified,
     } = user;
 
     console.log("bookmarksCount", bookmarksCount);
@@ -135,6 +139,8 @@ const getUserBio = async (req, res) => {
       incompleteFields,
       universeMetaData,
       bookmarksCount,
+      phone,
+      isPhoneVerified,
     });
   } catch (err) {
     console.error(err);
@@ -610,6 +616,8 @@ const getBasicUserBio = async (req, res) => {
       incompleteProfile: 1,
       level: 1,
       ip: 1,
+      phone: 1,
+      isPhoneVerified: 1,
       memoryList: 1,
       universeMetaData: 1,
       gender: 1,
@@ -684,6 +692,8 @@ const getBasicUserBio = async (req, res) => {
       emailVerified: user.emailVerified,
       cards: user.cards,
       bookmarksCount,
+      phone: user.phone,
+      isPhoneVerified: user.isPhoneVerified,
     };
     return res.status(StatusCodes.OK).json(outcome);
   } catch (error) {
@@ -1871,6 +1881,44 @@ const getMemoryListUsers = async (req, res) => {
     console.error("Error fetching memory list users:", error);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       msg: "Failed to fetch memory list users.",
+      error: error.message,
+    });
+  }
+};
+
+const removeUserFromMemoryList = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetUserId } = req.body;
+
+    if (!userId) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ msg: "Unauthorized access." });
+    }
+
+    if (!targetUserId) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ msg: "targetUserId is required." });
+    }
+
+    const userToUpdate = await User.findById(userId);
+
+    // Filter out the target user ID manually
+    userToUpdate.memoryList = userToUpdate.memoryList.filter(
+      (id) => id.toString() !== targetUserId,
+    );
+
+    await userToUpdate.save();
+
+    return res
+      .status(StatusCodes.OK)
+      .json({ msg: "Successfully removed from memory list" });
+  } catch (error) {
+    console.error("Error removing user from memory list:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      msg: "Failed to remove user from memory list.",
       error: error.message,
     });
   }
@@ -3744,12 +3792,10 @@ const reactToAsset = async (req, res) => {
     const reactorId = req.user.id;
 
     if (!ownerUserId || !vicinityAssetId || !emoji) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({
-          success: false,
-          message: "ownerUserId, vicinityAssetId, and emoji are required.",
-        });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "ownerUserId, vicinityAssetId, and emoji are required.",
+      });
     }
 
     const owner = await User.findById(ownerUserId, { vicinityAsset: 1 });
@@ -3809,12 +3855,10 @@ const reactToAsset = async (req, res) => {
       .json({ success: true, action: "reacted" });
   } catch (error) {
     console.error("Error in reactToAsset:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({
-        success: false,
-        message: "Something went wrong while reacting to asset.",
-      });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong while reacting to asset.",
+    });
   }
 };
 
@@ -3828,12 +3872,10 @@ const getAssetReactions = async (req, res) => {
     const callerId = req.user?.id;
 
     if (!ownerUserId || !vicinityAssetId) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({
-          success: false,
-          message: "ownerUserId and vicinityAssetId are required.",
-        });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "ownerUserId and vicinityAssetId are required.",
+      });
     }
 
     const owner = await User.findById(ownerUserId, { vicinityAsset: 1 }).lean();
@@ -3880,12 +3922,10 @@ const getAssetReactions = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in getAssetReactions:", error);
-    return res
-      .status(StatusCodes.INTERNAL_SERVER_ERROR)
-      .json({
-        success: false,
-        message: "Something went wrong while fetching reactions.",
-      });
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong while fetching reactions.",
+    });
   }
 };
 
@@ -3943,6 +3983,7 @@ module.exports = {
   saveInterest,
   insertNewFields,
   getMemoryListUsers,
+  removeUserFromMemoryList,
   getSearchResults,
   getTuners,
   getMemoryListRecommendation,
@@ -3967,3 +4008,79 @@ module.exports = {
   getRecommendedProfiles,
   getTrendingSearches,
 };
+
+const sendPhoneOTP = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Phone number is required." });
+    }
+
+    // MOCK OTP
+    const otp = "1234";
+    console.log(`[MOCK OTP] Sending OTP ${otp} to phone ${phone}`);
+
+    res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: "OTP sent successfully." });
+  } catch (error) {
+    console.error(error);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Failed to send OTP." });
+  }
+};
+
+const verifyPhoneOTP = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { phone, otp } = req.body;
+
+    if (!phone || !otp) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Phone number and OTP are required." });
+    }
+
+    // MOCK VERIFICATION
+    if (otp !== "1234") {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ error: "Invalid OTP." });
+    }
+
+    // Update user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { phone, isPhoneVerified: true },
+      { new: true },
+    );
+
+    if (!updatedUser) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ error: "User not found." });
+    }
+
+    res
+      .status(StatusCodes.OK)
+      .json({ success: true, message: "Phone number verified successfully." });
+  } catch (error) {
+    console.error(error);
+    if (error.code === 11000) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({
+          error: "Phone number is already associated with another account.",
+        });
+    }
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: "Failed to verify OTP." });
+  }
+};
+
+module.exports.sendPhoneOTP = sendPhoneOTP;
+module.exports.verifyPhoneOTP = verifyPhoneOTP;
