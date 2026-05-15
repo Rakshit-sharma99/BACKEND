@@ -2,6 +2,7 @@ require("dotenv").config();
 require("./config/kafka_producer");
 require("./config/kafka_listener");
 require("./config/snapshotCron");
+require("./config/cleanupBinCron");
 
 const cors = require("cors");
 const express = require("express");
@@ -56,7 +57,7 @@ const letterRouter = require("./routes/letterRouter");
 const contentModerationRouter = require("./routes/contentModerationRouter");
 const alumniRouter = require("./routes/alumniRouter");
 const rateLimit = require("express-rate-limit");
-const awardRouter = require("./routes/awardRouter");
+
 const blockRouter = require("./routes/blockRouter");
 const Session = require("./models/session");
 const recentSearchesRouter = require("./routes/recentSearchesRouter");
@@ -140,7 +141,7 @@ app.use(
   contentModerationRouter,
 );
 app.use("/universe/api/v1/alumni", authenticate, alumniRouter);
-app.use("/universe/api/v1/award", authenticate, awardRouter);
+
 app.use("/universe/api/v1/block", authenticate, blockRouter);
 app.use("/universe/api/v1/recentSearches", authenticate, recentSearchesRouter);
 // app.use("/universe/api/v1/events/register", authenticate, eventRegisterRouter);

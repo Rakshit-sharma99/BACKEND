@@ -37,6 +37,7 @@ const {
   changeIp,
   getUsersBySignupDate,
   getUserFieldsById,
+  pushNotice,
   readContentTeam,
   removeFromTeam,
   getContentTeamAdmins,
@@ -117,6 +118,7 @@ router.get("/getUserById", getUserById);
 router.post("/changeIp", changeIp);
 router.get("/getUsersBySignupDate", getUsersBySignupDate);
 router.post("/getUserFieldsById", getUserFieldsById);
+router.post("/pushNotice", pushNotice);
 router.get("/addToContentTeam", addToContentTeam);
 router.get("/readContentTeam", readContentTeam);
 router.get("/removeFromTeam", removeFromTeam);

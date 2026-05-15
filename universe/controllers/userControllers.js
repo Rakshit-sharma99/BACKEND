@@ -619,6 +619,7 @@ const getBasicUserBio = async (req, res) => {
       phone: 1,
       isPhoneVerified: 1,
       memoryList: 1,
+      memoryBin: 1,
       universeMetaData: 1,
       gender: 1,
       emailVerified: 1,
@@ -686,6 +687,7 @@ const getBasicUserBio = async (req, res) => {
       ip: user.ip,
       memoriesCount,
       memoryList: (user?.memoryList || []).length,
+      memoryBinCount: (user?.memoryBin || []).length,
       universeMetaData: user.universeMetaData,
       fullName: user.fullName,
       gender: user.gender,
@@ -1607,6 +1609,26 @@ const getUserFieldsById = async (req, res) => {
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       error: "Failed to fetch user data.",
     });
+  }
+};
+
+const pushNotice = async (req, res) => {
+  try {
+    const { userId, notice } = req.body;
+    if (!userId || !notice) {
+      return res.status(400).json({ error: "Missing required parameters" });
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      $push: { unreadNotice: notice },
+    });
+
+    return res
+      .status(200)
+      .json({ success: true, message: "Notice pushed successfully" });
+  } catch (error) {
+    console.error("❌ pushNotice error:", error.message);
+    return res.status(500).json({ error: "Failed to push notice" });
   }
 };
 
@@ -3976,6 +3998,7 @@ module.exports = {
   changeIp,
   getUsersBySignupDate,
   getUserFieldsById,
+  pushNotice,
   addToContentTeam,
   readContentTeam,
   removeFromTeam,
@@ -4070,11 +4093,9 @@ const verifyPhoneOTP = async (req, res) => {
   } catch (error) {
     console.error(error);
     if (error.code === 11000) {
-      return res
-        .status(StatusCodes.BAD_REQUEST)
-        .json({
-          error: "Phone number is already associated with another account.",
-        });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: "Phone number is already associated with another account.",
+      });
     }
     res
       .status(StatusCodes.INTERNAL_SERVER_ERROR)

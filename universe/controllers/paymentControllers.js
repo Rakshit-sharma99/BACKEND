@@ -3,8 +3,8 @@ const Razorpay = require('razorpay');
 const {
   fetchEventData,
   fetchCouponById,
+  fetchAwardById,
 } = require('./interServiceCalls');
-const Award = require("../models/award");
 const Layout = require("../models/layout");
 const User = require("../models/user");
 const {
@@ -278,7 +278,7 @@ async function checkAmountValidityAndAvailability({
  */
 async function checkAmountValidityForAwards({ awardId, count, amount }) {
   try {
-    const award = await Award.findById(awardId).lean();
+    const award = await fetchAwardById(awardId, ["price"]);
     if (!award || typeof award.price !== "number") return false;
 
     const expectedAmount = award.price * count;

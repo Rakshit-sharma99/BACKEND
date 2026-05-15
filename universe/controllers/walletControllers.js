@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { StatusCodes } = require("http-status-codes");
 const Club = require("../models/club");
-const Award = require("../models/award");
+const { fetchAwardById } = require("./interServiceCalls");
 const Wallet = require("../models/wallet");
 const WalletTransaction = require("../models/walletTransaction");
 const WithdrawalRequest = require("../models/withdrawalRequest");
@@ -541,7 +541,8 @@ const purchaseFromWallet = async (req, res) => {
 
     try {
       await session.withTransaction(async () => {
-        const award = await Award.findById(awardId).session(session);
+        // Fetch award data from award service (read-only validation, outside transaction scope)
+        const award = await fetchAwardById(awardId, ["type", "price", "title"]);
         if (!award) {
           throw new Error("Award not found.");
         }

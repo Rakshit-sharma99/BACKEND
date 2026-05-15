@@ -25,6 +25,9 @@ const {
   getMemoryRequest,
   getMemoryTimeline,
   getMemoriesByMonthPaginated,
+  getMemoryBin,
+  restoreMemoryRequest,
+  deleteFromBin,
 } = require("../controllers/memoryControllers");
 
 router.post("/createMemory", createMemory);
@@ -50,5 +53,8 @@ router.post("/insertNewFields", insertNewFields);
 router.get("/getMemoryRequest", getMemoryRequest);
 router.get("/getMemoryTimeline", getMemoryTimeline);
 router.get("/getMemoriesByMonth", getMemoriesByMonthPaginated);
+router.get("/getMemoryBin", getMemoryBin);
+router.post("/restoreMemoryRequest", restoreMemoryRequest);
+router.delete("/deleteFromBin", deleteFromBin);
 
 module.exports = router;

@@ -2,7 +2,7 @@
  * @typedef {Object} UPDATE_USER_MEMORY_LIST_PAYLOAD
  * @property {string} id
  * @property {string} memoryId
- * @property {"add"|"remove"} operation
+ * @property {"add"|"remove"|"restore"|"permanent_remove"|"move_to_bin"} operation
  */
 
 const UPDATE_USER_MEMORY_LIST = {
@@ -16,8 +16,8 @@ const UPDATE_USER_MEMORY_LIST = {
       if (typeof data.memoryId !== "string") {
         throw new Error("memory id must be string");
       }
-      if (!["add", "remove"].includes(data.operation)) {
-        throw new Error("operation must be 'add' or 'remove'");
+      if (!["add", "remove", "restore", "permanent_remove", "move_to_bin"].includes(data.operation)) {
+        throw new Error("operation must be 'add', 'remove', 'restore', 'permanent_remove' or 'move_to_bin'");
       }
     },
 

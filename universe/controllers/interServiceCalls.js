@@ -10,6 +10,7 @@ const MULTIVERSE_SERVICE_URL = process.env.MULTIVERSE_URL || "http://multiverse:
 const COUPON_SERVICE_URL = process.env.COUPON_SERVICE_URL || "http://coupon:7020";
 const MEMORY_SERVICE_URL = process.env.MEMORY_SERVICE_URL || "http://memory:7030";
 const TICKET_SERVICE_URL = process.env.TICKET_SERVICE_URL || "http://ticket:6000";
+const AWARD_SERVICE_URL = process.env.AWARD_SERVICE_URL || "http://award:7140";
 
 const generateServiceToken = () => {
   const token = jwt.sign(
@@ -676,6 +677,30 @@ const fetchAssetByPayloadType = async (payloadType) => {
   }
 };
 
+/**
+ * Fetch award by ID from the award service
+ * @param {string} awardId
+ * @param {string[]} fields - Optional fields to project
+ */
+const fetchAwardById = async (awardId, fields = []) => {
+  try {
+    if (!awardId) return null;
+
+    const config = generateServiceToken();
+
+    const response = await axios.post(
+      `${AWARD_SERVICE_URL}/award/api/v1/getAwardById`,
+      { awardId, fields },
+      config,
+    );
+
+    return response.data?.data || null;
+  } catch (error) {
+    console.error("fetchAwardById error:", error.message);
+    return null;
+  }
+};
+
 module.exports = {
   fetchContent,
   fetchMultipleContents,
@@ -701,4 +726,5 @@ module.exports = {
   fetchAssetCategories,
   fetchTrendingEvents,
   fetchTrendingCards,
+  fetchAwardById,
 };
