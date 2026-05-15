@@ -1,4 +1,8 @@
 const Coupon = require("../models/coupon");
+const {
+  buildCouponEligibilityQuery,
+  normalizeCouponCode,
+} = require("../utils/couponUtils");
 
 // Create a new coupon
 const createCoupon = async (req, res) => {
@@ -9,22 +13,23 @@ const createCoupon = async (req, res) => {
         .send("You are not authorized to access this route.");
     }
 
-    const { code, discountType, discountValue, validForEvents, validForUsers, isPublic, uid, universeMetaData } =
+    const { code, discountType, discountValue, validForEvents, validForUsers, singleUsePerUser, isPublic, uid, universeMetaData } =
       req.body;
 
     // Basic validations
-    if (!code || !discountType || !discountValue || !uid || !universeMetaData) {
+    if (!code || !discountType || discountValue === undefined || !uid || !universeMetaData) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     // Create coupon
     const coupon = new Coupon({
-      code,
+      code: normalizeCouponCode(code),
       discountType,
       discountValue,
       validForEvents: validForEvents || [],
       validForUsers: validForUsers || [],
       usedBy: [],
+      singleUsePerUser: singleUsePerUser === true,
       isPublic,
       uid,
       universeMetaData
@@ -58,29 +63,8 @@ const getAvailableCoupons = async (req, res) => {
       userId = req.user.id;
     }
 
-    // Find coupons that match conditions
     const coupons = await Coupon.find(
-      {
-        isActive: true,
-        $and: [
-          {
-            $or: [
-              { validForEvents: { $exists: false } },
-              { validForEvents: { $size: 0 } },
-              { validForEvents: eventId },
-            ],
-          },
-          {
-            $or: [
-              { validForUsers: { $exists: false } },
-              { validForUsers: { $size: 0 } },
-              { validForUsers: userId },
-            ],
-          },
-        ],
-        usedBy: { $ne: userId },
-        isPublic: true,
-      },
+      buildCouponEligibilityQuery({ eventId, userId, isPublic: true }),
       { validForUsers: 0, usedBy: 0 }
     );
 
@@ -106,23 +90,9 @@ const getCouponById = async (req, res) => {
       userId = req.user.id;
     }
 
-    // Find coupons that match conditions
-    const coupons = await Coupon.findOne({
-      _id: couponId,
-      isActive: true,
-      $and: [
-        {
-          $or: [
-            { validForEvents: { $size: 0 } },
-            { validForEvents: eventId },
-          ],
-        },
-        {
-          $or: [{ validForUsers: { $size: 0 } }, { validForUsers: userId }],
-        },
-      ],
-      usedBy: { $ne: userId }, // just validation, redemption happens later
-    });
+    const coupons = await Coupon.findOne(
+      buildCouponEligibilityQuery({ couponId, eventId, userId }),
+    );
 
     return res.status(200).json({
       message: "Coupon fetched successfully",
@@ -149,27 +119,7 @@ const isValidCoupon = async (req, res) => {
     const userId = req.user.id;
 
     const coupon = await Coupon.findOne(
-      {
-        code: couponCode,
-        isActive: true,
-        usedBy: { $ne: userId },
-        $and: [
-          {
-            $or: [
-              { validForEvents: { $exists: false } },
-              { validForEvents: { $size: 0 } },
-              { validForEvents: eventId },
-            ],
-          },
-          {
-            $or: [
-              { validForUsers: { $exists: false } },
-              { validForUsers: { $size: 0 } },
-              { validForUsers: userId },
-            ],
-          },
-        ],
-      },
+      buildCouponEligibilityQuery({ couponCode, eventId, userId }),
       { validForUsers: 0, usedBy: 0 }
     );
 

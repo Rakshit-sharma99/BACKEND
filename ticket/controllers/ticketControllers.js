@@ -866,6 +866,14 @@ const generateTicket = async (req, res) => {
       });
     }
 
+    if (couponId) {
+      await sendKafkaMessage("UPDATE_COUPON", "coupon", {
+        couponId,
+        userId: req.user.id,
+        eventId,
+      });
+    }
+
     try {
       await sendKafkaMessage("USER_ACTIVITY", "user", {
         userId: req.user.id,
@@ -879,9 +887,15 @@ const generateTicket = async (req, res) => {
 
     // Add user to event channel via Kafka
     try {
+      const primaryTicketId = createdTickets[0]?._id?.toString();
+
+      if (!primaryTicketId) {
+        throw new Error("No ticket created for channel assignment");
+      }
+
       await sendKafkaMessage("ADD_MEMBER_TO_CHANNEL", "event", {
         userId: req.user.id,
-        ticketId: ticket._id.toString(),
+        ticketId: primaryTicketId,
       });
     } catch (kafkaErr) {
       console.error("add_member_to_channel publish failed:", kafkaErr.message);

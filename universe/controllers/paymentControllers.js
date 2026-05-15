@@ -3,6 +3,7 @@ const Razorpay = require('razorpay');
 const {
   fetchEventData,
   fetchCouponById,
+  generateTicketWithoutPayment,
 } = require('./interServiceCalls');
 const Award = require("../models/award");
 const Layout = require("../models/layout");
@@ -230,6 +231,14 @@ async function checkAmountValidityAndAvailability({
     let coupon = null;
     if (couponId) {
       coupon = await fetchCouponById({ couponId, eventId, userId });
+
+      if (!coupon) {
+        return {
+          success: false,
+          error: "Coupon already used or invalid",
+          breakdown: null,
+        };
+      }
     }
 
     const feePercent = eventData.platformFeeEnabled
@@ -295,12 +304,6 @@ async function checkAmountValidityForAwards({ awardId, count, amount }) {
  * Create Razorpay order for tickets
  */
 const createOrder = async (req, res) => {
-  const { RAZOR_PAY_KEY, RAZOR_PAY_SECRET } = process.env;
-  const razorpayInstance = new Razorpay({
-    key_id: RAZOR_PAY_KEY,
-    key_secret: RAZOR_PAY_SECRET,
-  });
-
   try {
     const {
       amount,
@@ -317,11 +320,7 @@ const createOrder = async (req, res) => {
 
     const safeUserId = req.user.id;
 
-    if (notes && !notes.userId) {
-      notes.userId = safeUserId;
-    }
-
-    if (!notes || !notes.eventId || !notes.userId || !notes.amtPaid) {
+    if (!notes) {
       console.log(1);
       return res
         .status(400)
@@ -329,9 +328,33 @@ const createOrder = async (req, res) => {
     }
 
     const amountNum = Number(amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
+    const resolvedCouponId = couponId || notes.couponId;
+
+    if (!notes.userId) {
+      notes.userId = safeUserId;
+    }
+
+    if (notes.amtPaid === undefined) {
+      notes.amtPaid = amountNum;
+    }
+
+    if (!notes.eventId || !notes.userId || notes.amtPaid === undefined) {
+      console.log(1);
+      return res
+        .status(400)
+        .json({ success: false, msg: "Missing data! Try again" });
+    }
+
+    if (isNaN(amountNum) || amountNum < 0) {
       console.log(2);
       return res.status(400).json({ success: false, msg: "Invalid amount" });
+    }
+
+    if (amountNum === 0 && !resolvedCouponId) {
+      return res.status(400).json({
+        success: false,
+        msg: "A coupon is required for zero amount checkout",
+      });
     }
 
     const ticketTypes = notes.types || (notes.type ? [notes.type] : []);
@@ -341,7 +364,7 @@ const createOrder = async (req, res) => {
       eventId: notes.eventId,
       types: ticketTypes,
       userId: notes.userId,
-      couponId,
+      couponId: resolvedCouponId,
       seats,
     });
 
@@ -386,9 +409,58 @@ const createOrder = async (req, res) => {
       universeMetaData,
       privateCode,
       ticketAccess,
-      ...(couponId && { couponId }), // include only if present
+      ...(resolvedCouponId && { couponId: resolvedCouponId }), // include only if present
 
     };
+
+    if (finalAmountRupees === 0) {
+      try {
+        const ticketResult = await generateTicketWithoutPayment({
+          user: req.user,
+          body: {
+            eventId: notes.eventId,
+            amtPaid: 0,
+            type: notes.type,
+            types: ticketTypes,
+            seats,
+            extraFieldsData: notes.extraFieldsData,
+            couponId: resolvedCouponId,
+            privateCode,
+            ticketAccess,
+            uid: safeUid,
+            universeMetaData,
+          },
+        });
+
+        return res.status(200).json({
+          ...ticketResult,
+          success: true,
+          msg: "Ticket generated without Razorpay order",
+          freeTicket: true,
+          order_id: null,
+          amount: 0,
+          product_name: productName,
+          description,
+        });
+      } catch (ticketError) {
+        await unLockSeats(seatIdsToLock, notes.eventId, notes.userId);
+
+        return res
+          .status(ticketError.response?.status || 500)
+          .json(
+            ticketError.response?.data || {
+              success: false,
+              msg: "Ticket generation failed",
+            },
+          );
+      }
+    }
+
+    const { RAZOR_PAY_KEY, RAZOR_PAY_SECRET } = process.env;
+    const razorpayInstance = new Razorpay({
+      key_id: RAZOR_PAY_KEY,
+      key_secret: RAZOR_PAY_SECRET,
+    });
 
     const options = {
       amount: breakdown.chargedAmountPaise, // convert to paise
@@ -493,6 +565,4 @@ const createAwardsOrder = async (req, res) => {
 };
 
 module.exports = { generatePaymentIntent, createOrder, createAwardsOrder };
-
-
 

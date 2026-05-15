@@ -330,6 +330,39 @@ const fetchCouponById = async (query) => {
   }
 };
 
+const generateUserAuthConfig = (user) => {
+  const token = jwt.sign(
+    {
+      role: user?.role || "user",
+      id: user?.id,
+      uid: user?.uid,
+      callSign: user?.callSign,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: "5m" },
+  );
+
+  return {
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+  };
+};
+
+const generateTicketWithoutPayment = async ({ user, body }) => {
+  if (!user?.id) {
+    throw new Error("User context is required to generate a ticket");
+  }
+
+  const response = await axios.post(
+    `${TICKET_SERVICE_URL}/ticket/api/v1/generateTicket`,
+    body,
+    generateUserAuthConfig(user),
+  );
+
+  return response.data;
+};
+
 const fetchSearchedEvents = async (query, { page = 1, limit = 12, seenIds = [] } = {}) => {
   try {
     if (!query) {
@@ -688,6 +721,7 @@ module.exports = {
   fetchPastEvents,
   fetchEventGallery,
   fetchCouponById,
+  generateTicketWithoutPayment,
   fetchSearchedEvents,
   fetchSearchedCards,
   fetchSearchedContents,

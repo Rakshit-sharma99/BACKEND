@@ -258,6 +258,7 @@ const ADD_TICKET_TO_USER = {
  * @typedef {Object} UPDATE_COUPON_PAYLOAD
  * @property {String} couponId
  * @property {String} userId
+ * @property {String} [eventId]
  */
 
 const UPDATE_COUPON = {
@@ -272,6 +273,10 @@ const UPDATE_COUPON = {
 
       if (!data.couponId || !typeof data.couponId === 'string') {
         throw new Error('couponId must be string');
+      }
+
+      if (data.eventId && typeof data.eventId !== 'string') {
+        throw new Error('eventId must be string');
       }
 
     },
