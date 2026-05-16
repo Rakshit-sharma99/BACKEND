@@ -1962,7 +1962,7 @@ const checkEventStatus = async (req, res) => {
     }
 
     const matchedTicket = await fetchTicketsBoughtByAUserOfAnEvent({
-      eventId,
+      eventId: event._id,
       userId: req.user.id,
     });
 
