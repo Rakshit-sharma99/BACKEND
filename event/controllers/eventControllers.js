@@ -1885,13 +1885,12 @@ const checkEventStatus = async (req, res) => {
   try {
     const { eventId, slug } = req.query;
 
-    if (eventId && !mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(StatusCodes.BAD_REQUEST).send("Invalid eventId.");
-    }
-
     let query = {};
 
     if (eventId) {
+      if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        return res.status(StatusCodes.BAD_REQUEST).send("Invalid eventId.");
+      }
       query._id = eventId;
     } else if (slug) {
       query.slug = slug;
