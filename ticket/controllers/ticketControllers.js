@@ -2255,6 +2255,385 @@ const getTicketsByEventIDsAndUID = async (req, res) => {
   }
 };
 
+
+const getLiveAttendance = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    if (!mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        message: "Invalid Event Id",
+      });
+    }
+
+    const event = await fetchEventData({
+      id: eventId,
+      fields: [
+        "permissions"
+      ]
+    })
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found.",
+      });
+    }
+
+    const permissions = event.permissions;
+    const canSeeStats = permissions.whoCanSeeStats.includes(req.user.id);
+
+    if (!canSeeStats && req.user.role !== "admin") {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "You are not authorized to access this route.",
+      });
+    }
+
+    const stats = await Ticket.aggregate([
+      {
+        $match: {
+          eventId,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalTickets: { $sum: 1 },
+          redeemedTickets: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "redeemed"] }, 1, 0],
+            },
+          },
+          notRedeemedTickets: {
+            $sum: {
+              $cond: [{ $ne: ["$status", "redeemed"] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
+
+    const result = stats[0] || {
+      totalTickets: 0,
+      redeemedTickets: 0,
+      notRedeemedTickets: 0,
+    };
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    console.log(err)
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+const getFiltersData = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+
+    if (!eventId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "eventId is required",
+      });
+    }
+
+    const event = await fetchEventData({
+      id: eventId,
+      fields: ["ticketTypes"],
+    });
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    const filters = await Ticket.aggregate([
+      {
+        $match: {
+          eventId: new mongoose.Types.ObjectId(eventId),
+        },
+      },
+      {
+        $lookup: {
+          from: "universes",
+          localField: "uid",
+          foreignField: "_id",
+          as: "uid",
+          pipeline: [
+            {
+              $project: {
+                name: 1,
+                logo: 1,
+                logoKey: 1,
+                location: 1,
+                lat: 1,
+                lng: 1,
+                _id: 1,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$uid",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          status: { $addToSet: "$status" },
+          universes: { $addToSet: "$uid" },
+        },
+      },
+    ]);
+
+    const result = filters[0] || {
+      status: [],
+      universes: [],
+    };
+
+    const ticketTypes = event.ticketTypes.map((type) => type.type);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        ticketTypes: ticketTypes || [],
+        status: result.status,
+        universes: result.universes,
+      },
+    });
+  } catch (err) {
+    console.log(err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
+const getEventAttendees = async (req, res) => {
+  try {
+    const { eventId, types, status, uids, batch, batchSize, sortBy } = req.body;
+
+    const safeBatchSize =
+      Number.isInteger(Number(batchSize)) && Number(batchSize) > 0
+        ? Number(batchSize)
+        : 10;
+
+    const safeBatch = Number.isInteger(Number(batch)) ? Number(batch) : 0;
+
+    if (!eventId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "eventId is required",
+      });
+    }
+
+    // Validate arrays
+    if (types && !Array.isArray(types)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "types must be an array",
+      });
+    }
+
+    if (status && !Array.isArray(status)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "status must be an array",
+      });
+    }
+
+    if (uids && !Array.isArray(uids)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "uids must be an array",
+      });
+    }
+
+    const event = await fetchEventData({
+      id: eventId,
+      fields: ["ticketTypes"],
+    });
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found",
+      });
+    }
+
+    const allowedTicketTypes = event.ticketTypes.map((t) => t.type);
+
+    const allowedSorts = ["date", "price", "name"];
+    const allowedOrders = ["asc", "desc"];
+
+    let sortField = "generatedAt";
+    let sortOrder = -1;
+
+    if (sortBy) {
+      const { field, order } = sortBy;
+
+      if (allowedSorts.includes(field) && allowedOrders.includes(order)) {
+        sortField =
+          field === "date"
+            ? "generatedAt"
+            : field === "price"
+              ? "amtPaid"
+              : "name";
+
+        sortOrder = order === "asc" ? 1 : -1;
+      }
+    }
+
+    const query = {
+      eventId: new mongoose.Types.ObjectId(eventId),
+    };
+
+    // Types filter
+    if (types && types.length > 0) {
+      const invalidTypes = types.filter(
+        (t) => !allowedTicketTypes.includes(t)
+      );
+
+      if (invalidTypes.length > 0) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: `Invalid ticket types: ${invalidTypes.join(", ")}`,
+        });
+      }
+
+      query.type = { $in: types };
+    }
+
+    if (status && status.length > 0) {
+      query.status = { $in: status };
+    }
+    if (uids && uids.length > 0) {
+      const invalidUids = uids.filter(
+        (uid) => !mongoose.Types.ObjectId.isValid(uid)
+      );
+
+      if (invalidUids.length > 0) {
+        return res.status(StatusCodes.BAD_REQUEST).json({
+          success: false,
+          message: `Invalid uids: ${invalidUids.join(", ")}`,
+        });
+      }
+
+      query.uid = {
+        $in: uids.map((uid) => new mongoose.Types.ObjectId(uid)),
+      };
+    }
+
+    const skip = safeBatch * safeBatchSize;
+    const limit = safeBatchSize;
+
+    const result = await Ticket.aggregate([
+      { $match: query },
+
+      {
+        $lookup: {
+          from: "users",
+          localField: "boughtBy",
+          foreignField: "_id",
+          as: "userMetaData",
+        },
+      },
+
+      {
+        $unwind: {
+          path: "$userMetaData",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+      {
+        $facet: {
+          data: [
+            { $sort: { [sortField]: sortOrder } },
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $project: {
+                _id: 1,
+                boughtBy: 1,
+                eventId: 1,
+                paymentId: 1,
+                amtPaid: 1,
+                status: 1,
+                generatedAt: 1,
+                type: 1,
+                extraFieldsData: 1,
+                uid: 1,
+                privateCode: 1,
+                seatId: 1,
+                userMetaData: {
+                  name: "$userMetaData.name",
+                  fullName: "$userMetaData.fullName",
+                  course: "$userMetaData.course",
+                  reg: "$userMetaData.reg",
+                  email: "$userMetaData.email",
+                  pushToken: "$userMetaData.pushToken",
+                  image: "$userMetaData.image",
+                  college: "$userMetaData.college",
+                  universeMetaData: {
+                    name: "$userMetaData.universeMetaData.name",
+                    logo: "$userMetaData.universeMetaData.logo",
+                    logoKey: "$userMetaData.universeMetaData.logoKey",
+                    location: "$userMetaData.universeMetaData.location",
+                    callSign: "$userMetaData.universeMetaData.callSign",
+                    lat: "$userMetaData.universeMetaData.lat",
+                    lng: "$userMetaData.universeMetaData.lng",
+                  },
+                },
+              },
+            },
+          ],
+
+          meta: [{ $count: "total" }],
+        },
+      },
+    ]);
+
+    const tickets = result?.[0]?.data || [];
+    const total = result?.[0]?.meta?.[0]?.total || 0;
+
+    const totalPages = Math.ceil(total / safeBatchSize);
+    const currentPage = safeBatch;
+
+    return res.status(200).json({
+      success: true,
+      tickets,
+      pagination: {
+        total,
+        totalPages,
+        currentPage,
+        limit: safeBatchSize,
+        skip,
+        hasNextPage: currentPage + 1 < totalPages,
+        hasPrevPage: currentPage > 0,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -2278,5 +2657,8 @@ module.exports = {
   getMultipleTicketFieldsByIds,
   searchTickets,
   getPhysicalCopyOfTicket,
-  getTicketsByEventIDsAndUID
+  getTicketsByEventIDsAndUID,
+  getLiveAttendance,
+  getFiltersData,
+  getEventAttendees,
 };

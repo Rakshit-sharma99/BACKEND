@@ -24,7 +24,10 @@ const {
   getMultipleTicketFieldsByIds,
   searchTickets,
   getPhysicalCopyOfTicket,
-  getTicketsByEventIDsAndUID
+  getTicketsByEventIDsAndUID,
+  getLiveAttendance,
+  getEventAttendees,
+  getFiltersData
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -50,4 +53,7 @@ router.post("/getMultipleTicketFieldsByIds",getMultipleTicketFieldsByIds)
 router.get("/searchTickets",searchTickets)
 router.get("/getPhysicalCopyOfTicket", getPhysicalCopyOfTicket);
 router.post("/getTicketsByEventIDsAndUID", getTicketsByEventIDsAndUID);
+router.get("/getLiveAttendance",getLiveAttendance)
+router.post("/getEventAttendees",getEventAttendees)
+router.get("/getFiltersData",getFiltersData)
 module.exports = router;
