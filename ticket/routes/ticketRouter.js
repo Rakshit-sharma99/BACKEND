@@ -27,7 +27,8 @@ const {
   getTicketsByEventIDsAndUID,
   getLiveAttendance,
   getEventAttendees,
-  getFiltersData
+  getFiltersData,
+  getUniverseWiseStats
 } = require("../controllers/ticketControllers");
 
 router.post("/generateTicket", generateTicket);
@@ -56,4 +57,6 @@ router.post("/getTicketsByEventIDsAndUID", getTicketsByEventIDsAndUID);
 router.get("/getLiveAttendance",getLiveAttendance)
 router.post("/getEventAttendees",getEventAttendees)
 router.get("/getFiltersData",getFiltersData)
+router.get("/getUniverseWiseStats",getUniverseWiseStats);
+
 module.exports = router;

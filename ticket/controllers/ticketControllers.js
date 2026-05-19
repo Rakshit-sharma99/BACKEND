@@ -2634,6 +2634,89 @@ const getEventAttendees = async (req, res) => {
   }
 };
 
+const getUniverseWiseStats = async (req, res) => {
+  try {
+    const { eventId } = req.query;
+    if (!eventId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Event ID is required"
+      });
+    }
+    const event = await fetchEventData({
+      id: eventId,
+      fields: ["bookedBy"]
+    })
+
+    if (!event) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+    const eventTickets = event.bookedBy;
+
+    console.log("eventTickets", eventTickets)
+
+    const tickets = await Ticket.aggregate([
+      {
+        $match: {
+          _id: { $in: eventTickets }
+        }
+      },
+      {
+        $group: {
+          _id: "$uid",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $lookup: {
+          from: "universes",
+          localField: "_id",
+          foreignField: "_id",
+          as: "universe"
+        }
+      },
+      {
+        $unwind: { path: "$universe", preserveNullAndEmptyArrays: true }
+      },
+      {
+        $sort: {
+          count: -1
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          uid: "$_id",
+          ticketsCount: "$count",
+          universeName: "$universe.name"
+        }
+      }
+    ])
+
+    if (!tickets) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "No tickets found"
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Universe wise stats fetched successfully",
+      tickets
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong"
+    });
+  }
+}
+
 module.exports = {
   generateTicket,
   scanTicket,
@@ -2661,4 +2744,5 @@ module.exports = {
   getLiveAttendance,
   getFiltersData,
   getEventAttendees,
+  getUniverseWiseStats
 };
