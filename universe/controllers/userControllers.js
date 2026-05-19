@@ -3337,7 +3337,7 @@ const getAssetSuggestions = async (req, res) => {
  * The generateServiceToken() used by event/ticket services sets role = "internal".
  */
 const requireServiceRole = (req, res) => {
-  if (req.user?.role !== "internal") {
+  if (!req.internalService) {
     res.status(403).json({ error: "Service-only endpoint" });
     return false;
   }
