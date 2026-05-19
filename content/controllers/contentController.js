@@ -30,6 +30,8 @@ const mongoose = require("mongoose");
 
 //Controller 1
 const createContent = async (req, res) => {
+  console.log("createContent controller hit");
+  console.log("req.body:", req.body);
   try {
     const {
       contentType,
@@ -48,18 +50,25 @@ const createContent = async (req, res) => {
       !peopleTagged ||
       !belongsTo ||
       !universeMetaData
-    )
+    ) {
+      console.log("Validation failed. Missing required fields.");
       return res.status(StatusCodes.BAD_REQUEST).send("Incomplete data.");
+    }
+    
     let processedUrl = url;
     if (url && url.includes("#")) {
       processedUrl = url.replace(/(^|[^@])#/g, "$1@#");
     }
     const idOfSender = req.user.id;
+    console.log("idOfSender:", idOfSender);
+    
     const user_query = {
       id: idOfSender,
       fields: ["name", "image", "pushToken"],
     };
     const sender = await fetchUserData(user_query);
+    console.log("sender fetched:", sender);
+    
     let group;
     let params;
     if (sendBy === "club") {
@@ -68,6 +77,7 @@ const createContent = async (req, res) => {
         fields: ["name", "secondaryImg", "universeMetaData"],
       };
       group = await fetchClubData(club_query);
+      console.log("group (club) fetched:", group);
       params = {
         userName: sender.name,
         userPic: sender.image,
@@ -82,6 +92,7 @@ const createContent = async (req, res) => {
         fields: ["title", "secondaryCover", "universeMetaData"],
       };
       group = await fetchCommunityData(community_query);
+      console.log("group (community) fetched:", group);
       params = {
         userName: sender.name,
         userPic: sender.image,
@@ -91,6 +102,7 @@ const createContent = async (req, res) => {
         universeMetaData: group.universeMetaData,
       };
     }
+    
     const data = {
       ...req.body,
       url: processedUrl,
@@ -99,7 +111,11 @@ const createContent = async (req, res) => {
       params,
       uid: req.user.uid,
     };
+    console.log("Data to be saved in DB:", data);
+    
     const content = await Content.create(data);
+    console.log("Content created successfully:", content._id);
+    
     let taggedLen = peopleTagged.length;
     for (let i = 0; i < taggedLen; i++) {
       let taggedInfo = peopleTagged[i];
@@ -122,7 +138,7 @@ const createContent = async (req, res) => {
     }
     return res.status(StatusCodes.OK).json({ contentId: content._id });
   } catch (error) {
-    console.log(error);
+    console.error("Error in createContent:", error);
     return res.status(StatusCodes.OK).send("Something went wrong.");
   }
 };
@@ -1984,6 +2000,41 @@ const deleteReply = async (req, res) => {
   }
 };
 
+const deleteCommunityContentByAdmin = async (req, res) => {
+  try {
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "You are not authorized to perform this action.",
+      });
+    }
+
+    const { communityName } = req.body;
+    if (!communityName || typeof communityName !== "string") {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message: "Please provide a valid communityName.",
+      });
+    }
+
+    const result = await Content.deleteMany({
+      "params.communityTitle": communityName,
+    });
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: `Deleted ${result.deletedCount} contents for community: ${communityName}`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    console.error("Error in deleteCommunityContentByAdmin:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong.",
+    });
+  }
+};
+
 module.exports = {
   createContent,
   likeContent,
@@ -2016,4 +2067,5 @@ module.exports = {
   editComment,
   deleteComment,
   deleteReply,
+  deleteCommunityContentByAdmin,
 };

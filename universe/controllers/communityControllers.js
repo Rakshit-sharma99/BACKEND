@@ -1823,7 +1823,7 @@ const secondaryActionsForPost = async (
         scheduleNotification2({
           pushToken: tokens,
           title: `${user.name} posted in ${community.title}`,
-          body: `${contentMetaData.text.substring(0, 50)}...`,
+          body: `${(contentMetaData.text || "").substring(0, 50)}...`,
           image: img,
           url: `https://macbease.com/app/community/${community._id}`,
         });
@@ -1831,7 +1831,7 @@ const secondaryActionsForPost = async (
         scheduleNotification2({
           pushToken: tokens,
           title: `${user.name} posted in ${community.title}`,
-          body: `${contentMetaData.text.substring(0, 50)}...`,
+          body: `${(contentMetaData.text || "").substring(0, 50)}...`,
           url: `https://macbease.com/app/community/${community._id}`,
         });
       }
