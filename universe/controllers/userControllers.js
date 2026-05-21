@@ -3951,6 +3951,272 @@ const getAssetReactions = async (req, res) => {
   }
 };
 
+/**
+ * GET /user/getRecommendedSpaces
+ *
+ * Returns recommended communities & clubs for users who have few or no
+ * postable spaces. Useful for new-user onboarding inside the Post In selector.
+ *
+ * Prioritisation:
+ *   1. Same-universe communities the user is NOT already in
+ *   2. Interest-matched communities (user.interests ∩ community.tag)
+ *   3. Trending / fast-growing communities (by member count)
+ *   4. Beginner-friendly open communities
+ *   5. Locked clubs the user might want to apply to
+ */
+const getRecommendedSpaces = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const MIN_RESULTS = 6;
+    const MAX_RESULTS = 15;
+
+    const user = await User.findById(userId)
+      .select(
+        "clubs communitiesPartOf communitiesCreated interests uid universeMetaData",
+      )
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // IDs the user is already a member of
+    const memberCommunityIds = [
+      ...(user.communitiesPartOf || []).map((c) => c.communityId.toString()),
+      ...(user.communitiesCreated || []).map((c) => c.communityId.toString()),
+    ];
+    const memberClubIds = (user.clubs || []).map((c) => c.clubId.toString());
+    const excludedCommunityIds = memberCommunityIds.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
+    const excludedClubIds = memberClubIds.map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
+
+    const userInterests = (user.interests || []).map((i) =>
+      i.toLowerCase().trim(),
+    );
+    const userUid = user.uid ? user.uid.toString() : null;
+
+    // ── 1. Fetch candidate open communities ──
+    const communityQuery = {
+      _id: { $nin: excludedCommunityIds },
+      "entryRules.visibility": { $ne: false },
+      "entryRules.isInviteOnly": { $ne: true },
+    };
+
+    // Prefer same universe first, then fall back to all
+    const [sameUniCommunities, globalCommunities] = await Promise.all([
+      userUid
+        ? Community.find({ ...communityQuery, uid: userUid })
+            .select(
+              "_id title secondaryCover tag members activeMembers uid universeMetaData entryRules",
+            )
+            .sort({ activeMembers: -1 })
+            .limit(MAX_RESULTS)
+            .lean()
+        : Promise.resolve([]),
+      Community.find(communityQuery)
+        .select(
+          "_id title secondaryCover tag members activeMembers uid universeMetaData entryRules",
+        )
+        .sort({ activeMembers: -1 })
+        .limit(MAX_RESULTS * 2)
+        .lean(),
+    ]);
+
+    // ── 2. Fetch candidate clubs (locked = require proposal to join) ──
+    const clubQuery = {
+      _id: { $nin: excludedClubIds },
+    };
+
+    const [sameUniClubs, globalClubs] = await Promise.all([
+      userUid
+        ? Club.find({ ...clubQuery, uid: userUid })
+            .select(
+              "_id name motto tags secondaryImg members uid universeMetaData",
+            )
+            .sort({ "members.length": -1 })
+            .limit(8)
+            .lean()
+        : Promise.resolve([]),
+      Club.find(clubQuery)
+        .select(
+          "_id name motto tags secondaryImg members uid universeMetaData",
+        )
+        .sort({ createdAt: -1 })
+        .limit(12)
+        .lean(),
+    ]);
+
+    // ── 3. De-duplicate ──
+    const seenIds = new Set();
+    const dedup = (arr) =>
+      arr.filter((item) => {
+        const id = item._id.toString();
+        if (seenIds.has(id)) return false;
+        seenIds.add(id);
+        return true;
+      });
+
+    const allCommunities = dedup([...sameUniCommunities, ...globalCommunities]);
+    const allClubs = dedup([...sameUniClubs, ...globalClubs]);
+
+    // ── 4. Score & categorise communities ──
+    const scoredCommunities = allCommunities.map((c) => {
+      let score = 0;
+      const tags = (c.tag || []).map((t) =>
+        typeof t === "string" ? t.toLowerCase().trim() : "",
+      );
+
+      // Same university bonus
+      if (userUid && c.uid && c.uid.toString() === userUid) {
+        score += 30;
+      }
+
+      // Interest overlap
+      const overlap = tags.filter((t) => userInterests.includes(t)).length;
+      score += overlap * 15;
+
+      // Active members bonus (trending)
+      const memberCount = c.members?.length || 0;
+      if (memberCount > 50) score += 10;
+      else if (memberCount > 20) score += 5;
+
+      // Active members score
+      score += Math.min(c.activeMembers || 0, 20);
+
+      // Determine category
+      let category = "global";
+      if (userUid && c.uid && c.uid.toString() === userUid) {
+        category = "campus";
+      } else if (overlap > 0) {
+        category = "interest";
+      } else if (memberCount > 30) {
+        category = "trending";
+      } else if (memberCount > 10) {
+        category = "growing";
+      } else {
+        category = "beginner";
+      }
+
+      return {
+        id: c._id,
+        type: "community",
+        joinType: "open",
+        name: c.title,
+        description: tags
+          .filter((t) => t.length > 0)
+          .slice(0, 4)
+          .join(" • "),
+        secondaryCover: c.secondaryCover,
+        membersCount: memberCount,
+        tags,
+        category,
+        universeName: c.universeMetaData?.callSign || "",
+        eligibilityHint: "Open to all",
+        score,
+      };
+    });
+
+    // ── 5. Score & categorise clubs ──
+    const scoredClubs = allClubs.map((c) => {
+      let score = 0;
+      const tags = (c.tags || []).map((t) =>
+        typeof t === "string" ? t.toLowerCase().trim() : "",
+      );
+
+      if (userUid && c.uid && c.uid.toString() === userUid) {
+        score += 25;
+      }
+
+      const overlap = tags.filter((t) => userInterests.includes(t)).length;
+      score += overlap * 12;
+
+      const memberCount = c.members?.length || 0;
+      if (memberCount > 30) score += 8;
+
+      let category = "global";
+      if (userUid && c.uid && c.uid.toString() === userUid) {
+        category = "campus";
+      } else if (overlap > 0) {
+        category = "interest";
+      } else if (memberCount > 20) {
+        category = "trending";
+      } else {
+        category = "growing";
+      }
+
+      return {
+        id: c._id,
+        type: "club",
+        joinType: "locked",
+        name: c.name,
+        description: c.motto || "",
+        secondaryImg: c.secondaryImg,
+        membersCount: memberCount,
+        tags,
+        category,
+        universeName: c.universeMetaData?.callSign || "",
+        eligibilityHint: "Requires approval",
+        score,
+      };
+    });
+
+    // ── 6. Sort by score and interleave ──
+    scoredCommunities.sort((a, b) => b.score - a.score);
+    scoredClubs.sort((a, b) => b.score - a.score);
+
+    // Take top communities and top clubs, interleave
+    const topCommunities = scoredCommunities.slice(0, 10);
+    const topClubs = scoredClubs.slice(0, 5);
+
+    const result = [];
+    let ci = 0;
+    let cli = 0;
+
+    // Interleave: 2 communities then 1 club
+    while (
+      result.length < MAX_RESULTS &&
+      (ci < topCommunities.length || cli < topClubs.length)
+    ) {
+      if (ci < topCommunities.length) result.push(topCommunities[ci++]);
+      if (ci < topCommunities.length) result.push(topCommunities[ci++]);
+      if (cli < topClubs.length) result.push(topClubs[cli++]);
+    }
+
+    // If still below minimum, pad with remaining
+    if (result.length < MIN_RESULTS) {
+      const remaining = [
+        ...scoredCommunities.slice(ci),
+        ...scoredClubs.slice(cli),
+      ].sort((a, b) => b.score - a.score);
+
+      for (const item of remaining) {
+        if (result.length >= MIN_RESULTS) break;
+        if (!result.find((r) => r.id.toString() === item.id.toString())) {
+          result.push(item);
+        }
+      }
+    }
+
+    // Remove internal score from response
+    const sanitized = result.map(({ score, ...rest }) => rest);
+
+    return res.status(200).json({
+      success: true,
+      count: sanitized.length,
+      data: sanitized,
+    });
+  } catch (err) {
+    console.error("getRecommendedSpaces error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -4030,6 +4296,7 @@ module.exports = {
   checkUserChannelRole,
   getRecommendedProfiles,
   getTrendingSearches,
+  getRecommendedSpaces,
 };
 
 const sendPhoneOTP = async (req, res) => {

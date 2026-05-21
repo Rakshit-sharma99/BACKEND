@@ -80,6 +80,7 @@ const {
   getTrendingSearches,
   reactToAsset,
   getAssetReactions,
+  getRecommendedSpaces,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -166,4 +167,5 @@ router.post("/checkUserChannelRole", checkUserChannelRole);
 
 router.get("/getRecommendedProfiles",getRecommendedProfiles);
 router.get("/getTrendingSearches", getTrendingSearches);
+router.get("/getRecommendedSpaces", getRecommendedSpaces);
 module.exports = router;
