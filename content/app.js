@@ -13,6 +13,7 @@ const app = express();
 const server = http.createServer(app);
 
 const contentRouter = require("./routes/contentRouter");
+const publicShareRouter = require("./routes/publicShareRouter");
 
 app.set("trust proxy", 1);
 const allowedOrigins = [
@@ -52,6 +53,7 @@ app.get("/content/api/v1/hello", (req, res) => {
   res.send("Macbease content service responding.");
 });
 
+app.use("/content/api/v1/public", publicShareRouter);
 app.use("/content/api/v1", authenticate, contentRouter);
 
 const port = process.env.PORT || 5000;

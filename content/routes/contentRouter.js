@@ -39,6 +39,7 @@ const {
 const {
   bulkUpdateContentParams,
 } = require("../controllers/maintenanceController");
+const { createShareGrant } = require("../controllers/shareGrantController");
 
 router.post("/createContent", createContent);
 router.post("/likeContent", likeContent);
@@ -72,4 +73,5 @@ router.patch("/editComment", editComment);
 router.delete("/deleteComment", deleteComment);
 router.delete("/deleteReply", deleteReply);
 router.post("/deleteCommunityContentByAdmin", deleteCommunityContentByAdmin);
+router.post("/share-grants", createShareGrant);
 module.exports = router;
