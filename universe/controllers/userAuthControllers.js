@@ -173,10 +173,17 @@ const registerUser = async (req, res) => {
     } = req.body;
 
     if (containsRestrictedWords(name)) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "The provided name contains restricted words and cannot be used." });
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        message:
+          "The provided name contains restricted words and cannot be used.",
+      });
     }
 
-    const hasUniverse = Object.prototype.hasOwnProperty.call(req.body, "universe");
+    const hasUniverse = Object.prototype.hasOwnProperty.call(
+      req.body,
+      "universe",
+    );
     const effectiveCustomUniverse = hasUniverse ? null : customUniverse;
     /* ---------- Platform ---------- */
     const platform = req.body.platform || "app";
@@ -313,7 +320,10 @@ const registerUser = async (req, res) => {
           delta: 1,
         });
       } catch (kafkaErr) {
-        console.error("universe stats update publish failed:", kafkaErr.message);
+        console.error(
+          "universe stats update publish failed:",
+          kafkaErr.message,
+        );
       }
     }
 
@@ -588,9 +598,10 @@ const regenerateAccessToken = async (req, res) => {
     // 1. Get refresh token
     // App clients should trust the body token first so stale cookies from older
     // mobile sessions cannot override the current refresh token.
-    const refreshToken = key === "app"
-      ? req.body.refreshToken || req.cookies?.refresh_token
-      : req.cookies?.refresh_token || req.body.refreshToken;
+    const refreshToken =
+      key === "app"
+        ? req.body.refreshToken || req.cookies?.refresh_token
+        : req.cookies?.refresh_token || req.body.refreshToken;
 
     if (!refreshToken) {
       return res
@@ -659,15 +670,13 @@ const regenerateAccessToken = async (req, res) => {
       });
     }
     let response = {};
-    if (platform === 'app') {
+    if (platform === "app") {
       response.newAccessToken = newAccessToken;
       response.newRefreshToken = newRefreshToken;
-      response.sessionId = session._id
+      response.sessionId = session._id;
     }
 
-    return res
-      .status(StatusCodes.OK)
-      .json(response);
+    return res.status(StatusCodes.OK).json(response);
   } catch (err) {
     console.error("regenerateAccessToken error:", err);
     return res
@@ -758,7 +767,7 @@ const userNameAvailable = async (req, res) => {
   if (containsRestrictedWords(userName)) {
     return res.status(StatusCodes.OK).send("name contains restricted words");
   }
-  
+
   const nameExists = await User.findOne({ name: userName }, { _id: 1 });
   const emailExists = await User.findOne({ email: email }, { _id: 1 });
   if (college === "Lovely Professional University") {
@@ -988,6 +997,10 @@ const getAppConfig = async (req, res) => {
   try {
     const currentVersion = req.query.version;
     const platform = req.query.platform || "android";
+    const userId = req.query?.userId;
+
+    console.log(currentVersion, platform, userId);
+
     if (platform === "android" && !currentVersion) {
       console.log("missing data");
       return res.status(400).json({
@@ -998,7 +1011,7 @@ const getAppConfig = async (req, res) => {
     }
 
     // Fetch latest config (only 1 doc maintained)
-    const config = await AppConfig.findOne({ platform });
+    const config = await AppConfig.findOne({ platform }).lean();
     if (!config) {
       return res.status(404).json({
         success: false,
@@ -1009,7 +1022,7 @@ const getAppConfig = async (req, res) => {
     const { latestVersion, mandatoryVersion } = config;
     let updateType = "none";
 
-    if (semver.lt(currentVersion, latestVersion)) {
+    if (currentVersion && semver.lt(currentVersion, latestVersion)) {
       if (semver.lt(currentVersion, mandatoryVersion)) {
         updateType = "immediate";
       } else {
@@ -1017,9 +1030,43 @@ const getAppConfig = async (req, res) => {
       }
     }
 
+    let chatBadgeCount = 0;
+    let pendingMemoryRequestsCount = 0;
+    let unreadNoticesCount = 0;
+
+    if (userId) {
+      const user = await User.findById(userId, {
+        chatRooms: 1,
+        memoryRequests: 1,
+        unreadNotice: 1,
+      }).lean();
+
+      if (user) {
+        // Calculate chatBadgeCount: total of unread messages and chat requests
+        // A room is counted if it's unread OR if it's a pending request from someone else
+        const badgeRooms = (user.chatRooms || []).filter(
+          (room) =>
+            room.state === "unread" ||
+            (room.status === "pending" &&
+              room.requestedBy &&
+              room.requestedBy.toString() !== userId),
+        );
+        chatBadgeCount = badgeRooms.length;
+
+        // Calculate pendingMemoryRequestsCount
+        console.log("user", user.memoryRequests);
+        pendingMemoryRequestsCount = (user.memoryRequests || []).length;
+        unreadNoticesCount = (user.unreadNotice || []).length;
+        console.log("pendingMemoryRequestsCount", pendingMemoryRequestsCount);
+      }
+    }
+
     return res.status(200).json({
       success: true,
       updateType,
+      chatBadgeCount,
+      pendingMemoryRequestsCount,
+      unreadNoticesCount,
       ...config,
     });
   } catch (err) {
@@ -1284,7 +1331,7 @@ const appleLogin = async (req, res) => {
         role: 1,
         reg: 1,
         profession: 1,
-      }
+      },
     );
 
     if (!user) {
@@ -1319,8 +1366,8 @@ const sendOtpEmailForSignup = async (req, res) => {
     if (!emailPattern.test(userEmail)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "Email is invalid"
-      })
+        message: "Email is invalid",
+      });
     }
     // Check if an OTP was sent in the last 60 seconds
     const isCached = await redis.get(`otp:${userEmail}`);
@@ -1352,7 +1399,7 @@ const sendOtpEmailForSignup = async (req, res) => {
       intro,
       outro,
       subject,
-      userEmail
+      userEmail,
     );
 
     await ses.sendEmail(params).promise(); // Use promise instead of callback
@@ -1361,7 +1408,7 @@ const sendOtpEmailForSignup = async (req, res) => {
     await redis.set(`otp:${userEmail}`, otp, "EX", 60);
 
     return res.status(200).json({
-      msg: "Email sent successfully."
+      msg: "Email sent successfully.",
     });
   } catch (error) {
     console.error("Email verification error:", error);
@@ -1371,43 +1418,43 @@ const sendOtpEmailForSignup = async (req, res) => {
 
 const verifyOtpEmailForSignup = async (req, res) => {
   try {
-    const { userEmail, otp } = req.body
+    const { userEmail, otp } = req.body;
 
     if (!userEmail || !otp) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "Email and Otp is required"
-      })
+        message: "Email and Otp is required",
+      });
     }
 
-    let serverOTP = await redis.get(`otp:${userEmail}`)
+    let serverOTP = await redis.get(`otp:${userEmail}`);
 
     if (!serverOTP) {
       return res.status(StatusCodes.BAD_REQUEST).json({
         success: false,
-        message: "OTP is invalid or expired"
-      })
+        message: "OTP is invalid or expired",
+      });
     }
 
     if (String(otp) !== String(serverOTP)) {
       return res.status(StatusCodes.FORBIDDEN).json({
         success: false,
-        message: "OTP is invalid"
-      })
+        message: "OTP is invalid",
+      });
     }
-    await redis.del(userEmail)
+    await redis.del(userEmail);
     return res.status(StatusCodes.OK).json({
       success: true,
-      message: "OTP is verifed successfully!"
-    })
+      message: "OTP is verifed successfully!",
+    });
   } catch (e) {
-    console.log(e.message)
+    console.log(e.message);
     return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
       success: false,
-      message: "Something went wrong"
-    })
+      message: "Something went wrong",
+    });
   }
-}
+};
 
 const copyImage = async (req, res) => {
   try {
@@ -1426,7 +1473,7 @@ const copyImage = async (req, res) => {
         Key: destinationKey,
         CopySource: encodeURIComponent(`${process.env.S3_BUCKET}/${sourceKey}`),
         MetadataDirective: "COPY",
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -1481,8 +1528,7 @@ const forgotPassword = async (req, res) => {
       resetUrl,
     ];
 
-    const outro =
-      "If you did not request this, please ignore this email.";
+    const outro = "If you did not request this, please ignore this email.";
 
     const subject = "Password Recovery";
     const destination = [user.email];
@@ -1493,7 +1539,7 @@ const forgotPassword = async (req, res) => {
       intro,
       outro,
       subject,
-      destination
+      destination,
     );
 
     ses.sendEmail(params, async (err) => {
@@ -1501,7 +1547,7 @@ const forgotPassword = async (req, res) => {
         user.passwordResetToken = undefined;
         user.passwordResetTokenExpire = undefined;
         await user.save();
-        console.log(err)
+        console.log(err);
         return res
           .status(StatusCodes.INTERNAL_SERVER_ERROR)
           .json({ success: false, message: "Email failed" });
@@ -1526,13 +1572,12 @@ const resetPassword = async (req, res) => {
     const { password, token } = req.body;
 
     if (!password) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Password is required" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Password is required" });
     }
 
-    const hashedToken = crypto
-      .createHash("sha256")
-      .update(token)
-      .digest("hex");
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const user = await User.findOne({
       passwordResetToken: hashedToken,
@@ -1540,10 +1585,12 @@ const resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(StatusCodes.BAD_REQUEST).json({ message: "Invalid or expired token" });
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ message: "Invalid or expired token" });
     }
 
-    const hashedPassword = await securePassword(password)
+    const hashedPassword = await securePassword(password);
     user.password = hashedPassword;
     user.passwordResetToken = undefined;
     user.passwordResetTokenExpire = undefined;
@@ -1554,7 +1601,12 @@ const resetPassword = async (req, res) => {
 
     const logoutTime = Math.floor(Date.now() / 1000);
     if (redis) {
-      await redis.set(`logout:${user._id.toString()}`, logoutTime, "EX", 25 * 60);
+      await redis.set(
+        `logout:${user._id.toString()}`,
+        logoutTime,
+        "EX",
+        25 * 60,
+      );
     }
 
     res.status(StatusCodes.CREATED).json({
@@ -1562,8 +1614,10 @@ const resetPassword = async (req, res) => {
       message: "Password reset successful",
     });
   } catch (err) {
-    console.log(err)
-    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ message: "Something went wrong" });
+    console.log(err);
+    res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ message: "Something went wrong" });
   }
 };
 
@@ -1596,7 +1650,6 @@ const webPushToken = async (req, res) => {
       success: true,
       message: "Saved token successfully!",
     });
-
   } catch (err) {
     console.error(err);
 
@@ -1615,7 +1668,7 @@ const storeUnregisteredDevices = async (req, res) => {
     await UnregisteredDevices.updateOne(
       { fcmToken },
       { $setOnInsert: { fcmToken, createdAt: new Date() } },
-      { upsert: true }
+      { upsert: true },
     );
 
     return res.status(200).json({ message: "Anonymous token stored" });
@@ -1680,5 +1733,5 @@ module.exports = {
   resetPassword,
   webPushToken,
   storeUnregisteredDevices,
-  nameAndMailExistence
+  nameAndMailExistence,
 };

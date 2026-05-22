@@ -1,7 +1,5 @@
 const { StatusCodes } = require("http-status-codes");
 const Award = require("../models/award");
-const Club = require("../models/club");
-const User = require("../models/user");
 const AwardInstance = require("../models/awardInstance");
 const mongoose = require("mongoose");
 const { generateCertificatePreview1,
@@ -10,7 +8,7 @@ const { generateCertificatePreview1,
         generateCertificatePreview4,
         generateCertificatePreview5, } = require("./certificateTemplates");
 const { scheduleNotification2, sendMail } = require("./utils");
-const { fetchTicketFieldsByQuery } = require("./interServiceCalls");
+const { fetchClubData, fetchUserData, updateClubAwardCount, pushNoticeToUser, fetchTicketFieldsByQuery } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 
 /**
@@ -160,9 +158,9 @@ const getAllAwards = async (req, res) => {
       });
     }
 
-    // If clubId is provided, attach available count per award
+    // If clubId is provided, attach available count per award via inter-service call
     if (clubId && mongoose.Types.ObjectId.isValid(clubId)) {
-      const club = await Club.findById(clubId, { awards: 1 }).lean();
+      const club = await fetchClubData(clubId, ["awards"]);
       if (!club) {
         return res.status(404).json({
           success: false,
@@ -199,8 +197,8 @@ const getAllAwards = async (req, res) => {
 };
 
 /**
- * @desc    Gnerate certificate preview
- * @route   post /api/award/generateCertificatePreview?awardId
+ * @desc    Generate certificate preview
+ * @route   POST /api/award/generateCertificatePreview?awardId
  * @access  Public / Admin
  */
 const generateCertificatePreview = async (req, res) => {
@@ -269,7 +267,7 @@ const generateCertificatePreview = async (req, res) => {
 
     return res.status(StatusCodes.OK).json({
       msg: "Certificate generated successfully!",
-      previewURL: previewURL.url,
+      previewURL: previewURL?.jpegUrl || "",
     });
   } catch (error) {
     console.log("generateCertificatePreview Error:", error);
@@ -281,8 +279,8 @@ const generateCertificatePreview = async (req, res) => {
 };
 
 /**
- * @desc    Dispatch certifcates or badges
- * @route   post /api/award/dispatchCertificates?awardId&clubId
+ * @desc    Dispatch certificates or badges
+ * @route   POST /api/award/dispatchCertificates?awardId&clubId
  * @access  Public(permission) / Admin
  */
 const dispatchCertificates = async (req, res) => {
@@ -296,12 +294,8 @@ const dispatchCertificates = async (req, res) => {
         .json({ msg: "clubId and awardId are required" });
     }
 
-    // Fetch club info
-    const clubData = await Club.findById(clubId, {
-      name: 1,
-      permissions: 1,
-      awards: 1,
-    });
+    // Fetch club info via inter-service call
+    const clubData = await fetchClubData(clubId, ["name", "permissions", "awards"]);
 
     if (!clubData) {
       return res.status(StatusCodes.NOT_FOUND).json({ msg: "Club not found" });
@@ -330,20 +324,50 @@ const dispatchCertificates = async (req, res) => {
 
     let eventProfiles = [];
 
-    if (event?.eventId && event.ticketTypes) {
-      const ticketTypes = event.ticketTypes.map((t) =>
-        typeof t === "string" ? t : t.type
-      );
+    console.log("dispatchCertificates -> initial event object:", event);
+    console.log("dispatchCertificates -> initial profiles count:", profiles.length);
 
-      const tickets = await fetchTicketFieldsByQuery({
-              searchBy: { eventId: new mongoose.Types.ObjectId(event.eventId),
-              type: { $in: ticketTypes } },
-             fields: ["boughtBy"]
-          });
+    if (event?.eventId) {
+      let searchBy = null;
 
-      receiversCount += tickets.length;
-      eventProfiles = tickets.map((t) => ({ _id: t.boughtBy }));
+      if (event.ticketTypes && event.ticketTypes.length > 0) {
+        const ticketTypes = event.ticketTypes.map((t) =>
+          typeof t === "string" ? t : t.type
+        );
+        searchBy = {
+          eventId: new mongoose.Types.ObjectId(event.eventId),
+          type: { $in: ticketTypes },
+        };
+      } else if (event.bookedBy && event.bookedBy.length > 0) {
+        searchBy = {
+          _id: { $in: event.bookedBy },
+        };
+      } else {
+        // Fallback: If no specific ticketTypes or bookedBy IDs are provided,
+        // fetch all tickets for this event.
+        searchBy = {
+          eventId: new mongoose.Types.ObjectId(event.eventId),
+        };
+      }
+
+      if (searchBy) {
+        console.log("dispatchCertificates -> searchBy query for tickets:", searchBy);
+        
+        const tickets = await fetchTicketFieldsByQuery({
+          searchBy,
+          fields: ["boughtBy"],
+        });
+
+        console.log("dispatchCertificates -> fetched tickets from ticket service:", tickets?.length ? tickets : "No tickets found");
+
+        if (tickets) {
+          receiversCount += tickets.length;
+          eventProfiles = tickets.map((t) => ({ _id: t.boughtBy }));
+        }
+      }
     }
+    
+    console.log("dispatchCertificates -> final receiversCount:", receiversCount, " | availableCount:", availableCount);
 
     if (receiversCount > availableCount) {
       return res
@@ -351,15 +375,10 @@ const dispatchCertificates = async (req, res) => {
         .json({ msg: "Insufficient certificates available." });
     }
 
-    //  Update the award count
-    await Club.updateOne(
-      { _id: clubId, "awards.awardId": awardId },
-      {
-        $inc: { "awards.$.count": -receiversCount },
-      }
-    );
+    // Update the award count via inter-service call
+    await updateClubAwardCount(clubId, awardId, -receiversCount);
 
-    //  Dispatch
+    // Dispatch
     dispatchCertifcateToProfiles({
       awardId,
       formData,
@@ -382,7 +401,7 @@ const dispatchCertificates = async (req, res) => {
   }
 };
 
-// helper function to dispatch certifcates to profiles
+// helper function to dispatch certificates to profiles
 async function dispatchCertifcateToProfiles({
   awardId,
   formData,
@@ -417,33 +436,48 @@ async function dispatchCertifcateToProfiles({
     }
 
     if (missingFields.length > 0) {
-      console.log("Missing fields inn form data.");
+      console.log("Missing fields in form data.");
       return;
     }
 
     for (const profile of profiles) {
-      const userData = await User.findById(profile._id, {
-        fullName: 1,
-        name: 1,
-        email: 1,
-        unreadNotice: 1,
-        memoryRequests: 1,
-        pushToken: 1,
-        image: 1,
-      });
+      // Fetch user data via inter-service call
+      const userData = await fetchUserData(profile._id, [
+        "fullName",
+        "name",
+        "email",
+        "unreadNotice",
+        "memoryRequests",
+        "pushToken",
+        "image",
+      ]);
+
+      if (!userData) {
+        console.log(`User not found for profile ${profile._id}`);
+        continue;
+      }
+
       let previewURL = "";
+      const previewData = {
+        name: userData.fullName || userData.name,
+        ...formData,
+      };
       if (award.title === "Imperial Crest") {
-        const previewData = {
-          name: userData.fullName || userData.name,
-          ...formData,
-        };
         previewURL = await generateCertificatePreview1(previewData);
+      } else if (award.title === "Luna Minimal") {
+        previewURL = await generateCertificatePreview2(previewData);
+      } else if (award.title === "Golden Grace") {
+        previewURL = await generateCertificatePreview3(previewData);
+      } else if (award.title === "Crown of Merit") {
+        previewURL = await generateCertificatePreview4(previewData);
+      } else if (award.title === "The Abstract Frame") {
+        previewURL = await generateCertificatePreview5(previewData);
       }
       const awardInstance = await AwardInstance.create({
         awardId,
         dispatchedTo: userData._id,
         dispatcherType: "club",
-        previewURL: previewURL.url,
+        previewURL: previewURL?.jpegUrl || "",
         formData,
         dispatcherMetaData,
       });
@@ -452,7 +486,7 @@ async function dispatchCertifcateToProfiles({
         type: "a_event",
         title: formData?.title,
         caption: formData?.description,
-        certificate: previewURL.url,
+        certificate: previewURL?.jpegUrl || "",
         uploadEnabled: true,
         creatorMetaData: { name: userData.name, image: userData.image },
         awardId: awardInstance._id,
@@ -465,35 +499,30 @@ async function dispatchCertifcateToProfiles({
   }
 }
 
-async function secondaryActionsForCertifcates({ memory, userData }) {
+async function secondaryActionsForCertifcates({ memoryData, userData }) {
   try {
-    // In-app notification
+    // In-app notification via inter-service call
     const notice = {
       value: `A certificate was added to your memory lane.`,
-      img1: memory?.creatorMetaData?.image,
-      img2: memory.certificate,
+      img1: memoryData?.creatorMetaData?.image,
+      img2: memoryData.certificate,
       action: "memoryExpand",
       key: "certificate",
-      params: { memoryId: memory._id },
-      uid: `memory_${memory._id}_certificate`,
+      params: { memoryId: memoryData._id },
+      uid: `memory_${memoryData._id}_certificate`,
       createdAt: new Date(),
     };
 
-    // Ensure unreadNotice array exists
-    if (!Array.isArray(userData.unreadNotice)) {
-      userData.unreadNotice = [];
-    }
-    userData.unreadNotice.push(notice);
-    await userData.save();
+    await pushNoticeToUser(userData._id, notice);
 
     // Fire-and-forget background actions
     if (userData.pushToken) {
       scheduleNotification2({
         pushToken: [userData.pushToken],
         title: `A certificate was added to your memory lane.`,
-        body: memory?.caption || "Tap to view.",
-        image: memory.certificate,
-        url: `https://macbease.com/app/memory/${memory._id}`,
+        body: memoryData?.caption || "Tap to view.",
+        image: memoryData.certificate,
+        url: `https://macbease.com/app/memory/${memoryData._id}`,
       });
     }
 
@@ -502,7 +531,7 @@ async function secondaryActionsForCertifcates({ memory, userData }) {
         userData.name,
         [
           `A certificate was added to your memory lane.`,
-          memory?.caption || "Tap to view.",
+          memoryData?.caption || "Tap to view.",
         ],
         `For any queries please mail on support@macbease.com.`,
         "Macbease Certificate",
@@ -510,7 +539,7 @@ async function secondaryActionsForCertifcates({ memory, userData }) {
         {
           instructions: "Click below to view your certificate:",
           text: "View Certificate",
-          url: `https://macbease.com/app/memory/${memory._id}`,
+          url: `https://macbease.com/app/memory/${memoryData._id}`,
           color: "#1ea1ed",
         }
       )
@@ -526,10 +555,54 @@ async function secondaryActionsForCertifcates({ memory, userData }) {
   }
 }
 
+/**
+ * @desc    Get award by ID (internal service endpoint)
+ * @route   POST /api/award/getAwardById
+ * @access  Internal services only
+ */
+const getAwardById = async (req, res) => {
+  try {
+    const { awardId, fields } = req.body;
+
+    if (!awardId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        success: false,
+        msg: "awardId is required",
+      });
+    }
+
+    // Build projection from fields array
+    let projection = {};
+    if (Array.isArray(fields) && fields.length > 0) {
+      fields.forEach((f) => { projection[f] = 1; });
+    }
+
+    const award = await Award.findById(awardId, projection).lean();
+    if (!award) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        msg: "Award not found",
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: award,
+    });
+  } catch (error) {
+    console.error("getAwardById Error:", error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      msg: "Something went wrong",
+    });
+  }
+};
+
 module.exports = {
   createAward,
   updateAward,
   getAllAwards,
   generateCertificatePreview,
   dispatchCertificates,
+  getAwardById,
 };

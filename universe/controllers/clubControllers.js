@@ -1,9 +1,11 @@
 const { StatusCodes } = require("http-status-codes");
+const crypto = require("crypto");
+const axios = require("axios");
 const Club = require("../models/club");
 const User = require("../models/user");
 const Admin = require("../models/admin");
 const Community = require("../models/community");
-const Award = require("../models/award");
+
 const schedule = require("node-schedule");
 const {
   sendMail,
@@ -23,6 +25,7 @@ const {
   fetchMultipleContents,
   searchContentsFromIds,
   fetchEventData,
+  fetchAwardById,
 } = require("./interServiceCalls");
 const { sendKafkaMessage } = require("../config/utils/sendKafkaMessage");
 const {
@@ -4089,6 +4092,29 @@ const getClubFieldsById = async (req, res) => {
   }
 };
 
+const updateClubAwardCount = async (req, res) => {
+  try {
+    const { clubId, awardId, delta } = req.body;
+    if (!clubId || !awardId || delta === undefined) {
+      return res.status(400).json({ error: "Missing required parameters" });
+    }
+
+    const result = await Club.updateOne(
+      { _id: clubId, "awards.awardId": awardId },
+      { $inc: { "awards.$.count": delta } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ error: "Club or award not found" });
+    }
+
+    return res.status(200).json({ success: true, message: "Award count updated" });
+  } catch (error) {
+    console.error("Error updating club award count:", error);
+    return res.status(500).json({ error: "Server error" });
+  }
+};
+
 const getRandomClubs = async (req, res) => {
   try {
     // Parse and validate the size query param
@@ -4520,8 +4546,8 @@ const addAwardToClub = async (req, res) => {
       });
     }
 
-    // Step 1: Validate award existence
-    const award = await Award.findById(awardId);
+    // Step 1: Validate award existence via inter-service call
+    const award = await fetchAwardById(awardId, ["price", "title"]);
     if (!award) {
       return res.status(404).json({
         success: false,
@@ -5026,6 +5052,7 @@ module.exports = {
   checkClubExists,
   searchClubs,
   getClubFieldsById,
+  updateClubAwardCount,
   getRandomClubs,
   fetchClubLeaderBoard,
   getClubPermissions,

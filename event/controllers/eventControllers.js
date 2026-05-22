@@ -1885,13 +1885,12 @@ const checkEventStatus = async (req, res) => {
   try {
     const { eventId, slug } = req.query;
 
-    if (!mongoose.Types.ObjectId.isValid(eventId)) {
-      return res.status(StatusCodes.BAD_REQUEST).send("Invalid eventId.");
-    }
-
     let query = {};
 
     if (eventId) {
+      if (!mongoose.Types.ObjectId.isValid(eventId)) {
+        return res.status(StatusCodes.BAD_REQUEST).send("Invalid eventId.");
+      }
       query._id = eventId;
     } else if (slug) {
       query.slug = slug;
@@ -1963,7 +1962,7 @@ const checkEventStatus = async (req, res) => {
     }
 
     const matchedTicket = await fetchTicketsBoughtByAUserOfAnEvent({
-      eventId,
+      eventId: event._id,
       userId: req.user.id,
     });
 

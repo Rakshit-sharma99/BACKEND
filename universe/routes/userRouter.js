@@ -37,6 +37,7 @@ const {
   changeIp,
   getUsersBySignupDate,
   getUserFieldsById,
+  pushNotice,
   readContentTeam,
   removeFromTeam,
   getContentTeamAdmins,
@@ -79,6 +80,7 @@ const {
   getTrendingSearches,
   reactToAsset,
   getAssetReactions,
+  getRecommendedSpaces,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -117,6 +119,7 @@ router.get("/getUserById", getUserById);
 router.post("/changeIp", changeIp);
 router.get("/getUsersBySignupDate", getUsersBySignupDate);
 router.post("/getUserFieldsById", getUserFieldsById);
+router.post("/pushNotice", pushNotice);
 router.get("/addToContentTeam", addToContentTeam);
 router.get("/readContentTeam", readContentTeam);
 router.get("/removeFromTeam", removeFromTeam);
@@ -164,4 +167,5 @@ router.post("/checkUserChannelRole", checkUserChannelRole);
 
 router.get("/getRecommendedProfiles",getRecommendedProfiles);
 router.get("/getTrendingSearches", getTrendingSearches);
+router.get("/getRecommendedSpaces", getRecommendedSpaces);
 module.exports = router;

@@ -57,14 +57,14 @@ const sendMail = async (
       intro: intro,
       action: action
         ? {
-          instructions:
-            action.instructions || "Click the button below to proceed:",
-          button: {
-            color: action.color || "#1ea1ed",
-            text: action.text || "View Details",
-            link: action.url,
-          },
-        }
+            instructions:
+              action.instructions || "Click the button below to proceed:",
+            button: {
+              color: action.color || "#1ea1ed",
+              text: action.text || "View Details",
+              link: action.url,
+            },
+          }
         : undefined,
       outro: outro,
     },
@@ -106,7 +106,7 @@ const sendMail = async (
 
 const scheduleNotification = (pushTokens, title, body, image) => {
   if (!Array.isArray(pushTokens) || !title || !body) {
-    console.log("Missing title, body, or pushTokens array!");
+    console.log("Missing title, body, or pushTokens array.");
     return;
   }
 
@@ -281,13 +281,13 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
   try {
     const targetAdmins = role
       ? await Admin.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await Admin.aggregate([
-        { $match: { _id: { $in: ids } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: ids } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetAdmins
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -301,10 +301,10 @@ const pingAdmins = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -358,13 +358,13 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
     }
     const targetUsers = role
       ? await User.find(
-        { role },
-        { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
-      )
+          { role },
+          { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 },
+        )
       : await User.aggregate([
-        { $match: { _id: { $in: processedIds } } },
-        { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
-      ]);
+          { $match: { _id: { $in: processedIds } } },
+          { $project: { _id: 1, email: 1, pushToken: 1, unreadNotice: 1 } },
+        ]);
     const targetPushTokens = targetUsers
       .map((item) => item.pushToken)
       .filter((token) => token);
@@ -378,10 +378,10 @@ const pingUsers = async ({ role, ids, pingLevel, notification, email }) => {
       notification.url
         ? scheduleNotification2(notificationPayload)
         : scheduleNotification(
-          notificationPayload.pushToken,
-          notificationPayload.title,
-          notificationPayload.body,
-        );
+            notificationPayload.pushToken,
+            notificationPayload.title,
+            notificationPayload.body,
+          );
     }
     if (pingLevel === 1 || pingLevel === 2) {
       const notice = {
@@ -1047,10 +1047,10 @@ const secondaryInvitationActions = async ({
             notificationPayload.url
               ? scheduleNotification2(notificationData)
               : scheduleNotification(
-                [target.pushToken],
-                notificationData.title,
-                notificationData.body,
-              );
+                  [target.pushToken],
+                  notificationData.title,
+                  notificationData.body,
+                );
           } else {
             // Function to dispatch notification to admin
           }
@@ -1334,7 +1334,7 @@ const sendOnboardingMail = async (user) => {
   } catch (error) {
     console.log(error);
   }
-}
+};
 
 const fetchEventsByUid = async (query) => {
   try {
@@ -1347,7 +1347,7 @@ const fetchEventsByUid = async (query) => {
     const events = await axios.post(
       "http://event:5060/event/api/v1/getEventsByUid",
       { uid, fields },
-      config
+      config,
     );
     return events.data;
   } catch (error) {
@@ -1357,7 +1357,11 @@ const fetchEventsByUid = async (query) => {
 
 const fetchTicketsByEventIDsAndUID = async (query) => {
   try {
-    if ((!query.uid && !query.excludeUid) || !query.fields || query.fields.length === 0) {
+    if (
+      (!query.uid && !query.excludeUid) ||
+      !query.fields ||
+      query.fields.length === 0
+    ) {
       return;
     }
     const { uid, eventIds, excludeUid } = query;
@@ -1367,9 +1371,9 @@ const fetchTicketsByEventIDsAndUID = async (query) => {
       "http://ticket:5060/ticket/api/v1/getTicketsByEventIDsAndUID",
       {
         query: { uid, eventIds, excludeUid },
-        fields
+        fields,
       },
-      config
+      config,
     );
     return tickets.data;
   } catch (error) {
@@ -1399,15 +1403,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       const count = await Club.aggregate([
         {
           $match: {
-            uid: { $eq: uid }
-          }
+            uid: { $eq: uid },
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1417,13 +1421,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     case "clubs_with_min_members": {
       const aggregatedClubs = await Club.aggregate([
         { $match: matchQuery },
-        { $project: { membersCount: { $size: { $ifNull: ["$members", []] } } } },
+        {
+          $project: { membersCount: { $size: { $ifNull: ["$members", []] } } },
+        },
         { $sort: { membersCount: -1 } },
-        { $limit: numOfEntities }
+        { $limit: numOfEntities },
       ]);
 
       // Extract just the membersCount values
-      result = aggregatedClubs.map(c => c.membersCount);
+      result = aggregatedClubs.map((c) => c.membersCount);
       break;
     }
 
@@ -1434,9 +1440,9 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         {
           $group: {
             _id: null,
-            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
-          }
-        }
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } },
+          },
+        },
       ]);
       result = [aggResult[0]?.total || 0];
       break;
@@ -1448,13 +1454,13 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         { $match: matchQuery },
         {
           $addFields: {
-            eventsCount: { $size: { $ifNull: ["$upcomingEvent", []] } }
-          }
+            eventsCount: { $size: { $ifNull: ["$upcomingEvent", []] } },
+          },
         },
         { $sort: { eventsCount: -1 } },
-        { $limit: numOfEntities }
+        { $limit: numOfEntities },
       ]);
-      result = aggResult.map(c => c.eventsCount);
+      result = aggResult.map((c) => c.eventsCount);
       break;
     }
 
@@ -1464,13 +1470,13 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         { $match: matchQuery },
         {
           $addFields: {
-            postsCount: { $size: { $ifNull: ["$content", []] } }
-          }
+            postsCount: { $size: { $ifNull: ["$content", []] } },
+          },
         },
         { $sort: { postsCount: -1 } },
-        { $limit: numOfEntities }
+        { $limit: numOfEntities },
       ]);
-      result = aggResult.map(c => c.postsCount);
+      result = aggResult.map((c) => c.postsCount);
       break;
     }
 
@@ -1480,15 +1486,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         { $match: matchQuery },
         {
           $project: {
-            postsCount: { $size: { $ifNull: ["$content", []] } }
-          }
+            postsCount: { $size: { $ifNull: ["$content", []] } },
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: "$postsCount" }
-          }
-        }
+            total: { $sum: "$postsCount" },
+          },
+        },
       ]);
       result = [aggResult[0]?.total || 0];
       break;
@@ -1501,15 +1507,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       const count = await Community.aggregate([
         {
           $match: {
-            uid: { $eq: uid }
-          }
+            uid: { $eq: uid },
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1524,15 +1530,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
             membersCount: {
               $add: [
                 { $size: { $ifNull: ["$members", []] } },
-                { $ifNull: ["$activeMembers", 0] } // combining stored count if needed
-              ]
-            }
-          }
+                { $ifNull: ["$activeMembers", 0] }, // combining stored count if needed
+              ],
+            },
+          },
         },
         { $sort: { membersCount: -1 } },
-        { $limit: numOfEntities }
+        { $limit: numOfEntities },
       ]);
-      result = aggregated.map(c => c.membersCount);
+      result = aggregated.map((c) => c.membersCount);
       break;
     }
 
@@ -1543,9 +1549,9 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         {
           $group: {
             _id: null,
-            total: { $sum: { $size: { $ifNull: ["$members", []] } } }
-          }
-        }
+            total: { $sum: { $size: { $ifNull: ["$members", []] } } },
+          },
+        },
       ]);
       result = [aggResult[0]?.total || 0];
       break;
@@ -1557,13 +1563,13 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         { $match: matchQuery },
         {
           $addFields: {
-            postsCount: { $size: { $ifNull: ["$content", []] } }
-          }
+            postsCount: { $size: { $ifNull: ["$content", []] } },
+          },
         },
         { $sort: { postsCount: -1 } },
-        { $limit: numOfEntities }
+        { $limit: numOfEntities },
       ]);
-      result = aggResult.map(c => c.postsCount);
+      result = aggResult.map((c) => c.postsCount);
       break;
     }
 
@@ -1573,15 +1579,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         { $match: matchQuery },
         {
           $project: {
-            postsCount: { $size: { $ifNull: ["$content", []] } }
-          }
+            postsCount: { $size: { $ifNull: ["$content", []] } },
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: "$postsCount" }
-          }
-        }
+            total: { $sum: "$postsCount" },
+          },
+        },
       ]);
       result = [aggResult[0]?.total || 0];
       break;
@@ -1616,41 +1622,40 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     case "top_event_registration": {
       const eventsData = await fetchEventsByUid({
         uid,
-        fields: ["bookedBy"]
+        fields: ["bookedBy"],
       });
 
       const events = eventsData?.events || [];
 
       const sorted = events
         .map((event) => ({
-          bookedCount: (event.bookedBy || []).length
+          bookedCount: (event.bookedBy || []).length,
         }))
-        .filter(e => e.bookedCount > 0)
+        .filter((e) => e.bookedCount > 0)
         .sort((a, b) => b.bookedCount - a.bookedCount)
         .slice(0, numOfEntities);
 
-      result = sorted.map(e => e.bookedCount);
+      result = sorted.map((e) => e.bookedCount);
       break;
     }
 
     // 15. Cross campus events registrations
     case "cross_campus_events_registrations": {
-
       const eventsData = await fetchEventsByUid({
         uid,
-        fields: ["bookedBy"]
+        fields: ["bookedBy"],
       });
 
       const events = eventsData?.events || [];
 
-      const eventIds = events.map(event => event._id);
+      const eventIds = events.map((event) => event._id);
 
       const { count } = await fetchTicketsByEventIDsAndUID({
         query: {
           eventIds,
-          excludeUid: uid
+          excludeUid: uid,
         },
-        fields: ["_id"]
+        fields: ["_id"],
       });
 
       result = [count || 0];
@@ -1661,13 +1666,13 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     case "category_event_combo": {
       const eventsData = await fetchEventsByUid({
         uid,
-        fields: ["primaryCategory"]
+        fields: ["primaryCategory"],
       });
-      
+
       const events = eventsData.events;
-      
+
       const categoryEvents = {};
-      events.forEach(event => {
+      events.forEach((event) => {
         const category = event.primaryCategory;
         if (category) {
           if (!categoryEvents[category]) {
@@ -1676,12 +1681,12 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
           categoryEvents[category]++;
         }
       });
-      
+
       const sorted = Object.entries(categoryEvents)
         .sort((a, b) => b[1] - a[1])
         .slice(0, numOfEntities);
-      
-      result = sorted.map(e => e[1]);
+
+      result = sorted.map((e) => e[1]);
       break;
     }
 
@@ -1692,15 +1697,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
       const count = await User.aggregate([
         {
           $match: {
-            uid: { $eq: uid }
-          }
+            uid: { $eq: uid },
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1712,15 +1717,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         {
           $match: {
             uid: { $eq: uid },
-            profession: "Student"
-          }
+            profession: "Student",
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1732,15 +1737,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         {
           $match: {
             uid: { $eq: uid },
-            profession: "Professor"
-          }
+            profession: "Professor",
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1752,15 +1757,15 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
         {
           $match: {
             uid: { $eq: uid },
-            profession: "Alumni"
-          }
+            profession: "Alumni",
+          },
         },
         {
           $group: {
             _id: null,
-            total: { $sum: 1 }
-          }
-        }
+            total: { $sum: 1 },
+          },
+        },
       ]);
       result = [count[0]?.total || 0];
       break;
@@ -1770,26 +1775,26 @@ async function resolveMetricValue(metric, uid, numOfEntities = 1) {
     case "active_member_posts": {
       const topUsers = await User.aggregate([
         {
-          $match: { uid }
+          $match: { uid },
         },
         {
           $project: {
             totalContribution: {
               $add: [
                 { $size: { $ifNull: ["$clubContributions", []] } },
-                { $size: { $ifNull: ["$communityContribution", []] } }
-              ]
-            }
-          }
+                { $size: { $ifNull: ["$communityContribution", []] } },
+              ],
+            },
+          },
         },
         {
-          $sort: { totalContribution: -1 }
+          $sort: { totalContribution: -1 },
         },
         {
-          $limit: numOfEntities
-        }
+          $limit: numOfEntities,
+        },
       ]);
-      result = topUsers.map(u => u.totalContribution);
+      result = topUsers.map((u) => u.totalContribution);
       break;
     }
 
@@ -1854,10 +1859,10 @@ const containsRestrictedWords = (text) => {
   if (!text) return false;
   // Normalize string: remove all non-alphanumeric characters and convert to lowercase
   const normalizedText = text.toLowerCase().replace(/[^a-z0-9]/g, "");
-  
+
   // Array of restricted base words
   const restrictedWords = ["macbease"];
-  
+
   return restrictedWords.some((word) => normalizedText.includes(word));
 };
 
@@ -1888,5 +1893,5 @@ module.exports = {
   fetchRightSequence,
   sendOnboardingMail,
   resolveMetricValue,
-  containsRestrictedWords
+  containsRestrictedWords,
 };

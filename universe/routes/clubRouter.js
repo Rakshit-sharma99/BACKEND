@@ -63,6 +63,7 @@ const {
   checkClubExists,
   searchClubs,
   getClubFieldsById,
+  updateClubAwardCount,
   getRandomClubs,
   fetchClubLeaderBoard,
   getClubPermissions,
@@ -140,6 +141,7 @@ router.post("/getProposalsFromIds", getProposalsFromIds);
 router.get("/checkClubExists", checkClubExists);
 router.get("/searchClubs", searchClubs);
 router.post("/getClubFieldsById", getClubFieldsById);
+router.post("/updateClubAwardCount", updateClubAwardCount);
 router.get("/getRandomClubs", getRandomClubs);
 router.get("/fetchClubLeaderBoard", fetchClubLeaderBoard);
 router.get("/getClubPermissions", getClubPermissions);

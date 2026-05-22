@@ -22,6 +22,28 @@ const update_user_memory_list = async (messageValue) => {
         $pull: { memoryRequests: memoryObjectId },
       });
     }
+    if (operation === "move_to_bin") {
+      await User.findByIdAndUpdate(id, {
+        $pull: { memoryRequests: memoryObjectId },
+        $push: {
+          memoryBin: {
+            memoryId: memoryObjectId,
+            deletedAt: new Date(),
+          },
+        },
+      });
+    }
+    if (operation === "restore") {
+      await User.findByIdAndUpdate(id, {
+        $pull: { memoryBin: { memoryId: memoryObjectId } },
+        $addToSet: { memoryRequests: memoryObjectId },
+      });
+    }
+    if (operation === "permanent_remove") {
+      await User.findByIdAndUpdate(id, {
+        $pull: { memoryBin: { memoryId: memoryObjectId } },
+      });
+    }
   } catch (error) {
     console.log(error);
     console.log("📩 Failed to process update user memory list topic");

@@ -34,6 +34,7 @@ const {
   editComment,
   deleteComment,
   deleteReply,
+  deleteCommunityContentByAdmin,
 } = require("../controllers/contentController");
 const {
   bulkUpdateContentParams,
@@ -70,4 +71,5 @@ router.get("/searchLikedByUsers", searchLikedByUsers);
 router.patch("/editComment", editComment);
 router.delete("/deleteComment", deleteComment);
 router.delete("/deleteReply", deleteReply);
+router.post("/deleteCommunityContentByAdmin", deleteCommunityContentByAdmin);
 module.exports = router;

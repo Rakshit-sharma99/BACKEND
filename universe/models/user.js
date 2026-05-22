@@ -662,6 +662,19 @@ const userSchema = new mongoose.Schema(
       },
     ],
 
+    memoryBin: [
+      {
+        memoryId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Memory",
+        },
+        deletedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
+
     uid: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Universe",
