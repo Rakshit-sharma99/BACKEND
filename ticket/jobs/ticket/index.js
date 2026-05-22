@@ -45,6 +45,7 @@ module.exports = async function createTicketForEvent({ payment, session }) {
       await sendKafkaMessage("UPDATE_COUPON", "coupon", {
         couponId,
         userId,
+        eventId,
       });
     }
 

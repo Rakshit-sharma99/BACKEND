@@ -2,6 +2,7 @@ const { StatusCodes } = require("http-status-codes");
 const User = require("../models/user");
 const Admin = require("../models/admin");
 const bcrypt = require("bcryptjs");
+const Session = require("../models/session");
 const Community = require("../models/community");
 const Club = require("../models/club");
 const Bookmark = require("../models/bookmark");
@@ -28,6 +29,21 @@ const {
 } = require("./interServiceCalls");
 const { redis } = require("../app");
 require("dotenv").config();
+
+const hostCookie = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  path: "/",
+};
+
+const sharedCookie = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "None",
+  domain: ".macbease.com",
+  path: "/",
+};
 
 const securePassword = async (password) => {
   try {
@@ -421,15 +437,84 @@ const randomUsers = async (req, res) => {
 //function to change password from your profile using oldPass as authentication
 const changePassword = async (req, res) => {
   const { oldPass, newPass } = req.body;
-  let user = await User.findById(req.user.id, { password: 1 });
-  const isOldPassCorrect = await bcrypt.compare(oldPass, user.password);
-  if (isOldPassCorrect) {
+  const requestedPlatform =
+    req.body.platform || (req.cookies?.refresh_token ? "web" : "app");
+  const key = requestedPlatform.toLowerCase() === "web" ? "web" : "app";
+
+  try {
+    let user = await User.findById(req.user.id, {
+      password: 1,
+      refreshTokens: 1,
+      uid: 1,
+      universeMetaData: 1,
+    });
+
+    if (!user) {
+      return res
+        .status(StatusCodes.NOT_FOUND)
+        .json({ message: "User not found" });
+    }
+
+    const isOldPassCorrect = await bcrypt.compare(oldPass, user.password);
+    if (!isOldPassCorrect) {
+      return res.status(StatusCodes.OK).send("Old password does not match");
+    }
+
     const newPassword = await securePassword(newPass);
     user.password = newPassword;
-    user.save();
-    return res.status(StatusCodes.OK).send("Password changed successfully");
-  } else {
-    return res.status(StatusCodes.OK).send("Old password does not match");
+    user.refreshTokens = { app: null, web: null };
+
+    const logoutTime = Math.floor(Date.now() / 1000);
+    const token = user.createAccessToken();
+    const refreshToken = user.createRefreshToken();
+    user.refreshTokens[key] = refreshToken;
+
+    await user.save();
+
+    if (redis) {
+      await redis.set(
+        `logout:${user._id.toString()}`,
+        logoutTime,
+        "EX",
+        25 * 60
+      );
+    }
+
+    const session = await Session.create({ userId: user._id.toString() });
+
+    if (key === "web") {
+      ["access_token", "refresh_token", "session_id"].forEach((name) => {
+        res.clearCookie(name, hostCookie);
+        res.clearCookie(name, sharedCookie);
+      });
+
+      res.cookie("access_token", token, {
+        ...sharedCookie,
+        maxAge: 25 * 60 * 1000,
+      });
+
+      res.cookie("refresh_token", refreshToken, {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      res.cookie("session_id", session._id.toString(), {
+        ...sharedCookie,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Password changed successfully",
+      ...(key === "app" ? { token, refreshToken } : {}),
+      sessionId: session._id,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      message: "Password change failed",
+    });
   }
 };
 

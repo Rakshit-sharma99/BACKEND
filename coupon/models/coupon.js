@@ -42,6 +42,11 @@ const CouponSchema = new mongoose.Schema(
       },
     ],
 
+    singleUsePerUser: {
+      type: Boolean,
+      default: false,
+    },
+
     isActive: {
       type: Boolean,
       default: true, // can deactivate without deleting
