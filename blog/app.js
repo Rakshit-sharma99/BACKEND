@@ -7,6 +7,7 @@ const cookieParser = require("cookie-parser");
 
 const connectDB = require("./db/connect");
 const blogRouter = require("./routes/blogRouter");
+const publicRouter = require("./routes/publicRotuer");
 
 const app = express();
 const server = http.createServer(app);
@@ -50,7 +51,7 @@ app.get("/blog/api/v1/hello", (req, res) => {
 });
 
 app.use("/blog/api/v1",blogRouter);
-
+app.use("/blog/api/v1/public", publicRouter);
 const port = process.env.PORT || 7010;
 
 const start = async () => {
