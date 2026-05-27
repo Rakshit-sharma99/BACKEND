@@ -199,10 +199,38 @@ const deleteBlog = async (req, res) => {
   }
 };
 
+const getRecentBlogs = async (req, res) => {
+  try {
+  
+    const limit = parseInt(req.query.limit) || 5;
+  
+    // Fetch recent blogs sorted by creation date
+    const blogs = await Blog.find()
+      .sort({ createdAt: -1 }) // newest first
+      .limit(limit)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      message: "Recent blogs fetched successfully!",
+      count: blogs.length,
+      data: blogs,
+    });
+  } catch (err) {
+    console.error("Error fetching recent blogs:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
 module.exports = {
     createBlog,
     getBlogs,
     getBlogBySlug,
     updateBlog,
-    deleteBlog
+    deleteBlog,
+    getRecentBlogs
 }
