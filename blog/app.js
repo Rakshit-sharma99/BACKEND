@@ -7,7 +7,7 @@ const cookieParser = require("cookie-parser");
 
 const connectDB = require("./db/connect");
 const blogRouter = require("./routes/blogRouter");
-const publicRouter = require("./routes/publicRotuer");
+const publicRouter = require("./routes/publicRouter");
 
 const app = express();
 const server = http.createServer(app);
