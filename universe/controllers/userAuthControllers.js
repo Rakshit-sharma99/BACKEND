@@ -1703,6 +1703,190 @@ const nameAndMailExistence = async (req, res) => {
   }
 };
 
+const getTopClubsCommunities = async (req, res) => {
+  try {
+    const { limit } = req.query
+
+    const safeLimit = Math.max(1, Number(limit) || 3);
+
+    const clubs = await Club.aggregate([
+      {
+        $sort: { rating: -1 },
+      },
+      {
+        $limit: safeLimit,
+      },
+      {
+        $project: {
+          secondaryImg: 1,
+          name: 1,
+          tags: 1,
+          motto: 1,
+          mainAdmin: 1,
+          rating: 1,
+          membersCount: { $size: "$members" },
+          top5Members: { $slice: ["$members", 5] },
+          founderId: { $toObjectId: "$mainAdmin" },
+        },
+      },
+      {
+        $addFields: {
+          top5Members: {
+            $map: {
+              input: "$top5Members",
+              as: "memberId",
+              in: { $toObjectId: "$$memberId" },
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "top5Members",
+          foreignField: "_id",
+          as: "top5Profiles",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "founderId",
+          foreignField: "_id",
+          as: "foundersDetails",
+        },
+      },
+      {
+        $project: {
+          secondaryImg: 1,
+          name: 1,
+          tags: 1,
+          motto: 1,
+          membersCount: 1,
+          rating: 1,
+          top5Profiles: {
+            $map: {
+              input: "$top5Profiles",
+              as: "profile",
+              in: {
+                id: "$$profile._id",
+                name: "$$profile.name",
+                img: "$$profile.image",
+                pushToken: "$$profile.pushToken",
+              },
+            },
+          },
+          foundersDetails: {
+            $arrayElemAt: [
+              {
+                $map: {
+                  input: "$foundersDetails",
+                  as: "profile",
+                  in: {
+                    id: "$$profile._id",
+                    name: "$$profile.name",
+                    img: "$$profile.image",
+                    pushToken: "$$profile.pushToken",
+                    course: "$$profile.course",
+                  },
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+    ]);
+
+    const communities = await Community.aggregate([
+      {
+        $sort: { rating: -1 },
+      },
+      {
+        $limit: 3,
+      },
+      {
+        $project: {
+          secondaryCover: 1,
+          label: 1,
+          activeMembers: 1,
+          title: 1,
+          tag: 1,
+          rating: 1,
+          membersCount: { $size: "$members" },
+          top5Members: { $slice: ["$members", 5] },
+          founderId: { $toObjectId: "$creatorId" },
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "top5Members",
+          foreignField: "_id",
+          as: "top5Profiles",
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "founderId",
+          foreignField: "_id",
+          as: "foundersDetails",
+        },
+      },
+      {
+        $project: {
+          secondaryCover: 1,
+          label: 1,
+          activeMembers: 1,
+          title: 1,
+          tag: 1,
+          membersCount: 1,
+          rating: 1,
+          top5Profiles: {
+            $map: {
+              input: "$top5Profiles",
+              as: "profile",
+              in: {
+                id: "$$profile._id",
+                name: "$$profile.name",
+                img: "$$profile.image",
+                pushToken: "$$profile.pushToken",
+              },
+            },
+          },
+          foundersDetails: {
+            $arrayElemAt: [
+              {
+                $map: {
+                  input: "$foundersDetails",
+                  as: "profile",
+                  in: {
+                    id: "$$profile._id",
+                    name: "$$profile.name",
+                    img: "$$profile.image",
+                    pushToken: "$$profile.pushToken",
+                    course: "$$profile.course",
+                  },
+                },
+              },
+              0,
+            ],
+          },
+        },
+      },
+    ]);
+
+    return res.status(StatusCodes.OK).json({ clubs, communities });
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .send("An error occurred while fetching top clubs and communities.");
+  }
+};
+
+
 module.exports = {
   registerUser,
   loginUser,
@@ -1734,4 +1918,5 @@ module.exports = {
   webPushToken,
   storeUnregisteredDevices,
   nameAndMailExistence,
+  getTopClubsCommunities
 };
