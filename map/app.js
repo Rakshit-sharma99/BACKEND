@@ -9,6 +9,7 @@ const authenticate = require("./middlewares/authentication");
 const semanticRouter = require("./routes/semanticRouter");
 const territoryRouter = require("./routes/territoryRouter");
 const assetRouter = require("./routes/assetRouter");
+const publicRouter = require("./routes/publicRouter");
 
 const app = express();
 const server = http.createServer(app);
@@ -56,7 +57,7 @@ app.get("/map/api/v1/hello", (req, res) => {
 app.use("/map/api/v1/nodes", authenticate, semanticRouter);
 app.use("/map/api/v1/territory", authenticate, territoryRouter);
 app.use("/map/api/v1/asset", authenticate, assetRouter);
-
+app.use("/map/api/v1/public", publicRouter);
 const port = process.env.PORT || 7050;
 
 const start = async () => {
