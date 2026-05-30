@@ -3,6 +3,8 @@ const { validationResult } = require("express-validator");
 const User = require("../models/user");
 const Session = require("../models/session");
 const UnregisteredDevices = require("../models/unregisteredDevices");
+const Club = require("../models/club");
+const Community = require("../models/community");
 require("dotenv").config();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
