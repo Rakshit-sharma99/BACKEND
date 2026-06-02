@@ -81,6 +81,7 @@ const {
   reactToAsset,
   getAssetReactions,
   getRecommendedSpaces,
+  authenticateUser,
 } = require("../controllers/userControllers");
 
 router.route("/").get(getUser).patch(updateUser).delete(deleteUser);
@@ -168,4 +169,5 @@ router.post("/checkUserChannelRole", checkUserChannelRole);
 router.get("/getRecommendedProfiles",getRecommendedProfiles);
 router.get("/getTrendingSearches", getTrendingSearches);
 router.get("/getRecommendedSpaces", getRecommendedSpaces);
+router.get("/auth/me", authenticateUser);
 module.exports = router;
