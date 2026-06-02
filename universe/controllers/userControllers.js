@@ -4094,12 +4094,12 @@ const getRecommendedSpaces = async (req, res) => {
     const [sameUniCommunities, globalCommunities] = await Promise.all([
       userUid
         ? Community.find({ ...communityQuery, uid: userUid })
-            .select(
-              "_id title secondaryCover tag members activeMembers uid universeMetaData entryRules",
-            )
-            .sort({ activeMembers: -1 })
-            .limit(MAX_RESULTS)
-            .lean()
+          .select(
+            "_id title secondaryCover tag members activeMembers uid universeMetaData entryRules",
+          )
+          .sort({ activeMembers: -1 })
+          .limit(MAX_RESULTS)
+          .lean()
         : Promise.resolve([]),
       Community.find(communityQuery)
         .select(
@@ -4118,12 +4118,12 @@ const getRecommendedSpaces = async (req, res) => {
     const [sameUniClubs, globalClubs] = await Promise.all([
       userUid
         ? Club.find({ ...clubQuery, uid: userUid })
-            .select(
-              "_id name motto tags secondaryImg members uid universeMetaData",
-            )
-            .sort({ "members.length": -1 })
-            .limit(8)
-            .lean()
+          .select(
+            "_id name motto tags secondaryImg members uid universeMetaData",
+          )
+          .sort({ "members.length": -1 })
+          .limit(8)
+          .lean()
         : Promise.resolve([]),
       Club.find(clubQuery)
         .select(
@@ -4302,6 +4302,27 @@ const getRecommendedSpaces = async (req, res) => {
   }
 };
 
+const authenticateUser = async (req, res) => {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ success: false, message: "Authentication failed" });
+    }
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "User authenticated successfully",
+    });
+  }
+  catch (error) {
+    console.error("Error in authenticateUser:", error);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ success: false, message: "Server error" });
+  }
+};
+
 module.exports = {
   getAssetSuggestions,
   getUserAssets,
@@ -4382,6 +4403,7 @@ module.exports = {
   getRecommendedProfiles,
   getTrendingSearches,
   getRecommendedSpaces,
+  authenticateUser,
 };
 
 const sendPhoneOTP = async (req, res) => {

@@ -40,7 +40,8 @@ const {
   webPushToken,
   storeUnregisteredDevices,
   nameAndMailExistence,
-  getTopClubsCommunities
+  getTopClubsCommunities,
+  logOut
 } = require("../controllers/userAuthControllers");
 const {
   registerUserValidator,
@@ -80,4 +81,5 @@ router.get("/webPushToken", webPushToken)
 router.post("/storeUnregisteredDevices", storeUnregisteredDevices);
 router.post("/nameAndMailExistence", nameAndMailExistence);
 router.get("/getTopClubsCommunities", getTopClubsCommunities);
+router.get("/logout", logOut);
 module.exports = router;
