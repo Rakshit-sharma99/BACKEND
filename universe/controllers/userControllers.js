@@ -4304,15 +4304,36 @@ const getRecommendedSpaces = async (req, res) => {
 
 const authenticateUser = async (req, res) => {
   try {
-    const user = req.user;
-    if (!user) {
-      return res
-        .status(StatusCodes.UNAUTHORIZED)
-        .json({ success: false, message: "Authentication failed" });
+
+    if (!req.user || !req.user.id) {
+      return res.status(StatusCodes.UNAUTHORIZED).json({
+        success: false,
+        message: "Unauthorized",
+      });
     }
+
+    const user = await User.findById(req.user.id, {
+      name: 1,
+      image: 1,
+      role: 1,
+      reg: 1,
+      profession: 1,
+      uid: 1,
+      universeMetaData: 1,
+      email: 1,
+    }).lean();
+
+    if (!user) {
+      return res.status(StatusCodes.NOT_FOUND).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "User authenticated successfully",
+      user,
     });
   }
   catch (error) {
