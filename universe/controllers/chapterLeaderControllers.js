@@ -466,7 +466,7 @@ const getChapterLeaderProgresses = async (req, res) => {
 
     try {
       const response = await axios.post(
-        `${QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
+        `${QUEST_SERVICE_URL}/quest1/api/v1/getQuestsByIds`,
         { questIds },
         { ...config }
       );
@@ -723,7 +723,7 @@ const claimQuestReward = async (req, res) => {
     let questDetails;
     try {
       const response = await axios.post(
-        `${QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
+        `${QUEST_SERVICE_URL}/quest1/api/v1/getQuestsByIds`,
         { questIds: [questId] },
         config
       );
