@@ -16,6 +16,8 @@ const generateServiceToken = () => {
   return { headers: { authorization: `Bearer ${token}` } };
 };
 
+const QUEST_SERVICE_URL = process.env.QUEST_SERVICE_URL || "http://quest1:7120";
+
 const generateProfessionalMail = (name, contentHTML, outro) => {
   return `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333333; line-height: 1.6; font-size: 16px;">
@@ -323,7 +325,7 @@ const verifyChapterLeader = async (req, res) => {
 
     try {
       const response = await axios.get(
-        `${process.env.QUEST_SERVICE_URL}/quest1/api/v1/getAllQuests`,
+        `${QUEST_SERVICE_URL}/quest1/api/v1/getAllQuests`,
         { timeout: 5000, ...config }
       );
       quests = response.data?.quests || [];
@@ -464,7 +466,7 @@ const getChapterLeaderProgresses = async (req, res) => {
 
     try {
       const response = await axios.post(
-        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
+        `${QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
         { questIds },
         { ...config }
       );
@@ -721,7 +723,7 @@ const claimQuestReward = async (req, res) => {
     let questDetails;
     try {
       const response = await axios.post(
-        `${process.env.QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
+        `${QUEST_SERVICE_URL}/quest/api/v1/getQuestsByIds`,
         { questIds: [questId] },
         config
       );
