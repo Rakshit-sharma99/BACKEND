@@ -677,7 +677,10 @@ const resetPassword = async (req, res) => {
 
 const getChapterLeaderDetails = async (req, res) => {
   try {
-    const leaderId = req.user.id;
+    const leaderId = req.query.leaderId || req.user.id;
+    if (!leaderId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "leaderId is required" });
+    }
     const leader = await ChapterLeader.findById(leaderId);
     if (!leader) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Chapter leader not found" });
@@ -1035,6 +1038,7 @@ const getChapterLeaders = async (req, res) => {
         email: 1,
         phone: 1,
         college: 1,
+        isVerified: 1,
         totalIpEarned : 1,
         socialLink: 1,
         uid: 1,
