@@ -14,7 +14,8 @@ const {
   deleteAddress,
   getAllAddresses,
   sendMailForApply,
-  getUnapprovedLeaders
+  getUnapprovedLeaders,
+  getChapterLeaders
 } = require("../controllers/chapterLeaderControllers.js");
 const authenticate = require("../middlewares/authentication.js");
 
@@ -39,4 +40,5 @@ router.put("/updateAddress/:addressId", authenticate, updateAddress);
 router.delete("/deleteAddress/:addressId", authenticate, deleteAddress);
 router.post("/sendMailForApply", authenticate, sendMailForApply);
 router.get("/getUnapprovedLeaders", authenticate, getUnapprovedLeaders);
+router.get("/getChapterLeaders", authenticate, getChapterLeaders);
 module.exports = router;

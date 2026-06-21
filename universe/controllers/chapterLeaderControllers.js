@@ -677,7 +677,10 @@ const resetPassword = async (req, res) => {
 
 const getChapterLeaderDetails = async (req, res) => {
   try {
-    const leaderId = req.user.id;
+    const leaderId = req.query.leaderId || req.user.id;
+    if (!leaderId) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: "leaderId is required" });
+    }
     const leader = await ChapterLeader.findById(leaderId);
     if (!leader) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: "Chapter leader not found" });
@@ -997,6 +1000,70 @@ const getUnapprovedLeaders = async (req, res) => {
   }
 }
 
+const getChapterLeaders = async (req, res) => {
+  try {
+    // Admin guard
+    if (req.user.role !== "admin") {
+      return res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Unauthorized access",
+      });
+    }
+
+    const { query, filters, batch, batchSize } = req.query;
+    const allowedFilters = ["status"];
+    
+    const searchQuery = {};
+    if (query) {
+      searchQuery.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { college: { $regex: query, $options: "i" } },
+        { "universityMetaData.name": { $regex: query, $options: "i" } }
+      ];
+    }
+
+    if (filters) {
+      if (filters.status === "verified") {
+        searchQuery.isVerified = true;
+      } 
+      if (filters.status === "pending") {
+        searchQuery.isVerified = false;
+      }
+    }
+
+    const chapterLeaders = await ChapterLeader.find(
+      searchQuery,
+      {
+        name: 1,
+        email: 1,
+        phone: 1,
+        college: 1,
+        isVerified: 1,
+        totalIpEarned : 1,
+        socialLink: 1,
+        uid: 1,
+        universeMetaData: 1
+      }
+    )
+    .sort({ createdAt: -1 })
+    .skip(batch && batchSize ? parseInt(batch) * parseInt(batchSize) : 0)
+    .limit(batchSize ? parseInt(batchSize) : 0);
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Fetched chapter leaders successfully",
+      chapterLeaders
+    });
+
+  } catch (err) {
+    console.error("getChapterLeaders error:", err);
+    return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: "Something went wrong",
+    })
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -1012,6 +1079,7 @@ module.exports = {
   deleteAddress,
   getAllAddresses,
   sendMailForApply,
-  getUnapprovedLeaders
+  getUnapprovedLeaders,
+  getChapterLeaders
 };
 
