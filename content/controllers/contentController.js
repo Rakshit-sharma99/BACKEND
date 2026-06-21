@@ -398,6 +398,12 @@ const getContent = async (req, res) => {
         .send("Could not find the content.");
     }
 
+    console.log(`📤 [getContent] Returning post ${contentId}:`, { 
+      blur: content.blur, 
+      discretion: content.discretion, 
+      underReview: content.underReview 
+    });
+
     return res.status(StatusCodes.OK).json(content);
   } catch (error) {
     console.error("❌ Error fetching content:", error);
@@ -1132,6 +1138,15 @@ const getContentForLanding = async (req, res) => {
       data: finalFeedWithBookmarks,
       nextCursor,
     };
+
+    // DEBUG: Log blur field in response
+    if (finalFeedWithBookmarks.length > 0) {
+      console.log("🔍 BLUR VERIFICATION - First post in response:");
+      console.log("  Post ID:", finalFeedWithBookmarks[0]._id);
+      console.log("  blur field:", finalFeedWithBookmarks[0].blur);
+      console.log("  discretion field:", finalFeedWithBookmarks[0].discretion);
+      console.log("  underReview field:", finalFeedWithBookmarks[0].underReview);
+    }
 
     // Update Short-term Cache
     if (!cursor) {
