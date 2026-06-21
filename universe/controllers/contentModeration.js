@@ -338,8 +338,6 @@ const addDiscretion = async (req, res) => {
       moderationUpdate.blur = blur === true || blur === 'true';
     }
 
-    console.log(`📝 [addDiscretion] Received request:`, { cid, type, discretion, blur, mode });
-
     // Authorization check
     if (req.user.role !== 'admin' && mode !== 'community_moderation') {
       return res
@@ -392,13 +390,11 @@ const addDiscretion = async (req, res) => {
     }
 
     if (resolvedType === 'normal') {
-      console.log(`✅ [addDiscretion] Sending Kafka UPDATE_CONTENT for normal post:`, { cid, blur, discretion });
       await sendKafkaMessage("UPDATE_CONTENT", "content", {
         contentId: cid,
         updatedFields: moderationUpdate
       })
     } else if (resolvedType === 'macbease') {
-      console.log(`✅ [addDiscretion] Updating macbease post directly:`, { cid, blur, discretion });
       const objectId = mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : cid;
       
       // Update macbeasecontents collection
@@ -420,8 +416,6 @@ const addDiscretion = async (req, res) => {
         contentId: cid,
         updatedFields: moderationUpdate
       });
-      
-      console.log(`✅ [addDiscretion] Updated BOTH macbeasecontents AND Content collection for post ${cid}`);
     }
 
     // Update admin review list and send email notifications
