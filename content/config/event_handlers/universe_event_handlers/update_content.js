@@ -7,25 +7,10 @@ const update_content = async (messageValue) => {
 
     const { contentId, updatedFields } = payload;
 
-    console.log(`🔄 [update_content] Processing Kafka event:`, { contentId, updatedFields });
-
     const result = await Content.findByIdAndUpdate(contentId, {
       $set: updatedFields,
     });
 
-    console.log(`✅ [update_content] Database updated successfully for post ${contentId}:`, { 
-      blur: updatedFields.blur, 
-      discretion: updatedFields.discretion,
-      underReview: updatedFields.underReview 
-    });
-
-    // Verify the update in DB
-    const verifyPost = await Content.findById(contentId, { blur: 1, discretion: 1, underReview: 1 });
-    console.log(`🔍 [update_content] Verified in DB:`, { 
-      postId: contentId, 
-      blur: verifyPost?.blur, 
-      discretion: verifyPost?.discretion 
-    });
 
     // If blur or discretion is being updated, invalidate all landing feed caches
     // so users immediately see the updated (blurred) post on their next feed fetch.
