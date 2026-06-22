@@ -5,6 +5,7 @@ const User = require('../models/user');
 const Community = require('../models/community');
 const { sendMail, fetchContentFromIds } = require('../controllers/utils');
 const { sendKafkaMessage } = require('../config/utils/sendKafkaMessage');
+const { getModerationEmailHtml } = require('../utils/moderationEmailTemplate');
 
 const submitForReview = async (req, res) => {
   const { cid, type, reason } = req.body;
@@ -119,6 +120,33 @@ const submitForReview = async (req, res) => {
     }
     admin.save();
     sender.save();
+
+    if (sender && sender.email) {
+      try {
+        const reporterSubject = `We have received your report [Reference ID: #${cid}]`;
+        const emailHTML = getModerationEmailHtml({
+          userName: sender.name,
+          introParagraph1: 'Thank you for reporting content that may violate our community guidelines. Our moderation team has received your report and is currently reviewing it.',
+          introParagraph2: 'If you have any additional context, screenshots, evidence, or information that may help our investigation, you may reply directly to this email and our team will review it as part of the case.',
+          isReporter: true
+        });
+        const { ses, params } = await sendMail(
+          sender.name,
+          '',
+          '',
+          reporterSubject,
+          [sender.email],
+          undefined,
+          emailHTML
+        );
+        ses.sendEmail(params, function (err) {
+          if (err) console.log('Error sending report confirmation email to reporter:', err);
+        });
+      } catch (emailErr) {
+        console.error('Error sending report confirmation email to reporter:', emailErr.message);
+      }
+    }
+
     return res
       .status(StatusCodes.OK)
       .send('Post successfully submitted for review.');
@@ -266,53 +294,65 @@ const discardReviewClaim = async (req, res) => {
         );
       }
       let admin = await Admin.findOne({ "reviewContent.cid": cid }, { reviewContent: 1 });
+      
+      const activeReports = admin ? admin.reviewContent.filter(
+        (dataPoint) => dataPoint.cid === cid && dataPoint.status === 0
+      ) : [];
+      const uniqueReporterIds = [...new Set(activeReports.map((item) => item.userId).filter(Boolean))];
+      
+      let reporters = [];
+      if (uniqueReporterIds.length > 0) {
+        reporters = await User.find(
+          { _id: { $in: uniqueReporterIds } },
+          { email: 1, name: 1 }
+        );
+      }
+
       if (admin) {
-        let reviewList = admin.reviewContent;
-        for (let i = 0; i < reviewList.length; i++) {
-          let dataPoint = reviewList[i];
-          if (dataPoint.cid === cid) {
-            dataPoint.status = 1;
-            userId = dataPoint.userId;
-            break;
-          }
-        }
+        const reviewList = admin.reviewContent.map((dataPoint) =>
+          dataPoint.cid === cid ? { ...dataPoint, status: 1 } : dataPoint
+        );
         admin.reviewContent = [];
         admin.reviewContent = reviewList;
-        admin.save();
+        await admin.save();
       }
-      //code to send review result email
-      if (userId) {
-        const user = await User.findById(userId, { email: 1, name: 1 });
-        const intro = [
-          'Thank you for taking out time to report content. This helps us to stick to rigorous community guidelines.',
-          `After much consultation, the content has been declared fit for the platform.`,
-        ];
-        const outro =
-          'If you did not report a content, please avoid this email.';
-        const subject = 'Content Review Action';
-        const destination = [user.email];
-        const { ses, params } = await sendMail(
-          user.name,
-          intro,
-          outro,
-          subject,
-          destination
-        );
-        ses.sendEmail(params, function (err, data) {
-          if (err) {
-            console.log(err, err.stack);
-            return res.status(StatusCodes.OK).send('Something went wrong.');
-          } else {
-            return res
-              .status(StatusCodes.OK)
-              .send('Review discarded successfully.');
+
+      // Send platform-fit notifications to all unique reporters using the new template
+      for (const reporter of reporters) {
+        if (reporter && reporter.email) {
+          try {
+            const reporterSubject = `Content Review Update - Action Completed [Reference ID: #${cid}]`;
+            const emailHTML = getModerationEmailHtml({
+              userName: reporter.name,
+              introParagraph1: 'Thank you for taking the time to report content. Your vigilance helps us maintain a safe and respectful community.',
+              introParagraph2: 'After careful review by our moderation team, the reported content has been declared fit for the platform and no further action is required.',
+              actionTitle: 'Content review completed',
+              actionDescription: 'Content found compliant with community guidelines',
+              outroParagraph1: 'If you did not report this content,',
+              outroParagraph2: 'please disregard this email.',
+              isReporter: true
+            });
+            const { ses, params } = await sendMail(
+              reporter.name,
+              '',
+              '',
+              reporterSubject,
+              [reporter.email],
+              undefined,
+              emailHTML
+            );
+            ses.sendEmail(params, function (err) {
+              if (err) console.log('Error sending fit-for-platform email to reporter:', err);
+            });
+          } catch (emailErr) {
+            console.error('Error sending fit-for-platform email to reporter:', emailErr.message);
           }
-        });
-      } else {
-        return res
-          .status(StatusCodes.OK)
-          .send('Review discarded successfully.');
+        }
       }
+
+      return res
+        .status(StatusCodes.OK)
+        .send('Review discarded successfully.');
     } else {
       return res
         .status(StatusCodes.MISDIRECTED_REQUEST)
@@ -426,11 +466,19 @@ const addDiscretion = async (req, res) => {
         return res.status(StatusCodes.NOT_FOUND).send('Admin not found.');
       }
 
-      // Find the reporter's userId before updating status
-      const reviewItem = admin.reviewContent.find(
-        (dataPoint) => dataPoint.cid === cid
+      // Find all unique active reporters associated with this content
+      const activeReports = admin.reviewContent.filter(
+        (dataPoint) => dataPoint.cid === cid && dataPoint.status === 0
       );
-      const reporterUserId = reviewItem ? reviewItem.userId : null;
+      const uniqueReporterIds = [...new Set(activeReports.map((item) => item.userId).filter(Boolean))];
+      
+      let reporters = [];
+      if (uniqueReporterIds.length > 0) {
+        reporters = await User.find(
+          { _id: { $in: uniqueReporterIds } },
+          { email: 1, name: 1 }
+        );
+      }
 
       const reviewList = admin.reviewContent.map((dataPoint) =>
         dataPoint.cid === cid ? { ...dataPoint, status: 1 } : dataPoint
@@ -441,35 +489,36 @@ const addDiscretion = async (req, res) => {
 
       // Send email notifications when post is blurred
       if (moderationUpdate.blur) {
-        // Email to reporter (the user who reported)
-        if (reporterUserId) {
-          try {
-            const reporter = await User.findById(reporterUserId, {
-              email: 1,
-              name: 1,
-            });
-            if (reporter && reporter.email) {
-              const reporterIntro = [
-                'Thank you for taking the time to report content. Your vigilance helps us maintain a safe community.',
-                'After careful review by our moderation team, appropriate action has been taken on the reported content.',
-                `A discretion notice has been applied: "${discretion}"`,
-              ];
-              const reporterOutro =
-                'If you did not report a content, please disregard this email.';
-              const reporterSubject = 'Content Review Update - Action Taken';
+        // Send email to every unique reporter who reported the content
+        for (const reporter of reporters) {
+          if (reporter && reporter.email) {
+            try {
+              const reporterSubject = `Content Review Update - Action Taken [Reference ID: #${cid}]`;
+              const emailHTML = getModerationEmailHtml({
+                userName: reporter.name,
+                introParagraph1: 'Thank you for taking the time to report content. Your vigilance helps us maintain a safe and respectful community.',
+                introParagraph2: 'After careful review by our moderation team, appropriate action has been taken on the reported content.',
+                actionTitle: 'Discretion notice applied',
+                actionDescription: discretion,
+                outroParagraph1: 'If you did not report this content,',
+                outroParagraph2: 'please disregard this email.',
+                isReporter: true
+              });
               const { ses, params } = await sendMail(
                 reporter.name,
-                reporterIntro,
-                reporterOutro,
+                '',
+                '',
                 reporterSubject,
-                [reporter.email]
+                [reporter.email],
+                undefined,
+                emailHTML
               );
               ses.sendEmail(params, function (err) {
                 if (err) console.log('Error sending email to reporter:', err);
               });
+            } catch (emailErr) {
+              console.error('Error sending email to reporter:', emailErr.message);
             }
-          } catch (emailErr) {
-            console.error('Error sending email to reporter:', emailErr.message);
           }
         }
 
@@ -490,21 +539,25 @@ const addDiscretion = async (req, res) => {
               name: 1,
             });
             if (postOwner && postOwner.email) {
-              const ownerIntro = [
-                'Your content has been reviewed by our moderation team.',
-                `A discretion notice has been added to your post: "${discretion}"`,
-                'The content has been blurred for other users. If you believe this was done in error, please reach out to us.',
-              ];
-              const ownerOutro =
-                'Please review our community guidelines for more information.';
-              const ownerSubject =
-                'Content Moderation Notice - Your Post Has Been Reviewed';
+              const ownerSubject = `Content Moderation Notice - Action Taken [Reference ID: #${cid}]`;
+              const emailHTML = getModerationEmailHtml({
+                userName: postOwner.name,
+                introParagraph1: 'Your content has been moderated because it was found to violate one or more community guidelines.',
+                introParagraph2: '',
+                actionTitle: 'Action Taken: Content blurred/restricted by moderation team',
+                actionDescription: `Reason: ${discretion}`,
+                outroParagraph1: 'How to appeal this decision?',
+                outroParagraph2: 'If you believe this decision was made in error, you may appeal by replying directly to this email and providing any additional context or evidence that supports your position. Our moderation team will review your appeal and contact you with the outcome.',
+                isReporter: false
+              });
               const { ses, params } = await sendMail(
                 postOwner.name,
-                ownerIntro,
-                ownerOutro,
+                '',
+                '',
                 ownerSubject,
-                [postOwner.email]
+                [postOwner.email],
+                undefined,
+                emailHTML
               );
               ses.sendEmail(params, function (err) {
                 if (err)
