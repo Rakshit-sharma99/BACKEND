@@ -20,6 +20,20 @@ const submitForReview = async (req, res) => {
           'Sorry! Content moderation team is unavailable. Please try again later.',
       });
     }
+
+    // Prevent duplicate active reports for the same content while moderation case is open (status === 0)
+    const alreadyReportedActive = admin.reviewContent && admin.reviewContent.some(
+      (dataPoint) =>
+        dataPoint.cid && dataPoint.cid.toString() === cid.toString() &&
+        dataPoint.userId && dataPoint.userId.toString() === req.user.id.toString() &&
+        dataPoint.status === 0
+    );
+    if (alreadyReportedActive) {
+      return res.status(StatusCodes.BAD_REQUEST).json({
+        error: 'You have already reported this content, and it is currently under review.',
+      });
+    }
+
     let resolvedType = type ? type.toLowerCase() : 'normal';
     const isMacbease = await mongoose.connection.db.collection('macbeasecontents').findOne({
       _id: mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : cid
@@ -583,9 +597,131 @@ const addDiscretion = async (req, res) => {
   }
 };
 
+const unblurContent = async (req, res) => {
+  try {
+    const { cid, type } = req.body;
+
+    if (req.user.role !== 'admin') {
+      return res
+        .status(StatusCodes.MISDIRECTED_REQUEST)
+        .send('You are not authorized to access this route.');
+    }
+
+    const moderationUpdate = {
+      underReview: false,
+      discretion: "",
+      blur: false,
+    };
+
+    // Update content based on type (dynamically resolved)
+    let resolvedType = type ? type.toLowerCase() : 'normal';
+    const isMacbease = await mongoose.connection.db.collection('macbeasecontents').findOne({
+      _id: mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : cid
+    });
+    if (isMacbease) {
+      resolvedType = 'macbease';
+    }
+
+    if (resolvedType === 'normal') {
+      await sendKafkaMessage("UPDATE_CONTENT", "content", {
+        contentId: cid,
+        updatedFields: moderationUpdate
+      });
+    } else if (resolvedType === 'macbease') {
+      const objectId = mongoose.Types.ObjectId.isValid(cid) ? new mongoose.Types.ObjectId(cid) : cid;
+      
+      // Update macbeasecontents collection
+      await mongoose.connection.db.collection('macbeasecontents').updateOne(
+        { _id: objectId },
+        { $set: moderationUpdate }
+      );
+      
+      // ALSO update Content collection so feed API gets the unblur
+      await mongoose.connection.db.collection('contents').updateOne(
+        { _id: objectId },
+        { $set: moderationUpdate }
+      );
+
+      // Publish update event so content service invalidates cache
+      await sendKafkaMessage("UPDATE_CONTENT", "content", {
+        contentId: cid,
+        updatedFields: moderationUpdate
+      });
+    }
+
+    // Update admin review list and status
+    const admin = await Admin.findOne({ "reviewContent.cid": cid }, { reviewContent: 1 });
+    if (admin) {
+      const reviewList = admin.reviewContent.map((dataPoint) =>
+        dataPoint.cid === cid ? { ...dataPoint, status: 1 } : dataPoint
+      );
+      admin.reviewContent = [];
+      admin.reviewContent = reviewList;
+      await admin.save();
+    }
+
+    // Send appeal approval notification email to post owner
+    try {
+      const contentData = await fetchContentFromIds({
+        contentIds: [cid],
+        select: ['idOfSender'],
+      });
+      const postOwnerId =
+        contentData && contentData.length > 0
+          ? contentData[0].idOfSender
+          : null;
+
+      if (postOwnerId) {
+        const postOwner = await User.findById(postOwnerId, {
+          email: 1,
+          name: 1,
+        });
+        if (postOwner && postOwner.email) {
+          const ownerSubject = `Content Appeal Approved - Content Restored [Reference ID: #${cid}]`;
+          const emailHTML = getModerationEmailHtml({
+            userName: postOwner.name,
+            introParagraph1: 'We are pleased to inform you that your appeal has been accepted after review by our moderation team.',
+            introParagraph2: 'The restrictions on your content have been removed, and it is now fully visible and restored on the platform.',
+            actionTitle: 'Content Restored',
+            actionDescription: 'Your content was reviewed and confirmed to comply with our community guidelines.',
+            outroParagraph1: 'If you have any further questions,',
+            outroParagraph2: 'please contact our support team.',
+            isReporter: false
+          });
+          const { ses, params } = await sendMail(
+            postOwner.name,
+            '',
+            '',
+            ownerSubject,
+            [postOwner.email],
+            undefined,
+            emailHTML
+          );
+          ses.sendEmail(params, function (err) {
+            if (err) console.log('Error sending appeal approval email to post owner:', err);
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.error(
+        'Error sending appeal approval email to post owner:',
+        emailErr.message
+      );
+    }
+
+    return res.status(StatusCodes.OK).send('Content unblurred and restored successfully.');
+  } catch (error) {
+    console.error('Error in unblurContent:', error.message);
+    return res
+      .status(StatusCodes.INTERNAL_SERVER_ERROR)
+      .json({ error: 'An error occurred while unblurring the content.' });
+  }
+};
+
 module.exports = {
   submitForReview,
   readContentForModeration,
   discardReviewClaim,
   addDiscretion,
+  unblurContent,
 };
