@@ -9,8 +9,6 @@ const getModerationEmailHtml = ({
   isReporter,
 }) => {
   const domain = process.env.UNIVERSE_DOMAIN || 'https://macbease.com';
-  // Use the image copied to the backend for the logo
-  const logoUrl = `${domain}/assets/Macbease-01-DasH-luL.png`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -203,12 +201,8 @@ const getModerationEmailHtml = ({
         <td class="email-header">
           <table width="100%">
             <tr>
-              <td align="left" valign="middle" class="brand">
-                <img src="${logoUrl}" alt="Macbease" style="max-height: 40px; display: block;" onerror="this.src='https://macbease.com/assets/images/logo.png'">
-              </td>
-              <td align="right" valign="middle">
-                <!-- Decorative document icon with checkmark for the header -->
-                <img src="https://img.icons8.com/fluency/96/000000/task.png" alt="Header Decor" style="max-height: 60px; opacity: 0.9; display: block;">
+              <td align="center" valign="middle" class="brand">
+                <span style="font-size: 28px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">MACBEASE</span>
               </td>
             </tr>
           </table>
@@ -225,14 +219,14 @@ const getModerationEmailHtml = ({
           
           ${actionTitle ? `
           <!-- Action Card -->
-          <table class="action-card" width="100%">
+          <table class="action-card" width="100%" style="border-collapse: separate;">
             <tr>
-              <td width="56" valign="top">
+              <td width="56" valign="middle">
                 <div class="action-icon">
                   <img src="https://img.icons8.com/fluency-systems-regular/48/3b82f6/visible.png" alt="Eye">
                 </div>
               </td>
-              <td valign="top" class="action-content">
+              <td valign="middle" class="action-content">
                 <h3>${actionTitle}</h3>
                 ${actionDescription ? `<p>"${actionDescription}"</p>` : ''}
               </td>
@@ -246,12 +240,12 @@ const getModerationEmailHtml = ({
             <!-- Ignore / Appeal Notice -->
             <table width="100%" style="margin-bottom: 24px;">
               <tr>
-                <td width="48" valign="top">
+                <td width="48" valign="middle">
                   <div class="notice-icon">
                     <img src="${isReporter ? 'https://img.icons8.com/fluency-systems-regular/48/6b7280/security-checked.png' : 'https://img.icons8.com/fluency-systems-regular/48/ef4444/info.png'}" alt="Notice Icon">
                   </div>
                 </td>
-                <td valign="top" class="notice-content">
+                <td valign="middle" class="notice-content">
                   <h4>${outroParagraph1}</h4>
                   <p>${outroParagraph2 || ''}</p>
                 </td>
@@ -262,12 +256,12 @@ const getModerationEmailHtml = ({
             <!-- Support Notice -->
             <table width="100%" style="margin-bottom: 32px;">
               <tr>
-                <td width="48" valign="top">
+                <td width="48" valign="middle">
                   <div class="notice-icon blue">
                     <img src="https://img.icons8.com/fluency-systems-regular/48/3b82f6/headset.png" alt="Headset">
                   </div>
                 </td>
-                <td valign="top" class="notice-content">
+                <td valign="middle" class="notice-content">
                   <h4>Need help?</h4>
                   <p style="margin-bottom: 12px;">If you have any questions or concerns,<br>feel free to reach out to our support team.</p>
                 </td>
@@ -280,12 +274,12 @@ const getModerationEmailHtml = ({
             <!-- Signature -->
             <table width="100%">
               <tr>
-                <td width="48" valign="top">
+                <td width="48" valign="middle">
                   <div style="width: 32px; height: 32px; text-align: center;">
                     <img src="https://img.icons8.com/fluency-systems-regular/48/3b82f6/like.png" alt="Heart" style="width: 16px; margin-top: 8px;">
                   </div>
                 </td>
-                <td valign="top" class="signature">
+                <td valign="middle" class="signature">
                   <p>Yours truly,</p>
                   <p class="team">Macbease Team</p>
                 </td>
